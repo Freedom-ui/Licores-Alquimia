@@ -1,0 +1,132 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ── Usuarios y roles ─────────────────────────────────────────
+enum Rol {
+  ADMIN
+  OPERADOR
+}
+
+model Usuario {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  nombre       String
+  rol          Rol      @default(OPERADOR)
+  createdAt    DateTime @default(now())
+
+  ventasCreadas Venta[] @relation("VendedorRelacion")
+}
+
+// ── Catálogo ─────────────────────────────────────────────────
+model Producto {
+  id       Int    @id @default(autoincrement())
+  nombre   String @unique
+
+  lotes             Lote[]
+  ventas            Venta[]
+  movimientosStock  MovimientoStock[]
+}
+
+// ── Clientes ─────────────────────────────────────────────────
+model Cliente {
+  id     Int     @id @default(autoincrement())
+  nombre String
+  tipo   String?
+  local  String?
+  canal  String?
+
+  ventas Venta[]
+}
+
+// ── Trazabilidad ─────────────────────────────────────────────
+enum EstadoLote {
+  EN_PRODUCCION
+  ACTIVO
+  AGOTADO
+}
+
+model Lote {
+  id               Int        @id @default(autoincrement())
+  numero           String     @unique
+  producto         Producto   @relation(fields: [productoId], references: [id])
+  productoId       Int
+  fechaProduccion  DateTime
+  cantidad         Int
+  responsable      String
+  estado           EstadoLote @default(EN_PRODUCCION)
+  alcohol          Float?
+  esencia          Float?
+  azucar           Float?
+  createdAt        DateTime   @default(now())
+
+  ventas Venta[]
+}
+
+// ── Ventas ───────────────────────────────────────────────────
+enum Condicion {
+  CONTADO
+  CREDITO
+  CONSIGNACION
+}
+
+enum Canal {
+  MAYOR
+  MINOR
+}
+
+enum EstadoPago {
+  PENDIENTE
+  PAGADO
+}
+
+model Venta {
+  id             Int         @id @default(autoincrement())
+  numero         Int         @unique
+  fecha          DateTime    @default(now())
+
+  cliente        Cliente     @relation(fields: [clienteId], references: [id])
+  clienteId      Int
+
+  vendedor       Usuario     @relation("VendedorRelacion", fields: [vendedorId], references: [id])
+  vendedorId     Int
+
+  producto       Producto    @relation(fields: [productoId], references: [id])
+  productoId     Int
+
+  lote           Lote?       @relation(fields: [loteId], references: [id])
+  loteId         Int?
+
+  cantidad       Int
+  canal          Canal
+  condicion      Condicion
+  precioUnitario Float
+  total          Float
+  estadoPago     EstadoPago  @default(PENDIENTE)
+
+  createdAt      DateTime    @default(now())
+}
+
+// ── Stock ────────────────────────────────────────────────────
+enum TipoMovimiento {
+  ENTRADA
+  SALIDA
+}
+
+model MovimientoStock {
+  id         Int            @id @default(autoincrement())
+  tipo       TipoMovimiento
+  producto   Producto       @relation(fields: [productoId], references: [id])
+  productoId Int
+  cantidad   Int
+  fecha      DateTime       @default(now())
+}
