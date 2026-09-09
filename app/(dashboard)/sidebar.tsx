@@ -3,13 +3,34 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-const items = [
-  { href: "/", label: "Dashboard", icon: "◆" },
-  { href: "/ventas", label: "Ventas", icon: "▤" },
-  { href: "/stock", label: "Stock", icon: "▥" },
-  { href: "/trazabilidad", label: "Trazabilidad", icon: "▦" },
-  { href: "/clientes", label: "Clientes", icon: "▧" },
-  { href: "/estadisticas", label: "Estadísticas", icon: "▨" },
+const principal = { href: "/", label: "Panel principal", icon: "❖" };
+
+const secciones = [
+  {
+    label: "Comercial",
+    items: [
+      { href: "/ventas", label: "Ventas", icon: "▤" },
+      { href: "/clientes", label: "Clientes", icon: "▧" },
+    ],
+  },
+  {
+    label: "Inventario",
+    items: [
+      { href: "/stock", label: "Stock", icon: "☰" },
+      { href: "/trazabilidad", label: "Trazabilidad", icon: "▦" },
+    ],
+  },
+  {
+    label: "Administración",
+    items: [
+      { href: "/finanzas", label: "Finanzas", icon: "$" },
+      { href: "/estadisticas", label: "Estadísticas", icon: "▨" },
+    ],
+  },
+  {
+    label: "Sistemas",
+    items: [{ href: "/importacion", label: "Importación", icon: "▩" }],
+  },
 ];
 
 export default function Sidebar({
@@ -34,15 +55,28 @@ export default function Sidebar({
       </div>
 
       <nav className="sidebar-nav">
-        {items.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`nav-item ${pathname === item.href ? "active" : ""}`}
-          >
-            <span className="icon">{item.icon}</span>
-            {item.label}
-          </Link>
+        <Link
+          href={principal.href}
+          className={`nav-item ${pathname === principal.href ? "active" : ""}`}
+        >
+          <span className="icon">{principal.icon}</span>
+          {principal.label}
+        </Link>
+
+        {secciones.map((seccion) => (
+          <div key={seccion.label} className="nav-section">
+            <div className="nav-section-label">{seccion.label}</div>
+            {seccion.items.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`nav-item ${pathname === item.href ? "active" : ""}`}
+              >
+                <span className="icon">{item.icon}</span>
+                {item.label}
+              </Link>
+            ))}
+          </div>
         ))}
       </nav>
 
