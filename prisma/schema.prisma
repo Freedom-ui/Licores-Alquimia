@@ -39,11 +39,15 @@ model Producto {
 
 // ── Clientes ─────────────────────────────────────────────────
 model Cliente {
-  id     Int     @id @default(autoincrement())
-  nombre String
-  tipo   String?
-  local  String?
-  canal  String?
+  id             Int      @id @default(autoincrement())
+  razonSocial    String?
+  apellidoNombre String?
+  condIva        String?
+  cuit           String?
+  telCel         String?
+  mail           String?
+  domicilio      String?
+  createdAt      DateTime @default(now())
 
   ventas Venta[]
 }
