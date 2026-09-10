@@ -1,37 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-
-const principal = { href: "/", label: "Panel principal", icon: "❖" };
-
-const secciones = [
-  {
-    label: "Comercial",
-    items: [
-      { href: "/ventas", label: "Ventas", icon: "▤" },
-      { href: "/clientes", label: "Clientes", icon: "▧" },
-    ],
-  },
-  {
-    label: "Inventario",
-    items: [
-      { href: "/stock", label: "Stock", icon: "☰" },
-      { href: "/trazabilidad", label: "Trazabilidad", icon: "▦" },
-    ],
-  },
-  {
-    label: "Administración",
-    items: [
-      { href: "/finanzas", label: "Finanzas", icon: "$" },
-      { href: "/estadisticas", label: "Estadísticas", icon: "▨" },
-    ],
-  },
-  {
-    label: "Sistemas",
-    items: [{ href: "/importacion", label: "Importación", icon: "▩" }],
-  },
-];
+import { usePathname } from "next/navigation";
+import { panelPrincipal, navSections } from "./nav-data";
+import NavTree from "./nav-tree";
 
 export default function Sidebar({
   usuario,
@@ -56,27 +29,18 @@ export default function Sidebar({
 
       <nav className="sidebar-nav">
         <Link
-          href={principal.href}
-          className={`nav-item ${pathname === principal.href ? "active" : ""}`}
+          href={panelPrincipal.href!}
+          className={`nav-item depth-0 ${pathname === panelPrincipal.href ? "active" : ""}`}
+          style={{ paddingLeft: 18 }}
         >
-          <span className="icon">{principal.icon}</span>
-          {principal.label}
+          <span className="nav-item-label">
+            <span className="icon">{panelPrincipal.icon}</span>
+            <span>{panelPrincipal.label}</span>
+          </span>
         </Link>
 
-        {secciones.map((seccion) => (
-          <div key={seccion.label} className="nav-section">
-            <div className="nav-section-label">{seccion.label}</div>
-            {seccion.items.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`nav-item ${pathname === item.href ? "active" : ""}`}
-              >
-                <span className="icon">{item.icon}</span>
-                {item.label}
-              </Link>
-            ))}
-          </div>
+        {navSections.map((section) => (
+          <NavTree key={section.label} node={section} depth={0} />
         ))}
       </nav>
 
