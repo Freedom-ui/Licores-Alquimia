@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { NavNode } from "./nav-data";
+import Icon from "./icons";
 
 function nodeContainsPath(node: NavNode, pathname: string): boolean {
   if (node.href === pathname) return true;
@@ -39,7 +40,11 @@ export default function NavTree({
       >
         {node.href ? (
           <Link href={node.href} className="nav-item-label">
-            {node.icon && <span className="icon">{node.icon}</span>}
+            {node.icon && (
+              <span className="icon">
+                <Icon name={node.icon} />
+              </span>
+            )}
             <span>{node.label}</span>
           </Link>
         ) : (
@@ -48,7 +53,11 @@ export default function NavTree({
             onClick={() => hasChildren && setOpen((o) => !o)}
             style={{ cursor: hasChildren ? "pointer" : "default" }}
           >
-            {node.icon && <span className="icon">{node.icon}</span>}
+            {node.icon && (
+              <span className="icon">
+                <Icon name={node.icon} />
+              </span>
+            )}
             <span>{node.label}</span>
           </span>
         )}
