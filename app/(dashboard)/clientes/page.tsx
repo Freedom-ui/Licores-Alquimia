@@ -1,3 +1,6 @@
+import ClientesView from "./ClientesView";
+import { clientesDemo } from "./data";
+
 export default function ClientesPage() {
   return (
     <>
@@ -5,7 +8,7 @@ export default function ClientesPage() {
         <span className="topbar-title">Clientes</span>
       </div>
       <div className="content">
-        <div className="placeholder-view">Módulo de Clientes — próximamente</div>
+        <ClientesView initialRows={clientesDemo} />
       </div>
     </>
   );
