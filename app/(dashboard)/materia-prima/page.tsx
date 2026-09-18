@@ -1,3 +1,6 @@
+import MateriaPrimaView from "./MateriaPrimaView";
+import { materiaPrimaDemo } from "./data";
+
 export default function MateriaPrimaPage() {
   return (
     <>
@@ -5,7 +8,7 @@ export default function MateriaPrimaPage() {
         <span className="topbar-title">Materia prima</span>
       </div>
       <div className="content">
-        <div className="placeholder-view">Módulo de Materia prima — próximamente</div>
+        <MateriaPrimaView initialRows={materiaPrimaDemo} />
       </div>
     </>
   );
