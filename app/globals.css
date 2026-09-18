@@ -412,6 +412,34 @@ body {
 
 .dt-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
+.dt-pdf-btn {
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--naranja);
+  background: transparent;
+  color: var(--naranja-dark);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s, color .12s;
+}
+.dt-pdf-btn:hover:not(:disabled) { background: rgba(212,119,42,.1); }
+.dt-pdf-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.dt-excel-btn {
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: 1px solid #1E6E42;
+  background: #217346;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: .85;
+  cursor: not-allowed;
+}
+
 .dt-table-scroll {
   flex: 1;
   min-height: 0;

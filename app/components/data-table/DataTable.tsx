@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { Column, DataTableProps } from "./types";
 import { formatCellValue, searchableText } from "./format";
 import ConfirmDeleteDialog from "./ConfirmDeleteDialog";
+import { exportRowsToPdf } from "./exportPdf";
 
 type SortDir = "asc" | "desc";
 
@@ -13,6 +14,8 @@ export default function DataTable<T extends Record<string, unknown>>({
   rows,
   emptyMessage,
   actions,
+  hideExport,
+  hideImport,
   onEditRow,
   onDeleteRow,
 }: DataTableProps<T>) {
@@ -132,6 +135,17 @@ export default function DataTable<T extends Record<string, unknown>>({
   const deleteRowLabel =
     pendingDelete && deleteLabelColumn ? String(pendingDelete[deleteLabelColumn.key] ?? "") : "";
 
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExportPdf() {
+    setExporting(true);
+    try {
+      await exportRowsToPdf(title, columns, sortedRows);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="dt-wrapper">
       <div className="dt-toolbar">
@@ -174,7 +188,29 @@ export default function DataTable<T extends Record<string, unknown>>({
           </button>
         )}
 
-        {actions && <div className="dt-actions">{actions}</div>}
+        <div className="dt-actions">
+          {!hideExport && (
+            <button
+              type="button"
+              className="dt-pdf-btn"
+              onClick={handleExportPdf}
+              disabled={exporting || sortedRows.length === 0}
+            >
+              {exporting ? "Generando…" : "Descargar PDF"}
+            </button>
+          )}
+          {!hideImport && (
+            <button
+              type="button"
+              className="dt-excel-btn"
+              disabled
+              title="Disponible próximamente"
+            >
+              Importar Excel
+            </button>
+          )}
+          {actions}
+        </div>
       </div>
 
       <div className="dt-table-scroll">
