@@ -29,9 +29,11 @@ export type Column<T> = {
   filterable?: boolean;
   /** Si permite ordenar al hacer click en el encabezado. Default: true. */
   sortable?: boolean;
-  /** Ancho fijo opcional (css), ej. "120px". */
+  /** Ancho opcional (css), ideal en %, ej. "12%", para que la tabla nunca necesite scroll horizontal. */
   width?: string;
   align?: "left" | "right" | "center";
+  /** Texto completo a mostrar como tooltip al pasar el mouse por el encabezado (útil si `label` está abreviado). */
+  title?: string;
   /** Metadata para generar el campo correspondiente en RecordFormModal (alta manual de un registro). */
   form?: ColumnFormConfig;
 };

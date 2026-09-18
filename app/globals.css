@@ -453,6 +453,7 @@ body {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  table-layout: fixed;
 }
 
 .dt-table thead {
@@ -470,31 +471,37 @@ body {
   letter-spacing: .4px;
   color: var(--text-muted);
   border-bottom: 1px solid var(--border);
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
   user-select: none;
 }
 .dt-th-sortable { cursor: pointer; }
 .dt-th-sortable:hover { color: var(--text); }
 
 .dt-th-label {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 5px;
+  min-width: 0;
 }
-.dt-sort-icon { font-size: 9px; opacity: .35; }
+.dt-th-text { min-width: 0; }
+.dt-sort-icon { font-size: 9px; opacity: .35; flex-shrink: 0; }
 .dt-sort-icon.active { opacity: 1; color: var(--naranja); }
 
 .dt-table td {
   padding: 9px 14px;
   border-bottom: 1px solid #EDEAE4;
   color: var(--text);
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 .dt-table tbody tr:hover { background: #FAF8F4; }
 .dt-table tbody tr:last-child td { border-bottom: none; }
 
 .dt-tag {
   display: inline-block;
+  max-width: 100%;
+  overflow-wrap: break-word;
   padding: 2px 9px;
   border-radius: 999px;
   background: rgba(212,119,42,.12);
@@ -503,23 +510,33 @@ body {
   font-weight: 600;
 }
 
-.dt-email { color: var(--naranja-dark); text-decoration: none; }
+.dt-email {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  color: var(--naranja-dark);
+  text-decoration: none;
+}
 .dt-email:hover { text-decoration: underline; }
 
-.dt-actions-col { width: 76px; text-align: right !important; }
+.dt-actions-col { width: 8%; text-align: right !important; }
 .dt-actions-cell {
   text-align: right;
   white-space: nowrap;
+  overflow: visible !important;
   padding-top: 6px !important;
   padding-bottom: 6px !important;
+  padding-left: 4px !important;
+  padding-right: 8px !important;
 }
 
 .dt-row-action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 23px;
+  height: 23px;
+  flex-shrink: 0;
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -562,62 +579,98 @@ body {
 .rf-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(20,20,20,.45);
+  background: rgba(15,13,10,.55);
+  backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
   z-index: 50;
+  animation: rf-overlay-in .15s ease-out;
+}
+
+@keyframes rf-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .rf-modal {
   width: 100%;
-  max-width: 440px;
   max-height: calc(100vh - 40px);
   overflow-y: auto;
   background: #F9F7F3;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: 0 8px 28px rgba(0,0,0,.22);
+  box-shadow: 0 20px 48px rgba(0,0,0,.28);
+  animation: rf-modal-in .18s cubic-bezier(.2,.9,.3,1);
+}
+
+@keyframes rf-modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(.98); }
+  to { opacity: 1; transform: none; }
 }
 
 .rf-modal-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 16px 20px;
+  gap: 12px;
+  padding: 18px 20px;
   border-bottom: 1px solid var(--border);
 }
+.rf-modal-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--naranja-dark);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  margin-bottom: 3px;
+}
 .rf-modal-header h2 {
-  font-family: Georgia, serif;
-  font-size: 15.5px;
-  font-weight: normal;
+  font-family: var(--font);
+  font-size: 16px;
+  font-weight: 700;
   color: var(--text);
+  letter-spacing: -.1px;
 }
 
 .rf-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
   border: none;
+  border-radius: 999px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 15px;
+  font-size: 13px;
   cursor: pointer;
-  padding: 4px;
   line-height: 1;
+  transition: background .12s, color .12s;
 }
-.rf-close-btn:hover { color: var(--text); }
+.rf-close-btn:hover { background: var(--bg-alt); color: var(--text); }
 
 .rf-form {
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+}
+
+.rf-fields-grid {
+  display: grid;
+  gap: 14px 16px;
 }
 
 .rf-field {
   display: flex;
   flex-direction: column;
   gap: 5px;
+  min-width: 0;
 }
+.rf-field-full { grid-column: 1 / -1; }
 .rf-field label {
   font-size: 11px;
   font-weight: 600;
