@@ -12,6 +12,25 @@ const dateFormatter = new Intl.DateTimeFormat("es-AR", {
   year: "numeric",
 });
 
+/**
+ * Convierte a Date en horario LOCAL, no UTC. Un string "YYYY-MM-DD" (lo que
+ * produce <input type="date">) lo interpreta el motor de JS como medianoche
+ * UTC — en Argentina (UTC-3) eso muestra un día menos al formatear. Por eso
+ * las fechas de solo-día se arman a mano con año/mes/día locales.
+ */
+function toLocalDate(value: unknown): Date | null {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === "string") {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (m) {
+      const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+  }
+  const d = new Date(value as string);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export function formatCellValue(value: unknown, type: ColumnType = "text"): string {
   if (value === null || value === undefined || value === "") return "—";
 
@@ -21,8 +40,8 @@ export function formatCellValue(value: unknown, type: ColumnType = "text"): stri
       return Number.isNaN(n) ? String(value) : currencyFormatter.format(n);
     }
     case "date": {
-      const d = value instanceof Date ? value : new Date(value as string);
-      return Number.isNaN(d.getTime()) ? String(value) : dateFormatter.format(d);
+      const d = toLocalDate(value);
+      return d === null ? String(value) : dateFormatter.format(d);
     }
     case "number":
       return String(value);

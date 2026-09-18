@@ -134,6 +134,9 @@ export default function DataTable<T extends Record<string, unknown>>({
   const deleteLabelColumn = columns[0];
   const deleteRowLabel =
     pendingDelete && deleteLabelColumn ? String(pendingDelete[deleteLabelColumn.key] ?? "") : "";
+  // Si la primera columna es un número (ej. "OP N°"), no tiene sentido citarlo
+  // entre comillas como si fuera un nombre — se lee mejor como "registro N° 1".
+  const deleteRowIsNumeric = deleteLabelColumn?.type === "number";
 
   const [exporting, setExporting] = useState(false);
 
@@ -324,7 +327,9 @@ export default function DataTable<T extends Record<string, unknown>>({
         sectionTitle={title}
         message={
           deleteRowLabel
-            ? `¿Eliminar "${deleteRowLabel}" de ${title.toLowerCase()}? Esta acción no se puede deshacer.`
+            ? deleteRowIsNumeric
+              ? `¿Eliminar el registro N° ${deleteRowLabel} de ${title.toLowerCase()}? Esta acción no se puede deshacer.`
+              : `¿Eliminar "${deleteRowLabel}" de ${title.toLowerCase()}? Esta acción no se puede deshacer.`
             : `¿Eliminar este registro de ${title.toLowerCase()}? Esta acción no se puede deshacer.`
         }
         error={deleteError}
