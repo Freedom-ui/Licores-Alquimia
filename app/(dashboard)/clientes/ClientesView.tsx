@@ -9,29 +9,54 @@ import type { ClienteRow } from "./data";
 
 const columns: Column<ClienteRow>[] = [
   {
-    key: "nombre",
-    label: "Nombre",
-    form: { required: true, placeholder: "Ej: Almacén Don Pedro" },
-  },
-  {
     key: "razonSocial",
     label: "Razón social",
-    form: { required: true, placeholder: "Ej: Pedro Gómez" },
+    width: "10%",
+    form: { required: true, placeholder: "Ej: Bouchee Bebidas SRL" },
+  },
+  {
+    key: "apellidoNombre",
+    label: "Apellido y nombre",
+    width: "15%",
+    form: { placeholder: "Ej: Juan Pérez" },
   },
   {
     key: "condicionIva",
     label: "Cond. IVA",
     type: "tag",
     filterable: true,
-    form: {
-      required: true,
-      input: "select",
-      options: ["Responsable Inscripto", "Monotributo", "Consumidor Final"],
-    },
+    width: "9%",
+    form: { placeholder: "Ej: R. Inscripto" },
   },
-  { key: "telefono", label: "Teléfono", form: { placeholder: "Ej: 11-4455-2211" } },
-  { key: "email", label: "Mail", type: "email" },
-  { key: "domicilio", label: "Domicilio" },
+  {
+    key: "cuit",
+    label: "CUIT/CUIL",
+    width: "10%",
+    form: { placeholder: "Ej: 30 - 71401632 - 2" },
+  },
+  {
+    key: "telefono",
+    label: "Tel/Cel",
+    width: "9%",
+    form: { placeholder: "Ej: 223 - 519 - 9971" },
+  },
+  { key: "email", label: "Mail", type: "email", width: "15%" },
+  { key: "domicilio", label: "Domicilio", width: "15%" },
+  {
+    key: "precioTradicional",
+    label: "P. Trad.",
+    title: "Precio Tradicional",
+    type: "currency",
+    width: "7.5%",
+    form: { required: true },
+  },
+  {
+    key: "precioPremium",
+    label: "P. Prem.",
+    title: "Precio Premium",
+    type: "currency",
+    width: "7.5%",
+  },
 ];
 
 export default function ClientesView({ initialRows }: { initialRows: ClienteRow[] }) {

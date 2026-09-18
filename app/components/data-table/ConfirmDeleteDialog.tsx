@@ -4,7 +4,7 @@ import ModalShell from "./ModalShell";
 
 export default function ConfirmDeleteDialog({
   open,
-  title,
+  sectionTitle,
   message,
   error,
   confirming,
@@ -12,7 +12,8 @@ export default function ConfirmDeleteDialog({
   onConfirm,
 }: {
   open: boolean;
-  title: string;
+  /** Nombre de la sección (ej. "Clientes"), se muestra como eyebrow del modal. */
+  sectionTitle: string;
   message: string;
   error?: string | null;
   confirming?: boolean;
@@ -20,7 +21,7 @@ export default function ConfirmDeleteDialog({
   onConfirm: () => void;
 }) {
   return (
-    <ModalShell open={open} title={title} onClose={onCancel}>
+    <ModalShell open={open} eyebrow={sectionTitle} title="Eliminar registro" width={440} onClose={onCancel}>
       <div className="cf-body">
         <p className="cf-message">{message}</p>
 

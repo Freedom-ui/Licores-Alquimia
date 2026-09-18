@@ -226,9 +226,10 @@ export default function DataTable<T extends Record<string, unknown>>({
                     style={{ width: col.width, textAlign: col.align ?? "left" }}
                     className={sortable ? "dt-th-sortable" : ""}
                     onClick={() => toggleSort(col)}
+                    title={col.title}
                   >
                     <span className="dt-th-label">
-                      {col.label}
+                      <span className="dt-th-text">{col.label}</span>
                       {sortable && (
                         <span className={`dt-sort-icon ${isSorted ? "active" : ""}`}>
                           {isSorted ? (sort!.dir === "asc" ? "▲" : "▼") : "⇅"}
@@ -255,7 +256,11 @@ export default function DataTable<T extends Record<string, unknown>>({
                     const value = row[col.key];
                     const type = col.type ?? "text";
                     return (
-                      <td key={col.key} style={{ textAlign: col.align ?? "left" }}>
+                      <td
+                        key={col.key}
+                        style={{ textAlign: col.align ?? "left" }}
+                        title={formatCellValue(value, type)}
+                      >
                         {type === "tag" && value ? (
                           <span className="dt-tag">{String(value)}</span>
                         ) : type === "email" && value ? (
@@ -316,7 +321,7 @@ export default function DataTable<T extends Record<string, unknown>>({
 
       <ConfirmDeleteDialog
         open={pendingDelete !== null}
-        title={`Eliminar registro — ${title}`}
+        sectionTitle={title}
         message={
           deleteRowLabel
             ? `¿Eliminar "${deleteRowLabel}" de ${title.toLowerCase()}? Esta acción no se puede deshacer.`

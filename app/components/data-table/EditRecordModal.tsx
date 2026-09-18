@@ -2,7 +2,14 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import type { EditRecordModalProps } from "./types";
-import { findMissingRequiredField, getEditableFields, parseFormValues, rowToFormValues } from "./format";
+import {
+  findMissingRequiredField,
+  getEditableFields,
+  getFormGridColumns,
+  getFormModalWidth,
+  parseFormValues,
+  rowToFormValues,
+} from "./format";
 import FormFields from "./FormFields";
 import ModalShell from "./ModalShell";
 
@@ -21,6 +28,7 @@ export default function EditRecordModal<T extends Record<string, unknown>>({
   const [loadedRow, setLoadedRow] = useState<T | null>(null);
 
   const fields = useMemo(() => getEditableFields(columns), [columns]);
+  const modalWidth = getFormModalWidth(getFormGridColumns(fields.length));
 
   if (row !== loadedRow) {
     setLoadedRow(row);
@@ -38,7 +46,7 @@ export default function EditRecordModal<T extends Record<string, unknown>>({
 
     const missing = findMissingRequiredField(fields, values);
     if (missing) {
-      setError(`Completá "${missing.label}".`);
+      setError(`Completá "${missing.title ?? missing.label}".`);
       return;
     }
 
@@ -55,7 +63,13 @@ export default function EditRecordModal<T extends Record<string, unknown>>({
   }
 
   return (
-    <ModalShell open={row !== null} title={`Editar registro — ${title}`} onClose={close}>
+    <ModalShell
+      open={row !== null}
+      eyebrow={title}
+      title="Editar registro"
+      width={modalWidth}
+      onClose={close}
+    >
       <form className="rf-form" onSubmit={handleSubmit}>
         <FormFields
           columns={columns}

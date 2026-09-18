@@ -2,7 +2,13 @@
 
 import { useState, type FormEvent } from "react";
 import type { RecordFormModalProps } from "./types";
-import { findMissingRequiredField, getEditableFields, parseFormValues } from "./format";
+import {
+  findMissingRequiredField,
+  getEditableFields,
+  getFormGridColumns,
+  getFormModalWidth,
+  parseFormValues,
+} from "./format";
 import FormFields from "./FormFields";
 import ModalShell from "./ModalShell";
 
@@ -18,6 +24,7 @@ export default function RecordFormModal<T extends Record<string, unknown>>({
   const [error, setError] = useState<string | null>(null);
 
   const fields = getEditableFields(columns);
+  const modalWidth = getFormModalWidth(getFormGridColumns(fields.length));
 
   function openModal() {
     setValues({});
@@ -35,7 +42,7 @@ export default function RecordFormModal<T extends Record<string, unknown>>({
 
     const missing = findMissingRequiredField(fields, values);
     if (missing) {
-      setError(`Completá "${missing.label}".`);
+      setError(`Completá "${missing.title ?? missing.label}".`);
       return;
     }
 
@@ -57,7 +64,7 @@ export default function RecordFormModal<T extends Record<string, unknown>>({
         {triggerLabel ?? "+ Nuevo"}
       </button>
 
-      <ModalShell open={open} title={`Nuevo registro — ${title}`} onClose={close}>
+      <ModalShell open={open} eyebrow={title} title="Nuevo registro" width={modalWidth} onClose={close}>
         <form className="rf-form" onSubmit={handleSubmit}>
           <FormFields
             columns={columns}

@@ -96,3 +96,19 @@ export function rowToFormValues<T extends Record<string, unknown>>(
   }
   return values;
 }
+
+/**
+ * Cuántas columnas de grilla usar en el formulario de alta/edición según la
+ * cantidad de campos, para que queden distribuidos de forma pareja
+ * (9 campos -> grilla de 3x3, 4 campos -> 2x2, etc). Tope de 3 columnas para
+ * que los inputs no queden angostos.
+ */
+export function getFormGridColumns(fieldCount: number): number {
+  if (fieldCount <= 1) return 1;
+  return Math.min(3, Math.ceil(Math.sqrt(fieldCount)));
+}
+
+/** Ancho de modal (px) acorde a la cantidad de columnas de la grilla del formulario. */
+export function getFormModalWidth(gridColumns: number): number {
+  return 440 + (gridColumns - 1) * 260;
+}

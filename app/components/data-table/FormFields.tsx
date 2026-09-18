@@ -1,7 +1,7 @@
 "use client";
 
 import type { Column } from "./types";
-import { getEditableFields, resolveFormInput } from "./format";
+import { getEditableFields, getFormGridColumns, resolveFormInput } from "./format";
 
 export default function FormFields<T>({
   columns,
@@ -13,16 +13,20 @@ export default function FormFields<T>({
   onChange: (key: string, value: string) => void;
 }) {
   const fields = getEditableFields(columns);
+  const gridColumns = getFormGridColumns(fields.length);
 
   return (
-    <>
+    <div className="rf-fields-grid" style={{ gridTemplateColumns: `repeat(${gridColumns}, 1fr)` }}>
       {fields.map((f) => {
         const input = resolveFormInput(f);
         const fieldId = `rf-${f.key}`;
         return (
-          <div className="rf-field" key={f.key}>
+          <div
+            className={`rf-field ${input === "textarea" ? "rf-field-full" : ""}`}
+            key={f.key}
+          >
             <label htmlFor={fieldId}>
-              {f.label}
+              {f.title ?? f.label}
               {f.form?.required && <span className="rf-required">*</span>}
             </label>
 
@@ -54,6 +58,6 @@ export default function FormFields<T>({
           </div>
         );
       })}
-    </>
+    </div>
   );
 }
