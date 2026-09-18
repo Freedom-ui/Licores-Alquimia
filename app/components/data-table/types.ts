@@ -45,6 +45,10 @@ export type DataTableProps<T> = {
   emptyMessage?: string;
   /** Slot para acciones junto al buscador (típicamente el botón "+ Nuevo" de RecordFormModal). */
   actions?: ReactNode;
+  /** Oculta el botón "Descargar PDF" (visible por defecto en toda sección). */
+  hideExport?: boolean;
+  /** Oculta el botón "Importar Excel" (visible por defecto; su lógica se implementa en otra rama). */
+  hideImport?: boolean;
   /** Si se provee, agrega el botón de editar en cada fila y llama con la fila clickeada. */
   onEditRow?: (row: T) => void;
   /** Si se provee, agrega el botón de eliminar en cada fila. Se llama recién tras confirmar en el modal. */
