@@ -1,3 +1,6 @@
+import OperacionesView from "./OperacionesView";
+import { operacionesDemo } from "./data";
+
 export default function OperacionesPage() {
   return (
     <>
@@ -5,7 +8,7 @@ export default function OperacionesPage() {
         <span className="topbar-title">Operaciones</span>
       </div>
       <div className="content">
-        <div className="placeholder-view">Módulo de Operaciones — próximamente</div>
+        <OperacionesView initialRows={operacionesDemo} />
       </div>
     </>
   );
