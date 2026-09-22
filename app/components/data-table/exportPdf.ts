@@ -1,5 +1,6 @@
 import type { Column } from "./types";
 import { formatCellValue } from "./format";
+import JsBarcode from "jsbarcode";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("es-AR", {
   dateStyle: "short",
@@ -32,11 +33,29 @@ function computeColumnWidths<T>(columns: Column<T>[], usableWidth: number): numb
   const specifiedSum = specified.reduce<number>((sum, w) => sum + (w ?? 0), 0);
   const unspecifiedCount = specified.filter((w) => w === null).length;
   const fallback = unspecifiedCount > 0 ? Math.max(0, 100 - specifiedSum) / unspecifiedCount : 0;
-
   const weights = specified.map((w) => w ?? fallback);
   const totalWeight = weights.reduce((sum, w) => sum + w, 0) || 1;
-
   return weights.map((w) => (w / totalWeight) * usableWidth);
+}
+
+/** Genera un PNG (data-URI) de un código CODE39 usando un canvas en memoria. */
+function generateBarcodeDataUri(value: string): string | null {
+  if (!value) return null;
+  try {
+    const canvas = document.createElement("canvas");
+    JsBarcode(canvas, value, {
+      format: "CODE39",
+      width: 1.5,
+      height: 40,
+      displayValue: true,
+      fontSize: 12,
+      margin: 4,
+    });
+    return canvas.toDataURL("image/png");
+  } catch {
+    // Valor inválido para CODE39 (raro, pero por las dudas no rompemos el export)
+    return null;
+  }
 }
 
 /**
@@ -77,15 +96,46 @@ export async function exportRowsToPdf<T extends Record<string, unknown>>(
     columnWidths.map((w, i) => [i, { cellWidth: w }])
   );
 
+  // Índices de columnas tipo "barcode"
+  const barcodeColIndexes = new Set(
+    columns.map((c, i) => (c.type === "barcode" ? i : -1)).filter((i) => i !== -1)
+  );
+
+  // Una imagen por fila x columna barcode, generadas de antemano (sincrónico)
+  const barcodeImages = new Map<string, string>(); // key: `${rowIndex}-${colIndex}`
+  if (barcodeColIndexes.size > 0) {
+    rows.forEach((row, rowIndex) => {
+      columns.forEach((col, colIndex) => {
+        if (col.type !== "barcode") return;
+        const raw = row[col.key];
+        const uri = generateBarcodeDataUri(raw ? String(raw) : "");
+        if (uri) barcodeImages.set(`${rowIndex}-${colIndex}`, uri);
+      });
+    });
+  }
+
   autoTable(doc, {
     startY: margin.top,
     head: [columns.map((c) => c.label)],
-    body: rows.map((row) => columns.map((c) => formatCellValue(row[c.key], c.type ?? "text"))),
+    body: rows.map((row) =>
+      columns.map((c) =>
+        c.type === "barcode" ? "" : formatCellValue(row[c.key], c.type ?? "text")
+      )
+    ),
     styles: { font: "helvetica", fontSize: 7.5, cellPadding: 2, overflow: "linebreak" },
     headStyles: { fillColor: [212, 119, 42], textColor: 255, fontStyle: "bold", fontSize: 8 },
     alternateRowStyles: { fillColor: [245, 242, 236] },
     columnStyles,
     margin: { top: margin.top, left: margin.left, right: margin.right },
+    didDrawCell: (data) => {
+      if (data.section !== "body") return;
+      if (!barcodeColIndexes.has(data.column.index)) return;
+      const key = `${data.row.index}-${data.column.index}`;
+      const uri = barcodeImages.get(key);
+      if (!uri) return;
+      const { cell } = data;
+      doc.addImage(uri, "PNG", cell.x + 1, cell.y + 1, cell.width - 2, cell.height - 2);
+    },
   });
 
   doc.save(`${slugify(sectionTitle)}.pdf`);
