@@ -5,6 +5,7 @@ import type { Column, DataTableProps } from "./types";
 import { formatCellValue, searchableText } from "./format";
 import ConfirmDeleteDialog from "./ConfirmDeleteDialog";
 import { exportRowsToPdf } from "./exportPdf";
+import Barcode from "./Barcode";
 
 type SortDir = "asc" | "desc";
 
