@@ -10,8 +10,8 @@ export type ProveedorRow = {
   alias?: string;
 };
 
- // Demo en memoria: cuando el modelo de Proveedor tenga estos campos en
-  // Prisma, reemplazar por las llamadas reales a /api/proveedores.
+// Demo en memoria: cuando el modelo de Proveedor tenga estos campos en
+// Prisma, reemplazar por las llamadas reales a /api/proveedores.
 export const proveedoresDemo: ProveedorRow[] = [
   {
     id: 1,
@@ -26,8 +26,8 @@ export const proveedoresDemo: ProveedorRow[] = [
   },
   {
     id: 2,
-    razonSocial: "botellas S.A",
-    contacto: "Laura ",
+    razonSocial: "Botellas S.A",
+    contacto: "Laura",
     producto: "Botellas",
     cuitCuil: "30-70987654-3",
     email: "ventas@envasescuyo.com.ar",
@@ -37,7 +37,7 @@ export const proveedoresDemo: ProveedorRow[] = [
   {
     id: 3,
     razonSocial: "Citricos Mar del Plata",
-    contacto: "Julián ",
+    contacto: "Julián",
     producto: "Limones",
     cuitCuil: "27-32456789-1",
     email: "julian@citric.com.ar",

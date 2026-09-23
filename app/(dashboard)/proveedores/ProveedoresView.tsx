@@ -17,7 +17,7 @@ const columns: Column<ProveedorRow>[] = [
   {
     key: "contacto",
     label: "Contacto",
-    width: "11%",
+    width: "8%",
     form: { required: true, placeholder: "Nombre de la persona de contacto" },
   },
   {
@@ -25,7 +25,7 @@ const columns: Column<ProveedorRow>[] = [
     label: "Producto",
     type: "tag",
     filterable: true,
-    width: "9%",
+    width: "7%",
     form: { required: true, placeholder: "Ej: Etiquetas, Botellas" },
   },
   {
@@ -38,7 +38,7 @@ const columns: Column<ProveedorRow>[] = [
     key: "email",
     label: "Email",
     type: "email",
-    width: "14%",
+    width: "19%",
     form: { required: true, placeholder: "contacto@proveedor.com" },
   },
   {
