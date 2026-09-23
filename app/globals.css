@@ -519,6 +519,16 @@ body {
 }
 .dt-email:hover { text-decoration: underline; }
 
+.dt-barcode-cell {
+  display: block;
+  max-width: 100%;
+}
+.dt-barcode-cell svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
 .dt-actions-col { width: 8%; text-align: right !important; }
 .dt-actions-cell {
   text-align: right;

@@ -38,20 +38,32 @@ function computeColumnWidths<T>(columns: Column<T>[], usableWidth: number): numb
   return weights.map((w) => (w / totalWeight) * usableWidth);
 }
 
-/** Genera un PNG (data-URI) de un código CODE39 usando un canvas en memoria. */
-function generateBarcodeDataUri(value: string): string | null {
+type BarcodeImage = { uri: string; width: number; height: number };
+
+// El canvas se genera varias veces más grande de lo que se va a ver en el PDF
+// ("supersampling"): como se termina achicando para entrar en la celda, tener
+// de entrada muchos más píxeles que los necesarios es lo que lo mantiene
+// nítido al hacer zoom en el PDF, en vez de pixelarse.
+const PDF_BARCODE_RESOLUTION = 2;
+
+/**
+ * Genera un PNG (data-URI) de un código CODE39 usando un canvas en memoria.
+ * Guarda también el ancho/alto reales del canvas para poder escalar la imagen
+ * en el PDF sin deformarla (jsPDF no respeta la proporción por su cuenta).
+ */
+function generateBarcode(value: string): BarcodeImage | null {
   if (!value) return null;
   try {
     const canvas = document.createElement("canvas");
     JsBarcode(canvas, value, {
       format: "CODE39",
-      width: 1.5,
-      height: 40,
+      width: 1.5 * PDF_BARCODE_RESOLUTION,
+      height: 40 * PDF_BARCODE_RESOLUTION,
       displayValue: true,
-      fontSize: 12,
-      margin: 4,
+      fontSize: 12 * PDF_BARCODE_RESOLUTION,
+      margin: 4 * PDF_BARCODE_RESOLUTION,
     });
-    return canvas.toDataURL("image/png");
+    return { uri: canvas.toDataURL("image/png"), width: canvas.width, height: canvas.height };
   } catch {
     // Valor inválido para CODE39 (raro, pero por las dudas no rompemos el export)
     return null;
@@ -102,17 +114,21 @@ export async function exportRowsToPdf<T extends Record<string, unknown>>(
   );
 
   // Una imagen por fila x columna barcode, generadas de antemano (sincrónico)
-  const barcodeImages = new Map<string, string>(); // key: `${rowIndex}-${colIndex}`
+  const barcodeImages = new Map<string, BarcodeImage>(); // key: `${rowIndex}-${colIndex}`
   if (barcodeColIndexes.size > 0) {
     rows.forEach((row, rowIndex) => {
       columns.forEach((col, colIndex) => {
         if (col.type !== "barcode") return;
         const raw = row[col.key];
-        const uri = generateBarcodeDataUri(raw ? String(raw) : "");
-        if (uri) barcodeImages.set(`${rowIndex}-${colIndex}`, uri);
+        const img = generateBarcode(raw ? String(raw) : "");
+        if (img) barcodeImages.set(`${rowIndex}-${colIndex}`, img);
       });
     });
   }
+
+  // Alto mínimo de fila (mm) para que el código de barras tenga lugar y no
+  // quede aplastado contra una fila pensada para una línea de texto.
+  const BARCODE_ROW_HEIGHT = 14;
 
   autoTable(doc, {
     startY: margin.top,
@@ -127,14 +143,30 @@ export async function exportRowsToPdf<T extends Record<string, unknown>>(
     alternateRowStyles: { fillColor: [245, 242, 236] },
     columnStyles,
     margin: { top: margin.top, left: margin.left, right: margin.right },
+    didParseCell: (data) => {
+      if (data.section === "body" && barcodeColIndexes.has(data.column.index)) {
+        data.cell.styles.minCellHeight = BARCODE_ROW_HEIGHT;
+      }
+    },
     didDrawCell: (data) => {
       if (data.section !== "body") return;
       if (!barcodeColIndexes.has(data.column.index)) return;
       const key = `${data.row.index}-${data.column.index}`;
-      const uri = barcodeImages.get(key);
-      if (!uri) return;
+      const img = barcodeImages.get(key);
+      if (!img) return;
+
+      // Achicar la imagen manteniendo su proporción real (contain), no estirarla
+      // para llenar la celda — así no se deforma el código de barras.
       const { cell } = data;
-      doc.addImage(uri, "PNG", cell.x + 1, cell.y + 1, cell.width - 2, cell.height - 2);
+      const maxW = cell.width - 2;
+      const maxH = cell.height - 2;
+      const scale = Math.min(maxW / img.width, maxH / img.height);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      // Alineado a la izquierda, igual que el título de la columna (no centrado).
+      const x = cell.x + 2;
+      const y = cell.y + (cell.height - h) / 2;
+      doc.addImage(img.uri, "PNG", x, y, w, h);
     },
   });
 

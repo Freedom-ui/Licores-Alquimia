@@ -271,6 +271,10 @@ export default function DataTable<T extends Record<string, unknown>>({
                           <a className="dt-email" href={`mailto:${String(value)}`}>
                             {String(value)}
                           </a>
+                        ) : type === "barcode" && value ? (
+                          <span className="dt-barcode-cell">
+                            <Barcode value={String(value)} />
+                          </span>
                         ) : (
                           formatCellValue(value, type)
                         )}
