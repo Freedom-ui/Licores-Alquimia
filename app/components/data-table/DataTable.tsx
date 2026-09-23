@@ -5,6 +5,7 @@ import type { Column, DataTableProps } from "./types";
 import { formatCellValue, searchableText } from "./format";
 import ConfirmDeleteDialog from "./ConfirmDeleteDialog";
 import { exportRowsToPdf } from "./exportPdf";
+import Barcode from "./Barcode";
 
 type SortDir = "asc" | "desc";
 
@@ -270,6 +271,10 @@ export default function DataTable<T extends Record<string, unknown>>({
                           <a className="dt-email" href={`mailto:${String(value)}`}>
                             {String(value)}
                           </a>
+                        ) : type === "barcode" && value ? (
+                          <span className="dt-barcode-cell">
+                            <Barcode value={String(value)} />
+                          </span>
                         ) : (
                           formatCellValue(value, type)
                         )}

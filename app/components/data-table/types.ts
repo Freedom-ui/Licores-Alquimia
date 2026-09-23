@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 
-export type ColumnType = "text" | "number" | "currency" | "date" | "tag" | "email";
-
+export type ColumnType = "text" | "number" | "currency" | "date" | "tag" | "email" | "barcode";
 export type FormInputType = "text" | "number" | "date" | "email" | "select" | "textarea";
 
 export type ColumnFormConfig = {

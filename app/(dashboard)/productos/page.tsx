@@ -1,3 +1,6 @@
+import ProductosView from "./ProductosView";
+import { productosDemo } from "./data";
+
 export default function ProductosPage() {
   return (
     <>
@@ -5,7 +8,7 @@ export default function ProductosPage() {
         <span className="topbar-title">Productos</span>
       </div>
       <div className="content">
-        <div className="placeholder-view">Módulo de Productos — próximamente</div>
+        <ProductosView initialRows={productosDemo} />
       </div>
     </>
   );
