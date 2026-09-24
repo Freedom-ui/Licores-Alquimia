@@ -1,16 +1,12 @@
 // Kardex de productos terminados: un lote = una tabla de Entradas / Salidas / Saldo,
 // igual a la planilla de Excel que se usaba antes. Datos de demo en memoria; cuando
 // el modelo de Lote/MovimientoStock tenga estos campos, reemplazar por /api/productos-terminados.
+// La lógica de kardex (KardexMovimiento, buildKardex) vive en
+// app/components/data-table/kardex.ts, compartida con Inventario de materia prima.
 
-export type KardexMovimiento = {
-  id: number;
-  /** null = fila de "Existencia Inicial" (EI), sin fecha. */
-  fecha: string | null;
-  tipo: "entrada" | "salida";
-  cantidad: number;
-  /** Costo cargado en la entrada (0 si no se informó, como en la planilla original). */
-  puEntrada?: number;
-};
+import type { KardexMovimiento } from "@/app/components/data-table/kardex";
+
+export type { KardexMovimiento };
 
 export type LoteTerminado = {
   id: number;

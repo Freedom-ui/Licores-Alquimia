@@ -2,94 +2,29 @@
 
 import { useMemo, useState } from "react";
 import { formatCellValue } from "@/app/components/data-table/format";
+import { buildKardex, type KardexMovimiento } from "@/app/components/data-table/kardex";
+import { exportKardexToPdf } from "@/app/components/data-table/exportKardexPdf";
+import AgregarMovimientoModal from "./AgregarMovimientoModal";
 import type { LoteTerminado } from "./data";
-
-type KardexFila = {
-  id: string;
-  fecha: string | null; // null = fila de Existencia Inicial
-  entradaC: number | null;
-  entradaPU: number | null;
-  entradaPT: number | null;
-  salidaC: number | null;
-  salidaPU: number | null;
-  salidaPT: number | null;
-  saldoC: number;
-  saldoPU: number;
-  saldoPT: number;
-};
-
-/** Arma el kardex fila a fila (EI + movimientos), arrastrando el saldo acumulado. */
-function buildKardex(lote: LoteTerminado): KardexFila[] {
-  let saldoC = lote.existenciaInicial;
-  const filas: KardexFila[] = [
-    {
-      id: "ei",
-      fecha: null,
-      entradaC: null,
-      entradaPU: null,
-      entradaPT: null,
-      salidaC: null,
-      salidaPU: null,
-      salidaPT: null,
-      saldoC,
-      saldoPU: lote.costoUnitario,
-      saldoPT: saldoC * lote.costoUnitario,
-    },
-  ];
-
-  for (const m of lote.movimientos) {
-    if (m.tipo === "entrada") {
-      const pu = m.puEntrada ?? 0;
-      saldoC += m.cantidad;
-      filas.push({
-        id: `m-${m.id}`,
-        fecha: m.fecha,
-        entradaC: m.cantidad,
-        entradaPU: pu || null,
-        entradaPT: pu ? m.cantidad * pu : null,
-        salidaC: null,
-        salidaPU: null,
-        salidaPT: null,
-        saldoC,
-        saldoPU: lote.costoUnitario,
-        saldoPT: saldoC * lote.costoUnitario,
-      });
-    } else {
-      saldoC -= m.cantidad;
-      filas.push({
-        id: `m-${m.id}`,
-        fecha: m.fecha,
-        entradaC: null,
-        entradaPU: null,
-        entradaPT: null,
-        salidaC: m.cantidad,
-        salidaPU: lote.costoUnitario,
-        salidaPT: m.cantidad * lote.costoUnitario,
-        saldoC,
-        saldoPU: lote.costoUnitario,
-        saldoPT: saldoC * lote.costoUnitario,
-      });
-    }
-  }
-
-  return filas;
-}
 
 export default function ProductosTerminadosView({
   initialLotes,
 }: {
   initialLotes: LoteTerminado[];
 }) {
+  const [lotesState, setLotesState] = useState(initialLotes);
   const [search, setSearch] = useState("");
   const [estado, setEstado] = useState<"" | "activo" | "agotado">("");
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  const [exporting, setExporting] = useState(false);
+  const [movimientoTarget, setMovimientoTarget] = useState<LoteTerminado | null>(null);
 
   // Cada lote es "algo diferente": no es una fila más, es su propia tabla de
   // kardex. Se precalcula acá para no rearmarla en cada render de la tarjeta.
   const lotes = useMemo(
     () =>
-      initialLotes.map((lote) => {
-        const filas = buildKardex(lote);
+      lotesState.map((lote) => {
+        const filas = buildKardex(lote.existenciaInicial, lote.costoUnitario, lote.movimientos);
         const ultima = filas[filas.length - 1];
         const totalEntradas = lote.movimientos
           .filter((m) => m.tipo === "entrada")
@@ -99,7 +34,7 @@ export default function ProductosTerminadosView({
           .reduce((sum, m) => sum + m.cantidad, 0);
         return { lote, filas, saldoActual: ultima.saldoC, valorActual: ultima.saldoPT, totalEntradas, totalSalidas };
       }),
-    [initialLotes]
+    [lotesState]
   );
 
   const filtrados = useMemo(() => {
@@ -130,6 +65,34 @@ export default function ProductosTerminadosView({
       for (const { lote } of filtrados) copia[lote.id] = next;
       return copia;
     });
+  }
+
+  async function handleExportPdf() {
+    setExporting(true);
+    try {
+      await exportKardexToPdf(
+        "Productos terminados",
+        filtrados.map(({ lote, filas }) => ({
+          badge: `Lote ${lote.lote}`,
+          title: `${lote.producto} — ${lote.formato}`,
+          filas,
+        }))
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  // Demo en memoria: cuando el modelo esté en Prisma, esto pasa a ser un
+  // POST a /api/productos-terminados/[lote]/movimientos.
+  function handleAgregarMovimiento(loteId: number, movimiento: Omit<KardexMovimiento, "id">) {
+    setLotesState((prev) =>
+      prev.map((l) => {
+        if (l.id !== loteId) return l;
+        const nextId = l.movimientos.reduce((max, m) => Math.max(max, m.id), 0) + 1;
+        return { ...l, movimientos: [...l.movimientos, { ...movimiento, id: nextId }] };
+      })
+    );
   }
 
   return (
@@ -170,6 +133,14 @@ export default function ProductosTerminadosView({
           <button type="button" className="dt-clear-btn" onClick={toggleTodos} disabled={filtrados.length === 0}>
             {todoExpandido ? "Colapsar todo" : "Expandir todo"}
           </button>
+          <button
+            type="button"
+            className="dt-pdf-btn"
+            onClick={handleExportPdf}
+            disabled={exporting || filtrados.length === 0}
+          >
+            {exporting ? "Generando…" : "Descargar PDF"}
+          </button>
         </div>
       </div>
 
@@ -181,23 +152,32 @@ export default function ProductosTerminadosView({
             const abierto = Boolean(expanded[lote.id]);
             return (
               <div className="pt-card" key={lote.id}>
-                <button type="button" className="pt-card-header" onClick={() => toggleLote(lote.id)}>
-                  <span className={`pt-chevron ${abierto ? "open" : ""}`}>▸</span>
-                  <span className="pt-badge">Lote {lote.lote}</span>
-                  <span className="pt-card-title">
-                    {lote.producto} <span className="pt-card-formato">— {lote.formato}</span>
-                  </span>
-                  <span className="pt-card-stats">
-                    <span title="Total entradas">E: {totalEntradas}</span>
-                    <span title="Total salidas">S: {totalSalidas}</span>
-                    <span title="Saldo actual" className={saldoActual > 0 ? "pt-stat-ok" : "pt-stat-off"}>
-                      Saldo: {saldoActual}
+                <div className="pt-card-header">
+                  <button type="button" className="pt-card-toggle" onClick={() => toggleLote(lote.id)}>
+                    <span className={`pt-chevron ${abierto ? "open" : ""}`}>▸</span>
+                    <span className="pt-badge">Lote {lote.lote}</span>
+                    <span className="pt-card-title">
+                      {lote.producto} <span className="pt-card-formato">— {lote.formato}</span>
                     </span>
-                    <span title="Valor del saldo" className="pt-stat-value">
-                      {formatCellValue(valorActual, "currency")}
+                    <span className="pt-card-stats">
+                      <span title="Total entradas">E: {totalEntradas}</span>
+                      <span title="Total salidas">S: {totalSalidas}</span>
+                      <span title="Saldo actual" className={saldoActual > 0 ? "pt-stat-ok" : "pt-stat-off"}>
+                        Saldo: {saldoActual}
+                      </span>
+                      <span title="Valor del saldo" className="pt-stat-value">
+                        {formatCellValue(valorActual, "currency")}
+                      </span>
                     </span>
-                  </span>
-                </button>
+                  </button>
+                  <button
+                    type="button"
+                    className="pt-card-add-btn"
+                    onClick={() => setMovimientoTarget(lote)}
+                  >
+                    + Movimiento
+                  </button>
+                </div>
 
                 {abierto && (
                   <div className="pt-table-scroll">
@@ -249,8 +229,14 @@ export default function ProductosTerminadosView({
       )}
 
       <div className="dt-footer">
-        Mostrando {filtrados.length} de {initialLotes.length} lotes
+        Mostrando {filtrados.length} de {lotesState.length} lotes
       </div>
+
+      <AgregarMovimientoModal
+        lote={movimientoTarget}
+        onClose={() => setMovimientoTarget(null)}
+        onSubmit={handleAgregarMovimiento}
+      />
     </div>
   );
 }
