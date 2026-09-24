@@ -78,3 +78,22 @@ export type EditRecordModalProps<T> = {
   /** Se llama al confirmar el formulario con los valores ya tipados. */
   onSubmit: (values: Record<string, string | number>) => void | Promise<void>;
 };
+
+/**
+ * Columna de una sub-tabla de líneas (ej. los insumos de una orden de
+ * producción, o los movimientos de un kardex). Es el equivalente de `Column`
+ * pero para filas que viven adentro de un formulario maestro-detalle, no en
+ * la tabla principal.
+ */
+export type LineColumn<L> = {
+  key: keyof L & string;
+  label: string;
+  type?: "text" | "number" | "currency" | "select";
+  /** Ancho de la columna dentro de la sub-tabla (css, ideal en %). */
+  width?: string;
+  /** Opciones para un input "select" (ej. la lista de materias primas). */
+  options?: string[];
+  /** Si es true, se muestra el valor formateado pero no se puede editar (ej. un total calculado). */
+  readOnly?: boolean;
+  placeholder?: string;
+};
