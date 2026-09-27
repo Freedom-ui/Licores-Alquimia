@@ -28,6 +28,8 @@ import type { OrdenInsumo, OrdenProduccionRow } from "./ordenes-produccion/data"
 import { ordenesProduccionDemo, calcularCostoTotal } from "./ordenes-produccion/data";
 import type { LoteTerminado } from "./productos-terminados/data";
 import { productosTerminadosDemo } from "./productos-terminados/data";
+import type { InventarioMateriaPrimaRow } from "./inventario-materia-prima/data";
+import { inventarioMateriaPrimaDemo } from "./inventario-materia-prima/data";
 import type { KardexMovimiento } from "@/app/components/data-table/kardex";
 
 function nextId<T extends { id: number }>(rows: T[]): number {
@@ -49,6 +51,15 @@ export type LoteHeaderInput = {
   existenciaInicial: number;
   costoUnitario: number;
   fechaVencimiento: string | null;
+};
+
+export type InventarioMateriaPrimaHeaderInput = {
+  existenciaInicial: number;
+  costoUnitario: number;
+};
+
+export type NuevaMateriaPrimaInventarioInput = InventarioMateriaPrimaHeaderInput & {
+  materiaPrimaId: number;
 };
 
 type Store = {
@@ -85,6 +96,12 @@ type Store = {
   addMovimiento: (loteId: number, movimiento: Omit<KardexMovimiento, "id">) => void;
   updateLote: (loteId: number, v: LoteHeaderInput) => void;
   deleteLote: (loteId: number) => void;
+
+  inventarioMateriaPrima: InventarioMateriaPrimaRow[];
+  addInventarioMateriaPrima: (v: NuevaMateriaPrimaInventarioInput) => void;
+  addInventarioMovimiento: (rowId: number, movimiento: Omit<KardexMovimiento, "id">) => void;
+  updateInventarioMateriaPrima: (rowId: number, v: InventarioMateriaPrimaHeaderInput) => void;
+  deleteInventarioMateriaPrima: (rowId: number) => void;
 };
 
 const StoreContext = createContext<Store | null>(null);
@@ -97,6 +114,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [operaciones, setOperaciones] = useState<OperacionRow[]>(operacionesDemo);
   const [ordenesProduccion, setOrdenesProduccion] = useState<OrdenProduccionRow[]>(ordenesProduccionDemo);
   const [productosTerminados, setProductosTerminados] = useState<LoteTerminado[]>(productosTerminadosDemo);
+  const [inventarioMateriaPrima, setInventarioMateriaPrima] =
+    useState<InventarioMateriaPrimaRow[]>(inventarioMateriaPrimaDemo);
 
   // ── Clientes / Proveedores / Materia prima / Productos: CRUD simple, sin automatizaciones ──
   function addCliente(v: Record<string, string | number>) {
@@ -154,6 +173,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
   function deleteLote(loteId: number) {
     setProductosTerminados((prev) => prev.filter((l) => l.id !== loteId));
+  }
+
+  // ── Inventario de materia prima: mismo patrón que Productos terminados
+  // (movimientos manuales + alta/edición/baja), pero acá "dar de alta" es
+  // empezar a trackear una materia prima que ya existe en el catálogo
+  // (materiaPrima), no crear un producto nuevo — por eso addInventarioMateriaPrima
+  // recibe un `materiaPrimaId` en vez de nombre/formato sueltos. Sin
+  // automatización todavía: una Orden de producción no descuenta insumos de
+  // acá (ver nota en saveOrden más abajo).
+  function addInventarioMateriaPrima(v: NuevaMateriaPrimaInventarioInput) {
+    setInventarioMateriaPrima((prev) => [
+      ...prev,
+      { id: nextId(prev), materiaPrimaId: v.materiaPrimaId, existenciaInicial: v.existenciaInicial, costoUnitario: v.costoUnitario, movimientos: [] },
+    ]);
+  }
+  function addInventarioMovimiento(rowId: number, movimiento: Omit<KardexMovimiento, "id">) {
+    setInventarioMateriaPrima((prev) =>
+      prev.map((r) => {
+        if (r.id !== rowId) return r;
+        const id = nextId(r.movimientos);
+        return { ...r, movimientos: [...r.movimientos, { ...movimiento, id }] };
+      })
+    );
+  }
+  function updateInventarioMateriaPrima(rowId: number, v: InventarioMateriaPrimaHeaderInput) {
+    setInventarioMateriaPrima((prev) => prev.map((r) => (r.id === rowId ? { ...r, ...v } : r)));
+  }
+  function deleteInventarioMateriaPrima(rowId: number) {
+    setInventarioMateriaPrima((prev) => prev.filter((r) => r.id !== rowId));
   }
 
   // ── Operaciones (ventas): al guardar, sincroniza automáticamente la salida
@@ -343,6 +391,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     addMovimiento,
     updateLote,
     deleteLote,
+    inventarioMateriaPrima,
+    addInventarioMateriaPrima,
+    addInventarioMovimiento,
+    updateInventarioMateriaPrima,
+    deleteInventarioMateriaPrima,
   };
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

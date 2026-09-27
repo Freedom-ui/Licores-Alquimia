@@ -23,12 +23,65 @@ export type KardexGroupPdf = {
   filas: KardexFila[];
 };
 
+/** Una columna de dato dentro de un grupo (ej. "C" dentro de "Entradas"). */
+export type KardexPdfColumn = {
+  label: string;
+  get: (fila: KardexFila) => number | null;
+  /** "raw": cantidad tal cual (o "—" si es null). "currency": formateada como moneda. */
+  format: "raw" | "currency";
+};
+
+/** Un grupo de columnas con encabezado compartido (ej. "Entradas" agrupa C/PU/PT). */
+export type KardexPdfColumnGroup = {
+  label: string;
+  columns: KardexPdfColumn[];
+};
+
+/** Estructura de Productos terminados y, en general, cualquier kardex simple de Entradas/Salidas/Saldo. */
+const DEFAULT_COLUMN_GROUPS: KardexPdfColumnGroup[] = [
+  {
+    label: "Entradas",
+    columns: [
+      { label: "C", get: (f) => f.entradaC, format: "raw" },
+      { label: "PU", get: (f) => f.entradaPU, format: "currency" },
+      { label: "PT", get: (f) => f.entradaPT, format: "currency" },
+    ],
+  },
+  {
+    label: "Salidas",
+    columns: [
+      { label: "C", get: (f) => f.salidaC, format: "raw" },
+      { label: "PU", get: (f) => f.salidaPU, format: "currency" },
+      { label: "PT", get: (f) => f.salidaPT, format: "currency" },
+    ],
+  },
+  {
+    label: "Saldo",
+    columns: [
+      { label: "C", get: (f) => f.saldoC, format: "raw" },
+      { label: "PU", get: (f) => f.saldoPU, format: "currency" },
+      { label: "PT", get: (f) => f.saldoPT, format: "currency" },
+    ],
+  },
+];
+
 /**
  * Genera y descarga un PDF con una mini-tabla de kardex por grupo (un lote,
  * una materia prima, etc.) — el mismo patrón visual que las tarjetas en
  * pantalla. Reusable: no sabe nada de "lotes" ni de qué sección es.
+ *
+ * `columnGroups` es opcional: por defecto arma Entradas/Salidas/Saldo (C/PU/PT
+ * cada una), igual que siempre. Una sección con una estructura de columnas
+ * distinta (ej. Inventario de materia prima: Ingresos s/Insumo + Compras +
+ * Consumos + Saldo) pasa su propia definición en vez de bifurcar este archivo.
  */
-export async function exportKardexToPdf(sectionTitle: string, grupos: KardexGroupPdf[]) {
+export async function exportKardexToPdf(
+  sectionTitle: string,
+  grupos: KardexGroupPdf[],
+  columnGroups: KardexPdfColumnGroup[] = DEFAULT_COLUMN_GROUPS,
+  /** Sustantivo para el contador del encabezado ("8 lotes" vs "5 materias primas"). */
+  groupNoun: { singular: string; plural: string } = { singular: "lote", plural: "lotes" }
+) {
   const [{ default: jsPDF }, { autoTable }] = await Promise.all([
     import("jspdf"),
     import("jspdf-autotable"),
@@ -48,7 +101,7 @@ export async function exportKardexToPdf(sectionTitle: string, grupos: KardexGrou
 
   doc.setFontSize(8);
   doc.setTextColor(130);
-  const cantidad = `${grupos.length} lote${grupos.length === 1 ? "" : "s"}`;
+  const cantidad = `${grupos.length} ${grupos.length === 1 ? groupNoun.singular : groupNoun.plural}`;
   doc.text(`Generado el ${dateTimeFormatter.format(new Date())} · ${cantidad}`, margin.left, 28);
   doc.setTextColor(0);
 
@@ -58,12 +111,21 @@ export async function exportKardexToPdf(sectionTitle: string, grupos: KardexGrou
   const head = [
     [
       { content: "Fecha", rowSpan: 2 },
-      { content: "Entradas", colSpan: 3 },
-      { content: "Salidas", colSpan: 3 },
-      { content: "Saldo", colSpan: 3 },
+      ...columnGroups.map((g) => ({ content: g.label, colSpan: g.columns.length })),
     ],
-    ["C", "PU", "PT", "C", "PU", "PT", "C", "PU", "PT"],
+    columnGroups.flatMap((g) => g.columns.map((c) => c.label)),
   ];
+
+  // Índice (1-based, Fecha=0) donde arranca cada grupo salvo el primero —
+  // ahí va el borde izquierdo más grueso que separa visualmente los grupos.
+  const groupStartIndexes = new Set<number>();
+  {
+    let idx = 1;
+    columnGroups.forEach((g, i) => {
+      if (i > 0) groupStartIndexes.add(idx);
+      idx += g.columns.length;
+    });
+  }
 
   grupos.forEach((grupo, i) => {
     // Si no queda lugar ni para el título + una fila, arrancamos página nueva.
@@ -91,15 +153,12 @@ export async function exportKardexToPdf(sectionTitle: string, grupos: KardexGrou
 
     const body = grupo.filas.map((f) => [
       f.fecha ? formatCellValue(f.fecha, "date") : "Exist. inicial",
-      f.entradaC ?? "—",
-      formatCellValue(f.entradaPU, "currency"),
-      formatCellValue(f.entradaPT, "currency"),
-      f.salidaC ?? "—",
-      formatCellValue(f.salidaPU, "currency"),
-      formatCellValue(f.salidaPT, "currency"),
-      f.saldoC,
-      formatCellValue(f.saldoPU, "currency"),
-      formatCellValue(f.saldoPT, "currency"),
+      ...columnGroups.flatMap((g) =>
+        g.columns.map((c) => {
+          const value = c.get(f);
+          return c.format === "currency" ? formatCellValue(value, "currency") : value ?? "—";
+        })
+      ),
     ]);
 
     autoTable(doc, {
@@ -128,12 +187,12 @@ export async function exportKardexToPdf(sectionTitle: string, grupos: KardexGrou
       },
       margin: { left: margin.left, right: margin.right },
       // Fuerza el centrado acá (no alcanza con columnStyles: no siempre pisa
-      // el halign del encabezado) y dibuja la línea divisoria entre
-      // Entradas/Salidas/Saldo — un borde izquierdo más grueso antes de la
-      // primera columna (C) de "Salidas" (índice 4) y de "Saldo" (índice 7).
+      // el halign del encabezado) y dibuja la línea divisoria entre grupos de
+      // columnas (Entradas/Salidas/Saldo, o los que correspondan) — un borde
+      // izquierdo más grueso antes de la primera columna de cada grupo, salvo el primero.
       didParseCell: (data) => {
         data.cell.styles.halign = "center";
-        if (data.column.index === 4 || data.column.index === 7) {
+        if (groupStartIndexes.has(data.column.index)) {
           data.cell.styles.lineWidth = { top: 0.2, right: 0.2, bottom: 0.2, left: 0.5 };
         }
       },

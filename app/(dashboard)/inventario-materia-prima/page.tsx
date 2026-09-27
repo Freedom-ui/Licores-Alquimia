@@ -1,3 +1,5 @@
+import InventarioMateriaPrimaView from "./InventarioMateriaPrimaView";
+
 export default function InventarioMateriaPrimaPage() {
   return (
     <>
@@ -5,7 +7,7 @@ export default function InventarioMateriaPrimaPage() {
         <span className="topbar-title">Inventario de materia prima</span>
       </div>
       <div className="content">
-        <div className="placeholder-view">Módulo de Inventario de materia prima — próximamente</div>
+        <InventarioMateriaPrimaView />
       </div>
     </>
   );
