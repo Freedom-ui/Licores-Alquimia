@@ -1,5 +1,4 @@
 import ProveedoresView from "./ProveedoresView";
-import { proveedoresDemo } from "./data";
 
 export default function ProveedoresPage() {
   return (
@@ -8,7 +7,7 @@ export default function ProveedoresPage() {
         <span className="topbar-title">Proveedores</span>
       </div>
       <div className="content">
-        <ProveedoresView initialRows={proveedoresDemo} />
+        <ProveedoresView />
       </div>
     </>
   );

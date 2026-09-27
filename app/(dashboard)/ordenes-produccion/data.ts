@@ -6,6 +6,8 @@ export type OrdenInsumo = {
 
 export type OrdenProduccionRow = {
   id: number;
+  /** FK al catálogo de Productos — de acá se derivan `producto`/`formato` para mostrar en la tabla. */
+  productoId: number;
   producto: string;
   formato: string;
   fechaMaceracion: string;
@@ -26,14 +28,17 @@ type OrdenSinCosto = Omit<OrdenProduccionRow, "costoTotal">;
 
 // Demo en memoria, mismo patrón que el resto de las secciones: cuando el
 // modelo de OrdenProduccion esté en Prisma, reemplazar por /api/ordenes-produccion.
-// El producto/lote resultante es lo que después alimenta a Productos terminados.
+// Al embotellarse (fechaEmbotellado != null) esta orden genera/actualiza
+// automáticamente su lote en Productos terminados (ver store.tsx) — por eso
+// cada orden referencia un `productoId` real del catálogo, no un nombre libre.
 // `costoTotal` se calcula acá mismo a partir de los insumos (nunca a mano),
 // para que nunca quede desincronizado con la suma real de la sub-tabla.
 const ordenesSinCosto: OrdenSinCosto[] = [
   {
     id: 8,
-    producto: "Licor fino de limon",
-    formato: "500cc",
+    productoId: 1,
+    producto: "Licor Fino de Limón",
+    formato: "500 cc",
     fechaMaceracion: "2026-07-20",
     fechaEmbotellado: "2026-08-05",
     responsable: "ALQUIMIA",
@@ -50,8 +55,9 @@ const ordenesSinCosto: OrdenSinCosto[] = [
   },
   {
     id: 9,
-    producto: "Licor fino de limon",
-    formato: "500cc",
+    productoId: 3,
+    producto: "Licor Fino de Limón, con N., P. e H.",
+    formato: "500 cc",
     fechaMaceracion: "2026-07-28",
     fechaEmbotellado: "2026-08-14",
     responsable: "ALQUIMIA",
@@ -68,8 +74,9 @@ const ordenesSinCosto: OrdenSinCosto[] = [
   },
   {
     id: 10,
-    producto: "Licor de Menta",
-    formato: "500cc",
+    productoId: 2,
+    producto: "Licor Fino de Limón, con M. y J.",
+    formato: "500 cc",
     fechaMaceracion: "2026-08-02",
     fechaEmbotellado: "2026-08-18",
     responsable: "VICENTE, RODRIGO",
@@ -84,10 +91,11 @@ const ordenesSinCosto: OrdenSinCosto[] = [
   },
   {
     id: 11,
-    producto: "Licor fino de limon",
-    formato: "750cc Premium",
+    productoId: 5,
+    producto: "Licor Fino de Limón",
+    formato: "750 cc Premium",
     fechaMaceracion: "2026-08-20",
-    fechaEmbotellado: null,
+    fechaEmbotellado: "2026-09-15",
     responsable: "ALQUIMIA",
     cantidadProducida: 24,
     insumos: [

@@ -12,6 +12,12 @@ export type KardexMovimiento = {
   cantidad: number;
   /** Costo cargado en la entrada (sin valor si no se informó). */
   puEntrada?: number;
+  /**
+   * Si este movimiento lo generó otra sección automáticamente (ej. una venta
+   * en Operaciones), referencia el origen para poder actualizarlo/borrarlo en
+   * cascada si esa operación se edita o elimina, en vez de duplicarlo.
+   */
+  origenOperacionId?: number;
 };
 
 export type KardexFila = {

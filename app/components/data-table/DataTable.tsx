@@ -232,7 +232,16 @@ export default function DataTable<T extends Record<string, unknown>>({
                     onClick={() => toggleSort(col)}
                     title={col.title}
                   >
-                    <span className="dt-th-label">
+                    <span
+                      className="dt-th-label"
+                      style={{
+                        // El encabezado es un flex-row: text-align en el <th> no
+                        // lo mueve (no es contenido inline), hay que centrarlo
+                        // a mano para que quede alineado con el dato de abajo.
+                        justifyContent:
+                          col.align === "center" ? "center" : col.align === "right" ? "flex-end" : "flex-start",
+                      }}
+                    >
                       <span className="dt-th-text">{col.label}</span>
                       {sortable && (
                         <span className={`dt-sort-icon ${isSorted ? "active" : ""}`}>

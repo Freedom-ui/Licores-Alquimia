@@ -2,65 +2,13 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import ModalShell from "@/app/components/data-table/ModalShell";
-import FormFields from "@/app/components/data-table/FormFields";
 import LineItemsField from "@/app/components/data-table/LineItemsField";
-import {
-  findMissingRequiredField,
-  formatCellValue,
-  getEditableFields,
-  getFormGridColumns,
-  getFormModalWidth,
-  parseFormValues,
-} from "@/app/components/data-table/format";
-import type { Column, LineColumn } from "@/app/components/data-table/types";
+import { formatCellValue } from "@/app/components/data-table/format";
+import type { LineColumn } from "@/app/components/data-table/types";
 import type { OrdenInsumo, OrdenProduccionRow } from "./data";
-import { productosDemo } from "../productos/data";
-import { materiaPrimaDemo } from "../materia-prima/data";
-
-const PRODUCTOS = Array.from(new Set(productosDemo.map((p) => p.nombre)));
-const FORMATOS = Array.from(new Set(productosDemo.map((p) => p.formato)));
-const MATERIAS_PRIMAS = materiaPrimaDemo.map((m) => m.nombre);
-
-type HeaderFields = Pick<
-  OrdenProduccionRow,
-  "producto" | "formato" | "fechaMaceracion" | "fechaEmbotellado" | "responsable" | "cantidadProducida"
->;
-
-const headerColumns: Column<HeaderFields>[] = [
-  {
-    key: "producto",
-    label: "Producto",
-    form: { required: true, input: "select", options: PRODUCTOS },
-  },
-  {
-    key: "formato",
-    label: "Formato",
-    form: { required: true, input: "select", options: FORMATOS },
-  },
-  {
-    key: "fechaMaceracion",
-    label: "Fecha de maceración",
-    type: "date",
-    form: { required: true },
-  },
-  {
-    key: "fechaEmbotellado",
-    label: "Fecha de embotellado",
-    type: "date",
-    form: { placeholder: "Si ya se embotelló" },
-  },
-  {
-    key: "responsable",
-    label: "Responsable",
-    form: { required: true, placeholder: "Ej: Alquimia" },
-  },
-  {
-    key: "cantidadProducida",
-    label: "Cantidad producida",
-    type: "number",
-    form: { required: true },
-  },
-];
+import type { ProductoRow } from "../productos/data";
+import { productoLabel } from "../productos/data";
+import type { MateriaPrimaRow } from "../materia-prima/data";
 
 type InsumoFormRow = OrdenInsumo & { costoTotalLinea: number };
 
@@ -72,29 +20,49 @@ function withTotales(rows: InsumoFormRow[]): InsumoFormRow[] {
   return rows.map((r) => ({ ...r, costoTotalLinea: r.cantidad * r.costoUnitario }));
 }
 
-const insumoColumns: LineColumn<InsumoFormRow>[] = [
-  { key: "materiaPrima", label: "Materia prima", type: "select", options: MATERIAS_PRIMAS, width: "36%" },
-  { key: "cantidad", label: "Cantidad", type: "number", width: "16%" },
-  { key: "costoUnitario", label: "Costo unitario", type: "currency", width: "24%" },
-  { key: "costoTotalLinea", label: "Costo total", type: "currency", width: "24%", readOnly: true },
-];
-
 export type OrdenFormTarget = OrdenProduccionRow | "new" | null;
+
+type FormState = {
+  productoId: string;
+  fechaMaceracion: string;
+  fechaEmbotellado: string;
+  responsable: string;
+  cantidadProducida: string;
+};
+
+const EMPTY: FormState = {
+  productoId: "",
+  fechaMaceracion: "",
+  fechaEmbotellado: "",
+  responsable: "",
+  cantidadProducida: "",
+};
 
 export default function OrdenFormModal({
   target,
+  productos,
+  materiasPrimas,
   onClose,
   onSubmit,
 }: {
   /** Fila a editar, "new" para alta, null = modal cerrado. */
   target: OrdenFormTarget;
+  productos: ProductoRow[];
+  materiasPrimas: MateriaPrimaRow[];
   onClose: () => void;
   onSubmit: (
     id: number | null,
-    values: HeaderFields & { insumos: OrdenInsumo[] }
+    values: {
+      productoId: number;
+      fechaMaceracion: string;
+      fechaEmbotellado: string | null;
+      responsable: string;
+      cantidadProducida: number;
+      insumos: OrdenInsumo[];
+    }
   ) => void | Promise<void>;
 }) {
-  const [headerValues, setHeaderValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<FormState>(EMPTY);
   const [insumos, setInsumos] = useState<InsumoFormRow[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,17 +70,30 @@ export default function OrdenFormModal({
   // recargarlos durante el render cuando `target` cambia (sin pasar por un efecto).
   const [loadedTarget, setLoadedTarget] = useState<OrdenFormTarget>(null);
 
-  const headerFields = useMemo(() => getEditableFields(headerColumns), []);
+  const insumoColumns: LineColumn<InsumoFormRow>[] = useMemo(
+    () => [
+      {
+        key: "materiaPrima",
+        label: "Materia prima",
+        type: "select",
+        options: materiasPrimas.map((m) => m.nombre),
+        width: "36%",
+      },
+      { key: "cantidad", label: "Cantidad", type: "number", width: "16%" },
+      { key: "costoUnitario", label: "Costo unitario", type: "currency", width: "24%" },
+      { key: "costoTotalLinea", label: "Costo total", type: "currency", width: "24%", readOnly: true },
+    ],
+    [materiasPrimas]
+  );
 
   if (target !== loadedTarget) {
     setLoadedTarget(target);
     if (target === "new") {
-      setHeaderValues({});
+      setValues(EMPTY);
       setInsumos([]);
     } else if (target) {
-      setHeaderValues({
-        producto: target.producto,
-        formato: target.formato,
+      setValues({
+        productoId: String(target.productoId),
         fechaMaceracion: target.fechaMaceracion,
         fechaEmbotellado: target.fechaEmbotellado ?? "",
         responsable: target.responsable,
@@ -121,6 +102,10 @@ export default function OrdenFormModal({
       setInsumos(withTotales(target.insumos.map((i) => ({ ...i, costoTotalLinea: 0 }))));
     }
     setError(null);
+  }
+
+  function update<K extends keyof FormState>(key: K, value: string) {
+    setValues((prev) => ({ ...prev, [key]: value }));
   }
 
   function close() {
@@ -133,9 +118,13 @@ export default function OrdenFormModal({
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
 
-    const missing = findMissingRequiredField(headerFields, headerValues);
-    if (missing) {
-      setError(`Completá "${missing.title ?? missing.label}".`);
+    if (
+      !values.productoId ||
+      !values.fechaMaceracion ||
+      !values.responsable ||
+      !values.cantidadProducida
+    ) {
+      setError("Completá todos los campos obligatorios.");
       return;
     }
 
@@ -145,14 +134,15 @@ export default function OrdenFormModal({
       return;
     }
 
-    const header = parseFormValues(headerFields, headerValues) as unknown as HeaderFields;
-
     setSubmitting(true);
     setError(null);
     try {
       await onSubmit(target === "new" || !target ? null : target.id, {
-        ...header,
-        fechaEmbotellado: (header.fechaEmbotellado as unknown as string) || null,
+        productoId: Number(values.productoId),
+        fechaMaceracion: values.fechaMaceracion,
+        fechaEmbotellado: values.fechaEmbotellado || null,
+        responsable: values.responsable,
+        cantidadProducida: Number(values.cantidadProducida),
         insumos: insumosValidos.map(({ materiaPrima, cantidad, costoUnitario }) => ({
           materiaPrima,
           cantidad,
@@ -167,23 +157,83 @@ export default function OrdenFormModal({
     }
   }
 
-  const gridColumns = getFormGridColumns(headerFields.length);
-  const modalWidth = getFormModalWidth(gridColumns);
-
   return (
     <ModalShell
       open={target !== null}
       eyebrow="Órdenes de producción"
       title={target && target !== "new" ? "Editar orden" : "Nueva orden"}
-      width={modalWidth}
+      width={760}
       onClose={close}
     >
       <form className="rf-form" onSubmit={handleSubmit}>
-        <FormFields
-          columns={headerColumns}
-          values={headerValues}
-          onChange={(key, value) => setHeaderValues((prev) => ({ ...prev, [key]: value }))}
-        />
+        <div className="rf-fields-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+          <div className="rf-field rf-field-full">
+            <label htmlFor="orden-producto">
+              Producto<span className="rf-required">*</span>
+            </label>
+            <select
+              id="orden-producto"
+              value={values.productoId}
+              onChange={(e) => update("productoId", e.target.value)}
+            >
+              <option value="">Seleccionar…</option>
+              {productos.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {productoLabel(p)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="rf-field">
+            <label htmlFor="orden-maceracion">
+              Fecha de maceración<span className="rf-required">*</span>
+            </label>
+            <input
+              id="orden-maceracion"
+              type="date"
+              value={values.fechaMaceracion}
+              onChange={(e) => update("fechaMaceracion", e.target.value)}
+            />
+          </div>
+
+          <div className="rf-field">
+            <label htmlFor="orden-embotellado">Fecha de embotellado</label>
+            <input
+              id="orden-embotellado"
+              type="date"
+              placeholder="Si ya se embotelló"
+              value={values.fechaEmbotellado}
+              onChange={(e) => update("fechaEmbotellado", e.target.value)}
+            />
+          </div>
+
+          <div className="rf-field">
+            <label htmlFor="orden-responsable">
+              Responsable<span className="rf-required">*</span>
+            </label>
+            <input
+              id="orden-responsable"
+              type="text"
+              placeholder="Ej: Alquimia"
+              value={values.responsable}
+              onChange={(e) => update("responsable", e.target.value)}
+            />
+          </div>
+
+          <div className="rf-field">
+            <label htmlFor="orden-cantidad">
+              Cantidad producida<span className="rf-required">*</span>
+            </label>
+            <input
+              id="orden-cantidad"
+              type="number"
+              min="1"
+              value={values.cantidadProducida}
+              onChange={(e) => update("cantidadProducida", e.target.value)}
+            />
+          </div>
+        </div>
 
         <LineItemsField
           label="Insumos utilizados"
@@ -197,6 +247,13 @@ export default function OrdenFormModal({
           <span className="li-total-label">Costo total</span>
           <span className="li-total-value">{formatCellValue(costoTotal, "currency")}</span>
         </div>
+
+        {values.fechaEmbotellado && (
+          <p className="rf-hint">
+            Al guardar con fecha de embotellado, se crea o actualiza automáticamente el lote
+            correspondiente en Productos terminados.
+          </p>
+        )}
 
         {error && <div className="rf-error">{error}</div>}
 

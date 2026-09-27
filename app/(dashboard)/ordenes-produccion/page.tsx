@@ -1,5 +1,4 @@
 import OrdenesProduccionView from "./OrdenesProduccionView";
-import { ordenesProduccionDemo } from "./data";
 
 export default function OrdenesProduccionPage() {
   return (
@@ -8,7 +7,7 @@ export default function OrdenesProduccionPage() {
         <span className="topbar-title">Órdenes de producción</span>
       </div>
       <div className="content">
-        <OrdenesProduccionView initialRows={ordenesProduccionDemo} />
+        <OrdenesProduccionView />
       </div>
     </>
   );

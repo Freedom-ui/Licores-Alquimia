@@ -1,5 +1,4 @@
 import ProductosTerminadosView from "./Productosterminadosview";
-import { productosTerminadosDemo } from "./data";
 
 export default function ProductosTerminadosPage() {
   return (
@@ -8,7 +7,7 @@ export default function ProductosTerminadosPage() {
         <span className="topbar-title">Productos terminados</span>
       </div>
       <div className="content">
-        <ProductosTerminadosView initialLotes={productosTerminadosDemo} />
+        <ProductosTerminadosView />
       </div>
     </>
   );

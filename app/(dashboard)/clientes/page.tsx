@@ -1,5 +1,4 @@
 import ClientesView from "./ClientesView";
-import { clientesDemo } from "./data";
 
 export default function ClientesPage() {
   return (
@@ -8,7 +7,7 @@ export default function ClientesPage() {
         <span className="topbar-title">Clientes</span>
       </div>
       <div className="content">
-        <ClientesView initialRows={clientesDemo} />
+        <ClientesView />
       </div>
     </>
   );

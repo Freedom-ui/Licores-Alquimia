@@ -13,6 +13,10 @@ export type ColumnFormConfig = {
   /** Opciones para un input "select" (ej. valores posibles de un tag). */
   options?: string[];
   placeholder?: string;
+  /** Regex HTML5 (sin delimitadores) para validar el formato del valor, ej. CUIT/CUIL. */
+  pattern?: string;
+  /** Mensaje que muestra el navegador cuando el valor no matchea `pattern`. */
+  patternMessage?: string;
 };
 
 export type Column<T> = {

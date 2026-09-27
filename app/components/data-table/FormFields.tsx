@@ -51,6 +51,8 @@ export default function FormFields<T>({
                 id={fieldId}
                 type={input}
                 placeholder={f.form?.placeholder}
+                pattern={f.form?.pattern}
+                title={f.form?.patternMessage}
                 value={values[f.key] ?? ""}
                 onChange={(e) => onChange(f.key, e.target.value)}
               />

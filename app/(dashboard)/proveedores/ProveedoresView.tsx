@@ -6,6 +6,10 @@ import RecordFormModal from "@/app/components/data-table/RecordFormModal";
 import EditRecordModal from "@/app/components/data-table/EditRecordModal";
 import type { Column } from "@/app/components/data-table/types";
 import type { ProveedorRow } from "./data";
+import { useStore } from "../store";
+
+// Acepta "30-71234567-8" y "30 - 71234567 - 8".
+const CUIT_PATTERN = "\\d{2}\\s*-\\s*\\d{8}\\s*-\\s*\\d{1}";
 
 const columns: Column<ProveedorRow>[] = [
   {
@@ -25,14 +29,19 @@ const columns: Column<ProveedorRow>[] = [
     label: "Producto",
     type: "tag",
     filterable: true,
-    width: "7%",
+    width: "11%",
     form: { required: true, placeholder: "Ej: Etiquetas, Botellas" },
   },
   {
     key: "cuitCuil",
     label: "CUIT/CUIL",
     width: "11%",
-    form: { required: true, placeholder: "30-71234567-8" },
+    form: {
+      required: true,
+      placeholder: "30-71234567-8",
+      pattern: CUIT_PATTERN,
+      patternMessage: "Formato esperado: XX-XXXXXXXX-X",
+    },
   },
   {
     key: "email",
@@ -50,7 +59,7 @@ const columns: Column<ProveedorRow>[] = [
   {
     key: "cbu",
     label: "CBU",
-    width: "17%",
+    width: "13%",
     form: { required: false, placeholder: "Opcional" },
   },
   {
@@ -61,44 +70,28 @@ const columns: Column<ProveedorRow>[] = [
   },
 ];
 
-export default function ProveedoresView({ initialRows }: { initialRows: ProveedorRow[] }) {
-  const [rows, setRows] = useState(initialRows);
+export default function ProveedoresView() {
+  const { proveedores, addProveedor, updateProveedor, deleteProveedor } = useStore();
   const [editingRow, setEditingRow] = useState<ProveedorRow | null>(null);
-
-  // Demo en memoria: cuando el modelo de Proveedor tenga estos campos en
-  // Prisma, reemplazar por las llamadas reales a /api/proveedores.
-  function handleCreate(values: Record<string, string | number>) {
-    const nextId = rows.reduce((max, r) => Math.max(max, r.id), 0) + 1;
-    setRows((prev) => [...prev, { id: nextId, ...values } as ProveedorRow]);
-  }
-
-  function handleEditSubmit(values: Record<string, string | number>) {
-    if (!editingRow) return;
-    setRows((prev) =>
-      prev.map((r) => (r.id === editingRow.id ? { ...r, ...values } as ProveedorRow : r))
-    );
-  }
-
-  function handleDelete(row: ProveedorRow) {
-    setRows((prev) => prev.filter((r) => r.id !== row.id));
-  }
 
   return (
     <>
       <DataTable
         title="Proveedores"
         columns={columns}
-        rows={rows}
-        actions={<RecordFormModal title="Proveedores" columns={columns} onSubmit={handleCreate} />}
+        rows={proveedores}
+        actions={<RecordFormModal title="Proveedores" columns={columns} onSubmit={addProveedor} />}
         onEditRow={setEditingRow}
-        onDeleteRow={handleDelete}
+        onDeleteRow={(row) => deleteProveedor(row.id)}
       />
       <EditRecordModal
         title="Proveedores"
         columns={columns}
         row={editingRow}
         onClose={() => setEditingRow(null)}
-        onSubmit={handleEditSubmit}
+        onSubmit={(v) => {
+          if (editingRow) updateProveedor(editingRow.id, v);
+        }}
       />
     </>
   );

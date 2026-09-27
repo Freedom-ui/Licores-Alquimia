@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Sidebar from "./sidebar";
+import { StoreProvider } from "./store";
 
 export default async function DashboardLayout({
   children,
@@ -21,9 +22,11 @@ export default async function DashboardLayout({
   };
 
   return (
-    <div className="app-shell">
-      <Sidebar usuario={session} />
-      <div className="main">{children}</div>
-    </div>
+    <StoreProvider>
+      <div className="app-shell">
+        <Sidebar usuario={session} />
+        <div className="main">{children}</div>
+      </div>
+    </StoreProvider>
   );
 }

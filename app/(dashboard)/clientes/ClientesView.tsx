@@ -6,18 +6,23 @@ import RecordFormModal from "@/app/components/data-table/RecordFormModal";
 import EditRecordModal from "@/app/components/data-table/EditRecordModal";
 import type { Column } from "@/app/components/data-table/types";
 import type { ClienteRow } from "./data";
+import { useStore } from "../store";
+
+const CONDICIONES_IVA = ["R. Inscripto", "Monotributo", "Exento", "Consumidor Final"];
+// Acepta "30-71401632-2" y "30 - 71401632 - 2" (ambos formatos aparecen en los datos reales).
+const CUIT_PATTERN = "\\d{2}\\s*-\\s*\\d{8}\\s*-\\s*\\d{1}";
 
 const columns: Column<ClienteRow>[] = [
   {
     key: "razonSocial",
     label: "Razón social",
-    width: "10%",
+    width: "12%",
     form: { required: true, placeholder: "Ej: Bouchee Bebidas SRL" },
   },
   {
     key: "apellidoNombre",
     label: "Apellido y nombre",
-    width: "15%",
+    width: "16%",
     form: { placeholder: "Ej: Juan Pérez" },
   },
   {
@@ -26,28 +31,33 @@ const columns: Column<ClienteRow>[] = [
     type: "tag",
     filterable: true,
     width: "9%",
-    form: { placeholder: "Ej: R. Inscripto" },
+    form: { required: true, input: "select", options: CONDICIONES_IVA },
   },
   {
     key: "cuit",
     label: "CUIT/CUIL",
-    width: "10%",
-    form: { placeholder: "Ej: 30 - 71401632 - 2" },
+    width: "8%",
+    form: {
+      required: true,
+      placeholder: "Ej: 30-71401632-2",
+      pattern: CUIT_PATTERN,
+      patternMessage: "Formato esperado: XX-XXXXXXXX-X",
+    },
   },
   {
     key: "telefono",
     label: "Tel/Cel",
-    width: "9%",
+    width: "8%",
     form: { placeholder: "Ej: 223 - 519 - 9971" },
   },
   { key: "email", label: "Mail", type: "email", width: "15%" },
-  { key: "domicilio", label: "Domicilio", width: "15%" },
+  { key: "domicilio", label: "Domicilio", width: "18%" },
   {
     key: "precioTradicional",
     label: "P. Trad.",
     title: "Precio Tradicional",
     type: "currency",
-    width: "7.5%",
+    width: "7%",
     form: { required: true },
   },
   {
@@ -55,41 +65,23 @@ const columns: Column<ClienteRow>[] = [
     label: "P. Prem.",
     title: "Precio Premium",
     type: "currency",
-    width: "7.5%",
+    width: "7%",
   },
 ];
 
-export default function ClientesView({ initialRows }: { initialRows: ClienteRow[] }) {
-  const [rows, setRows] = useState(initialRows);
+export default function ClientesView() {
+  const { clientes, addCliente, updateCliente, deleteCliente } = useStore();
   const [editingRow, setEditingRow] = useState<ClienteRow | null>(null);
-
-  // Demo en memoria: cuando el modelo de Cliente esté en Prisma, reemplazar
-  // por las llamadas reales a /api/clientes (POST, PATCH, DELETE).
-  function handleCreate(values: Record<string, string | number>) {
-    const nextId = rows.reduce((max, r) => Math.max(max, r.id), 0) + 1;
-    setRows((prev) => [...prev, { id: nextId, ...values } as ClienteRow]);
-  }
-
-  function handleEditSubmit(values: Record<string, string | number>) {
-    if (!editingRow) return;
-    setRows((prev) =>
-      prev.map((r) => (r.id === editingRow.id ? { ...r, ...values } as ClienteRow : r))
-    );
-  }
-
-  function handleDelete(row: ClienteRow) {
-    setRows((prev) => prev.filter((r) => r.id !== row.id));
-  }
 
   return (
     <>
       <DataTable
         title="Clientes"
         columns={columns}
-        rows={rows}
-        actions={<RecordFormModal title="Clientes" columns={columns} onSubmit={handleCreate} />}
+        rows={clientes}
+        actions={<RecordFormModal title="Clientes" columns={columns} onSubmit={addCliente} />}
         onEditRow={setEditingRow}
-        onDeleteRow={handleDelete}
+        onDeleteRow={(row) => deleteCliente(row.id)}
       />
 
       <EditRecordModal
@@ -97,7 +89,9 @@ export default function ClientesView({ initialRows }: { initialRows: ClienteRow[
         columns={columns}
         row={editingRow}
         onClose={() => setEditingRow(null)}
-        onSubmit={handleEditSubmit}
+        onSubmit={(v) => {
+          if (editingRow) updateCliente(editingRow.id, v);
+        }}
       />
     </>
   );

@@ -16,26 +16,95 @@ function slugify(text: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
-/** Lee un ancho tipo "12%" definido en la columna. Ignora anchos en otras unidades (px, etc). */
-function parseWidthPercent<T>(col: Column<T>): number | null {
-  const m = /^(\d+(?:\.\d+)?)%$/.exec((col.width ?? "").trim());
-  return m ? parseFloat(m[1]) : null;
+/**
+ * Alineación por tipo de dato, igual al criterio de una tabla impresa (no al
+ * de la pantalla, que es siempre a la izquierda tipo listado). Centrado y no
+ * a la derecha para número/moneda: en columnas angostas (ej. "OP N°",
+ * "Cant.") el ancho lo termina marcando la etiqueta del encabezado, más larga
+ * que el propio valor — alinear a la derecha deja un hueco vacío a la
+ * izquierda que se ve "tirado" hacia el borde. Centrado, encabezado y dato
+ * quedan uno debajo del otro sin ese hueco. El texto libre sigue a la
+ * izquierda (leer un párrafo centrado es incómodo).
+ */
+function alignForColumn<T>(col: Column<T>): "left" | "right" | "center" {
+  switch (col.type ?? "text") {
+    case "currency":
+    case "number":
+    case "date":
+    case "tag":
+    case "barcode":
+      return "center";
+    default:
+      return "left";
+  }
 }
 
+/** Ancho fijo (mm) para la columna de código de barras: su celda queda casi
+ * vacía de texto (la imagen se dibuja aparte), así que el ancho automático
+ * por contenido la dejaría demasiado angosta para que entre el código. */
+const BARCODE_COLUMN_WIDTH_MM = 58;
+
+const PDF_CELL_PADDING_MM = 2;
+// Margen extra sobre el ancho medido: la medición de jsPDF y el ancho real
+// que ocupa el texto renderizado no coinciden pixel a pixel — sin este
+// colchón, un valor que mide "justo" puede terminar pasando a 2 líneas.
+const PDF_WIDTH_SAFETY_MARGIN_MM = 2;
+// Columnas con un ancho medido por debajo de esto se consideran "de formato
+// fijo" (CUIT, teléfono, fecha, moneda, tag) y nunca se achican para ganar
+// espacio — lo que haga falta liberar se lo saca sólo a las columnas de
+// texto libre (nombre, domicilio, mail), que sí toleran wrapear sin verse rotas.
+const PDF_NARROW_COLUMN_THRESHOLD_MM = 28;
+
 /**
- * Reparte el ancho disponible entre las columnas, respetando los `width` en %
- * que ya definió cada sección para su tabla en pantalla (si no especificó,
- * reparte el resto por partes iguales). Así el PDF queda proporcionado igual
- * que la tabla, en vez de que cada columna se autoajuste por contenido.
+ * Mide, con la fuente real del PDF, el ancho que necesita cada columna para
+ * que su valor más largo (encabezado o dato) entre siempre en una sola
+ * línea — reemplaza el ancho "auto" nativo de autotable, que bajo presión
+ * (cuando la tabla no entra en el ancho de página) achica proporcionalmente
+ * TODAS las columnas por igual, incluidas las angostas de formato fijo
+ * (ahí es donde CUIT/Tel terminaban partidos en 2 líneas). Si sobra lugar,
+ * el excedente se reparte proporcionalmente para que la tabla llene la
+ * página, igual que antes.
  */
-function computeColumnWidths<T>(columns: Column<T>[], usableWidth: number): number[] {
-  const specified = columns.map((c) => parseWidthPercent(c));
-  const specifiedSum = specified.reduce<number>((sum, w) => sum + (w ?? 0), 0);
-  const unspecifiedCount = specified.filter((w) => w === null).length;
-  const fallback = unspecifiedCount > 0 ? Math.max(0, 100 - specifiedSum) / unspecifiedCount : 0;
-  const weights = specified.map((w) => w ?? fallback);
-  const totalWeight = weights.reduce((sum, w) => sum + w, 0) || 1;
-  return weights.map((w) => (w / totalWeight) * usableWidth);
+function computeColumnWidthsMm<T extends Record<string, unknown>>(
+  doc: { setFont: (f: string, s: string) => void; setFontSize: (n: number) => void; getTextWidth: (t: string) => number },
+  columns: Column<T>[],
+  rows: T[],
+  usableWidth: number,
+  barcodeColIndexes: Set<number>
+): number[] {
+  const minWidths = columns.map((col, i) => {
+    if (barcodeColIndexes.has(i)) return BARCODE_COLUMN_WIDTH_MM;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    const headerW = doc.getTextWidth(col.label);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    const bodyW = rows.reduce((max, row) => {
+      const text = formatCellValue(row[col.key], col.type ?? "text");
+      return Math.max(max, doc.getTextWidth(text));
+    }, 0);
+
+    return Math.max(headerW, bodyW) + PDF_CELL_PADDING_MM * 2 + PDF_WIDTH_SAFETY_MARGIN_MM;
+  });
+
+  const totalMin = minWidths.reduce((sum, w) => sum + w, 0);
+
+  if (totalMin <= usableWidth) {
+    const surplus = usableWidth - totalMin;
+    return minWidths.map((w) => w + surplus * (w / totalMin));
+  }
+
+  // No entra todo: se achican sólo las columnas anchas (texto libre) lo
+  // necesario para que la tabla quepa, sin tocar las angostas.
+  const isWide = minWidths.map((w, i) => w > PDF_NARROW_COLUMN_THRESHOLD_MM && !barcodeColIndexes.has(i));
+  const narrowTotal = minWidths.reduce((sum, w, i) => (isWide[i] ? sum : sum + w), 0);
+  const wideTotal = totalMin - narrowTotal;
+  const wideBudget = Math.max(0, usableWidth - narrowTotal);
+  const shrinkRatio = wideTotal > 0 ? wideBudget / wideTotal : 1;
+
+  return minWidths.map((w, i) => (isWide[i] ? w * shrinkRatio : w));
 }
 
 type BarcodeImage = { uri: string; width: number; height: number };
@@ -103,15 +172,20 @@ export async function exportRowsToPdf<T extends Record<string, unknown>>(
 
   const margin = { top: 33, left: 14, right: 14 };
   const usableWidth = doc.internal.pageSize.getWidth() - margin.left - margin.right;
-  const columnWidths = computeColumnWidths(columns, usableWidth);
-  const columnStyles = Object.fromEntries(
-    columnWidths.map((w, i) => [i, { cellWidth: w }])
-  );
 
   // Índices de columnas tipo "barcode"
   const barcodeColIndexes = new Set(
     columns.map((c, i) => (c.type === "barcode" ? i : -1)).filter((i) => i !== -1)
   );
+
+  // Cada columna se ajusta a su propio contenido más largo (igual que la
+  // tabla en pantalla): así "OP N°" o "Cantidad" quedan angostas y en una
+  // sola línea, y el espacio sobrante se lo queda el texto libre
+  // (Descripción, Domicilio, Email) en vez de repartirse por igual. Antes
+  // se reciclaba el ancho en % pensado para la tipografía de la pantalla,
+  // que no tiene nada que ver con el tamaño de letra del PDF.
+  const columnWidthsMm = computeColumnWidthsMm(doc, columns, rows, usableWidth, barcodeColIndexes);
+  const columnStyles = Object.fromEntries(columnWidthsMm.map((w, i) => [i, { cellWidth: w }]));
 
   // Una imagen por fila x columna barcode, generadas de antemano (sincrónico)
   const barcodeImages = new Map<string, BarcodeImage>(); // key: `${rowIndex}-${colIndex}`
@@ -127,8 +201,10 @@ export async function exportRowsToPdf<T extends Record<string, unknown>>(
   }
 
   // Alto mínimo de fila (mm) para que el código de barras tenga lugar y no
-  // quede aplastado contra una fila pensada para una línea de texto.
-  const BARCODE_ROW_HEIGHT = 14;
+  // quede aplastado contra una fila pensada para una línea de texto. Más
+  // grande que el mínimo técnico: el resto de las columnas no ocupan tanto,
+  // así que hay margen de sobra para que el código se vea más grande.
+  const BARCODE_ROW_HEIGHT = 20;
 
   autoTable(doc, {
     startY: margin.top,
@@ -138,12 +214,35 @@ export async function exportRowsToPdf<T extends Record<string, unknown>>(
         c.type === "barcode" ? "" : formatCellValue(row[c.key], c.type ?? "text")
       )
     ),
-    styles: { font: "helvetica", fontSize: 7.5, cellPadding: 2, overflow: "linebreak" },
-    headStyles: { fillColor: [212, 119, 42], textColor: 255, fontStyle: "bold", fontSize: 8 },
+    styles: {
+      font: "helvetica",
+      fontSize: 7.5,
+      cellPadding: 2,
+      overflow: "linebreak",
+      valign: "middle",
+      // Líneas divisorias en toda la grilla (fila y columna) — antes no había
+      // ninguna. 0.2mm (no 0.1): más fino que eso, algunos lectores de PDF
+      // lo redondean a menos de 1px al abrir y la línea directamente
+      // desaparece hasta hacer zoom.
+      lineWidth: 0.2,
+      lineColor: [190, 183, 174],
+    },
+    headStyles: {
+      fillColor: [212, 119, 42],
+      textColor: 255,
+      fontStyle: "bold",
+      fontSize: 8,
+      lineColor: [184, 95, 26],
+    },
     alternateRowStyles: { fillColor: [245, 242, 236] },
     columnStyles,
     margin: { top: margin.top, left: margin.left, right: margin.right },
+    // `columnStyles[i].halign` no siempre pisa el halign del encabezado (queda
+    // a la izquierda aunque el dato de esa columna esté centrado/a la derecha,
+    // como pasaba con "OP N°"/"Cantidad") — se fuerza acá para que encabezado
+    // y datos queden siempre alineados entre sí, en ambas secciones.
     didParseCell: (data) => {
+      data.cell.styles.halign = alignForColumn(columns[data.column.index]);
       if (data.section === "body" && barcodeColIndexes.has(data.column.index)) {
         data.cell.styles.minCellHeight = BARCODE_ROW_HEIGHT;
       }
@@ -163,8 +262,8 @@ export async function exportRowsToPdf<T extends Record<string, unknown>>(
       const scale = Math.min(maxW / img.width, maxH / img.height);
       const w = img.width * scale;
       const h = img.height * scale;
-      // Alineado a la izquierda, igual que el título de la columna (no centrado).
-      const x = cell.x + 2;
+      // Centrado, igual que el título de la columna.
+      const x = cell.x + (cell.width - w) / 2;
       const y = cell.y + (cell.height - h) / 2;
       doc.addImage(img.uri, "PNG", x, y, w, h);
     },
