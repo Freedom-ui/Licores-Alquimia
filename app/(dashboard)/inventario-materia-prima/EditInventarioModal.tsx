@@ -86,8 +86,11 @@ export default function EditInventarioModal({
             />
           </div>
           <div className="rf-field">
-            <label htmlFor="mpedit-costo">
-              Costo unitario<span className="rf-required">*</span>
+            <label
+              htmlFor="mpedit-costo"
+              title="Costo de la existencia inicial. Las compras cargadas después lo van promediando."
+            >
+              Costo unit. inicial<span className="rf-required">*</span>
             </label>
             <input
               id="mpedit-costo"

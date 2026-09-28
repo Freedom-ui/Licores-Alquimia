@@ -223,17 +223,17 @@ export default function ProductosTerminadosView() {
                             Fecha
                           </th>
                           <th colSpan={3} style={{ textAlign: "center" }}>Entradas</th>
-                          <th colSpan={3} style={{ textAlign: "center" }}>Salidas</th>
-                          <th colSpan={3} style={{ textAlign: "center" }}>Saldo</th>
+                          <th colSpan={3} className="kx-group-start" style={{ textAlign: "center" }}>Salidas</th>
+                          <th colSpan={3} className="kx-group-start" style={{ textAlign: "center" }}>Saldo</th>
                         </tr>
                         <tr>
                           <th title="Cantidad" style={{ textAlign: "center" }}>C</th>
                           <th title="Precio unitario" style={{ textAlign: "center" }}>PU</th>
                           <th title="Precio total" style={{ textAlign: "center" }}>PT</th>
-                          <th title="Cantidad" style={{ textAlign: "center" }}>C</th>
+                          <th title="Cantidad" className="kx-group-start" style={{ textAlign: "center" }}>C</th>
                           <th title="Precio unitario" style={{ textAlign: "center" }}>PU</th>
                           <th title="Precio total" style={{ textAlign: "center" }}>PT</th>
-                          <th title="Cantidad" style={{ textAlign: "center" }}>C</th>
+                          <th title="Cantidad" className="kx-group-start" style={{ textAlign: "center" }}>C</th>
                           <th title="Precio unitario" style={{ textAlign: "center" }}>PU</th>
                           <th title="Precio total" style={{ textAlign: "center" }}>PT</th>
                         </tr>
@@ -247,10 +247,10 @@ export default function ProductosTerminadosView() {
                             <td style={{ textAlign: "center" }}>{fila.entradaC ?? "—"}</td>
                             <td style={{ textAlign: "center" }}>{formatCellValue(fila.entradaPU, "currency")}</td>
                             <td style={{ textAlign: "center" }}>{formatCellValue(fila.entradaPT, "currency")}</td>
-                            <td style={{ textAlign: "center" }}>{fila.salidaC ?? "—"}</td>
+                            <td className="kx-group-start" style={{ textAlign: "center" }}>{fila.salidaC ?? "—"}</td>
                             <td style={{ textAlign: "center" }}>{formatCellValue(fila.salidaPU, "currency")}</td>
                             <td style={{ textAlign: "center" }}>{formatCellValue(fila.salidaPT, "currency")}</td>
-                            <td style={{ textAlign: "center" }}>{fila.saldoC}</td>
+                            <td className="kx-group-start" style={{ textAlign: "center" }}>{fila.saldoC}</td>
                             <td style={{ textAlign: "center" }}>{formatCellValue(fila.saldoPU, "currency")}</td>
                             <td style={{ textAlign: "center" }}>{formatCellValue(fila.saldoPT, "currency")}</td>
                           </tr>

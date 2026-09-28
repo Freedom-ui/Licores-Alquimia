@@ -697,14 +697,13 @@ body {
 .pt-kardex-table td { white-space: nowrap; }
 .pt-kardex-table thead tr:first-child th { text-align: center; }
 
-/* Líneas divisorias entre los grupos Entradas / Salidas / Saldo, para que
-   los datos de cada sección no se confundan visualmente con la de al lado. */
-.pt-kardex-table thead tr:first-child th:nth-child(3),
-.pt-kardex-table thead tr:first-child th:nth-child(4),
-.pt-kardex-table thead tr:nth-child(2) th:nth-child(4),
-.pt-kardex-table thead tr:nth-child(2) th:nth-child(7),
-.pt-kardex-table tbody td:nth-child(5),
-.pt-kardex-table tbody td:nth-child(8) {
+/* Línea divisoria entre grupos de columnas del kardex (Entradas / Salidas /
+   Saldo, o Ingresos / Compras / Consumos / Saldo), para que los datos de una
+   sección no se confundan con los de la de al lado. Cada vista marca con esta
+   clase la primera columna de cada grupo salvo el primero — antes estaba
+   hardcodeado por posición (nth-child) para el kardex de 3 grupos, y en una
+   tabla con otra estructura las líneas caían en cualquier lado. */
+.pt-kardex-table .kx-group-start {
   border-left: 1px solid var(--border-dark);
 }
 

@@ -142,9 +142,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setMateriaPrima((prev) => [...prev, { id: nextId(prev), ...v } as unknown as MateriaPrimaRow]);
   }
   function updateMateriaPrima(id: number, v: Record<string, string | number>) {
+    const anterior = materiaPrima.find((r) => r.id === id);
     setMateriaPrima((prev) => prev.map((r) => (r.id === id ? ({ ...r, ...v } as unknown as MateriaPrimaRow) : r)));
+    // Las órdenes guardan el insumo por nombre (texto): si se renombra acá hay
+    // que renombrarlo también en ellas, si no una orden que se edite después
+    // ya no encontraría su materia prima y dejaría de descontar del inventario.
+    const nuevoNombre = typeof v.nombre === "string" ? v.nombre : undefined;
+    if (anterior && nuevoNombre && nuevoNombre !== anterior.nombre) {
+      setOrdenesProduccion((prev) =>
+        prev.map((o) => ({
+          ...o,
+          insumos: o.insumos.map((i) => (i.materiaPrima === anterior.nombre ? { ...i, materiaPrima: nuevoNombre } : i)),
+        }))
+      );
+    }
   }
   function deleteMateriaPrima(id: number) {
+    // Se lanza el error (DataTable lo muestra en el diálogo de confirmación)
+    // en vez de borrar: sino la fila del inventario quedaba huérfana, sin
+    // nombre ni unidad, con todo su historial de movimientos colgando.
+    if (inventarioMateriaPrima.some((r) => r.materiaPrimaId === id)) {
+      throw new Error(
+        "Esta materia prima está en el Inventario de materia prima. Quitala de ahí primero para poder eliminarla del catálogo."
+      );
+    }
     setMateriaPrima((prev) => prev.filter((r) => r.id !== id));
   }
 
@@ -179,9 +200,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // (movimientos manuales + alta/edición/baja), pero acá "dar de alta" es
   // empezar a trackear una materia prima que ya existe en el catálogo
   // (materiaPrima), no crear un producto nuevo — por eso addInventarioMateriaPrima
-  // recibe un `materiaPrimaId` en vez de nombre/formato sueltos. Sin
-  // automatización todavía: una Orden de producción no descuenta insumos de
-  // acá (ver nota en saveOrden más abajo).
+  // recibe un `materiaPrimaId` en vez de nombre/formato sueltos. Los consumos
+  // de las Órdenes de producción se sincronizan más abajo (syncConsumosParaOrden).
   function addInventarioMateriaPrima(v: NuevaMateriaPrimaInventarioInput) {
     setInventarioMateriaPrima((prev) => [
       ...prev,
@@ -356,11 +376,62 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const orden: OrdenProduccionRow = id === null ? { id: nextId(ordenesProduccion), ...base } : { id, ...base };
     setOrdenesProduccion((prev) => (id === null ? [...prev, orden] : prev.map((r) => (r.id === id ? orden : r))));
     setProductosTerminados((prev) => syncLoteParaOrden(prev, orden));
+    setInventarioMateriaPrima((prev) => syncConsumosParaOrden(prev, orden));
   }
 
   function deleteOrden(id: number) {
     setOrdenesProduccion((prev) => prev.filter((r) => r.id !== id));
     setProductosTerminados((prev) => prev.filter((l) => !(l.origenOrdenId === id && l.movimientos.length === 0)));
+    setInventarioMateriaPrima((prev) => quitarConsumosDeOrden(prev, id));
+  }
+
+  // ── Órdenes de producción → Inventario de materia prima: al guardar una
+  // orden, cada insumo que esté en el inventario genera un consumo (salida)
+  // tageado con `origenOrdenId`, así se actualiza o se borra junto con la
+  // orden en vez de duplicarse. Detalles:
+  //  - Si la misma materia prima se repite en la sub-tabla de insumos, se
+  //    suma en un solo consumo.
+  //  - Se fecha con la fecha de maceración (cuando se consumen el alcohol y
+  //    la fruta; envases y etiquetas en rigor salen al embotellar, pero no
+  //    hay forma de distinguirlos sin agregar un tipo al catálogo).
+  //  - Los insumos que todavía no se están trackeando en el inventario se
+  //    ignoran, sin bloquear la orden (mismo criterio que una venta de un
+  //    producto sin lote).
+  //  - Si no alcanza el saldo no se bloquea: el saldo queda en negativo, que
+  //    en pantalla se ve en rojo y avisa que falta cargar una compra.
+  function quitarConsumosDeOrden(rows: InventarioMateriaPrimaRow[], ordenId: number): InventarioMateriaPrimaRow[] {
+    return rows.map((r) =>
+      r.movimientos.some((m) => m.origenOrdenId === ordenId)
+        ? { ...r, movimientos: r.movimientos.filter((m) => m.origenOrdenId !== ordenId) }
+        : r
+    );
+  }
+
+  function syncConsumosParaOrden(rows: InventarioMateriaPrimaRow[], orden: OrdenProduccionRow): InventarioMateriaPrimaRow[] {
+    const cantidadPorMateria = new Map<number, number>();
+    for (const insumo of orden.insumos) {
+      const mp = materiaPrima.find((m) => m.nombre === insumo.materiaPrima);
+      if (!mp) continue;
+      cantidadPorMateria.set(mp.id, (cantidadPorMateria.get(mp.id) ?? 0) + insumo.cantidad);
+    }
+
+    return quitarConsumosDeOrden(rows, orden.id).map((r) => {
+      const cantidad = cantidadPorMateria.get(r.materiaPrimaId);
+      if (!cantidad) return r;
+      return {
+        ...r,
+        movimientos: [
+          ...r.movimientos,
+          {
+            id: nextId(r.movimientos),
+            fecha: orden.fechaMaceracion,
+            tipo: "salida",
+            cantidad: Math.round(cantidad * 100) / 100,
+            origenOrdenId: orden.id,
+          },
+        ],
+      };
+    });
   }
 
   const value: Store = {

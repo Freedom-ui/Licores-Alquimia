@@ -8,12 +8,18 @@ import type { InventarioMateriaPrimaRow } from "./data";
 export default function AgregarMovimientoInventarioModal({
   row,
   nombre,
+  unidad,
+  saldoActual,
   onClose,
   onSubmit,
 }: {
   /** Fila a la que se le agrega el movimiento; el modal está abierto mientras no sea null. */
   row: InventarioMateriaPrimaRow | null;
   nombre: string;
+  /** Unidad de medida del catálogo: si es "Unidades" solo se admiten cantidades enteras. */
+  unidad: string;
+  /** Saldo vigente, para avisar si un consumo lo supera. */
+  saldoActual: number;
   onClose: () => void;
   onSubmit: (rowId: number, movimiento: Omit<KardexMovimiento, "id">) => void;
 }) {
@@ -44,6 +50,10 @@ export default function AgregarMovimientoInventarioModal({
     onClose();
   }
 
+  const porUnidad = unidad === "Unidades";
+  const cantidadNum = Number(cantidad) || 0;
+  const superaSaldo = tipo === "salida" && cantidadNum > saldoActual;
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!row) return;
@@ -55,6 +65,10 @@ export default function AgregarMovimientoInventarioModal({
     const cant = Number(cantidad);
     if (!cant || cant <= 0) {
       setError('Completá "Cantidad" con un valor mayor a 0.');
+      return;
+    }
+    if (porUnidad && !Number.isInteger(cant)) {
+      setError('Esta materia prima se cuenta por unidad: "Cantidad" tiene que ser un número entero.');
       return;
     }
 
@@ -104,7 +118,8 @@ export default function AgregarMovimientoInventarioModal({
             <input
               id="mpmov-cantidad"
               type="number"
-              step="0.01"
+              min="0"
+              step={porUnidad ? "1" : "0.01"}
               value={cantidad}
               onChange={(e) => setCantidad(e.target.value)}
             />
@@ -136,6 +151,13 @@ export default function AgregarMovimientoInventarioModal({
             </>
           )}
         </div>
+
+        {superaSaldo && (
+          <p className="rf-hint">
+            Este consumo supera el saldo actual ({saldoActual.toLocaleString("es-AR")}). Si guardás, el
+            saldo va a quedar en negativo — puede que falte cargar una compra.
+          </p>
+        )}
 
         {error && <div className="rf-error">{error}</div>}
 

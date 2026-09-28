@@ -248,6 +248,11 @@ export default function OrdenFormModal({
           <span className="li-total-value">{formatCellValue(costoTotal, "currency")}</span>
         </div>
 
+        <p className="rf-hint">
+          Los insumos que estén en el Inventario de materia prima se descuentan automáticamente al
+          guardar (con la fecha de maceración).
+        </p>
+
         {values.fechaEmbotellado && (
           <p className="rf-hint">
             Al guardar con fecha de embotellado, se crea o actualiza automáticamente el lote

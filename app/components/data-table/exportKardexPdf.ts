@@ -21,7 +21,23 @@ export type KardexGroupPdf = {
   /** Ej. "Licor Fino de Limón — 500 cc". */
   title: string;
   filas: KardexFila[];
+  /**
+   * Decimales fijos con los que se formatean las cantidades ("raw") de este
+   * grupo, con separador es-AR (ej. 16,20). Si se omite, se muestran tal cual
+   * (enteros, como en Productos terminados).
+   */
+  quantityDecimals?: number;
 };
+
+const quantityFormatters = new Map<number, Intl.NumberFormat>();
+function formatQuantity(value: number, decimals: number): string {
+  let fmt = quantityFormatters.get(decimals);
+  if (!fmt) {
+    fmt = new Intl.NumberFormat("es-AR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    quantityFormatters.set(decimals, fmt);
+  }
+  return fmt.format(value);
+}
 
 /** Una columna de dato dentro de un grupo (ej. "C" dentro de "Entradas"). */
 export type KardexPdfColumn = {
@@ -156,7 +172,9 @@ export async function exportKardexToPdf(
       ...columnGroups.flatMap((g) =>
         g.columns.map((c) => {
           const value = c.get(f);
-          return c.format === "currency" ? formatCellValue(value, "currency") : value ?? "—";
+          if (c.format === "currency") return formatCellValue(value, "currency");
+          if (value === null) return "—";
+          return grupo.quantityDecimals === undefined ? value : formatQuantity(value, grupo.quantityDecimals);
         })
       ),
     ]);

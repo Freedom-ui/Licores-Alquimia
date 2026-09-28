@@ -11,9 +11,19 @@ import EditInventarioModal from "./EditInventarioModal";
 import type { InventarioMateriaPrimaRow } from "./data";
 import { useStore } from "../store";
 
-const qtyFormatter = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-function formatQty(v: number | null): string {
-  return v === null || v === undefined ? "—" : qtyFormatter.format(v);
+// Las materias primas que se cuentan por unidad (envases, tapas, etiquetas…)
+// se muestran en enteros; las que se miden (litros, kilos, metros) con 2
+// decimales, como en la planilla. Antes todo salía con 2 decimales ("500,00"
+// envases).
+const qtyFormatters = {
+  0: new Intl.NumberFormat("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }),
+  2: new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+};
+function decimalesPara(unidad: string): 0 | 2 {
+  return unidad === "Unidades" ? 0 : 2;
+}
+function formatQty(v: number | null, decimales: 0 | 2): string {
+  return v === null || v === undefined ? "—" : qtyFormatters[decimales].format(v);
 }
 
 // Estructura propia de esta sección para el PDF: a diferencia de Productos
@@ -93,6 +103,7 @@ export default function InventarioMateriaPrimaView() {
           row,
           nombre: catalogo?.nombre ?? "Materia prima eliminada del catálogo",
           unidad: catalogo?.unidad ?? "",
+          decimales: decimalesPara(catalogo?.unidad ?? ""),
           kardex,
           saldoActual: ultima.saldoC,
           valorActual: ultima.saldoPT,
@@ -141,10 +152,11 @@ export default function InventarioMateriaPrimaView() {
     try {
       await exportKardexToPdf(
         "Inventario de materia prima",
-        filtradas.map(({ nombre, unidad, kardex }) => ({
+        filtradas.map(({ nombre, unidad, decimales, kardex }) => ({
           badge: unidad,
           title: nombre,
           filas: kardex,
+          quantityDecimals: decimales,
         })),
         PDF_COLUMN_GROUPS,
         { singular: "materia prima", plural: "materias primas" }
@@ -231,7 +243,7 @@ export default function InventarioMateriaPrimaView() {
         </div>
       ) : (
         <div className="pt-list">
-          {filtradas.map(({ row, nombre, unidad, kardex, saldoActual, valorActual, totalIngresos, totalConsumos }) => {
+          {filtradas.map(({ row, nombre, unidad, decimales, kardex, saldoActual, valorActual, totalIngresos, totalConsumos }) => {
             const abierto = Boolean(expanded[row.id]);
             return (
               <div className="pt-card" key={row.id}>
@@ -241,10 +253,10 @@ export default function InventarioMateriaPrimaView() {
                     <span className="pt-badge">{unidad || "—"}</span>
                     <span className="pt-card-title">{nombre}</span>
                     <span className="pt-card-stats">
-                      <span title="Total ingresado">Ingr.: {formatQty(totalIngresos)}</span>
-                      <span title="Total consumido">Cons.: {formatQty(totalConsumos)}</span>
+                      <span title="Total ingresado">Ingr.: {formatQty(totalIngresos, decimales)}</span>
+                      <span title="Total consumido">Cons.: {formatQty(totalConsumos, decimales)}</span>
                       <span title="Saldo actual" className={saldoActual > 0 ? "pt-stat-ok" : "pt-stat-off"}>
-                        Saldo: {formatQty(saldoActual)}
+                        Saldo: {formatQty(saldoActual, decimales)}
                       </span>
                       <span title="Valor del saldo" className="pt-stat-value">
                         {formatCellValue(valorActual, "currency")}
@@ -296,19 +308,19 @@ export default function InventarioMateriaPrimaView() {
                         <tr>
                           <th rowSpan={2} style={{ textAlign: "center" }}>Fecha</th>
                           <th colSpan={2} style={{ textAlign: "center" }}>Ingresos s/Insumo</th>
-                          <th colSpan={2} style={{ textAlign: "center" }}>Compras</th>
-                          <th colSpan={3} style={{ textAlign: "center" }}>Consumos</th>
-                          <th colSpan={3} style={{ textAlign: "center" }}>Saldo</th>
+                          <th colSpan={2} className="kx-group-start" style={{ textAlign: "center" }}>Compras</th>
+                          <th colSpan={3} className="kx-group-start" style={{ textAlign: "center" }}>Consumos</th>
+                          <th colSpan={3} className="kx-group-start" style={{ textAlign: "center" }}>Saldo</th>
                         </tr>
                         <tr>
                           <th title="Cantidad" style={{ textAlign: "center" }}>C</th>
                           <th title="Cantidad de cáscara (si aplica)" style={{ textAlign: "center" }}>C (Cáscara)</th>
+                          <th title="Costo unitario" className="kx-group-start" style={{ textAlign: "center" }}>CU</th>
+                          <th title="Costo total" style={{ textAlign: "center" }}>CT</th>
+                          <th title="Cantidad" className="kx-group-start" style={{ textAlign: "center" }}>C</th>
                           <th title="Costo unitario" style={{ textAlign: "center" }}>CU</th>
                           <th title="Costo total" style={{ textAlign: "center" }}>CT</th>
-                          <th title="Cantidad" style={{ textAlign: "center" }}>C</th>
-                          <th title="Costo unitario" style={{ textAlign: "center" }}>CU</th>
-                          <th title="Costo total" style={{ textAlign: "center" }}>CT</th>
-                          <th title="Cantidad" style={{ textAlign: "center" }}>C</th>
+                          <th title="Cantidad" className="kx-group-start" style={{ textAlign: "center" }}>C</th>
                           <th title="Costo unitario" style={{ textAlign: "center" }}>CU</th>
                           <th title="Costo total" style={{ textAlign: "center" }}>CT</th>
                         </tr>
@@ -319,14 +331,14 @@ export default function InventarioMateriaPrimaView() {
                             <td style={{ textAlign: "center" }}>
                               {fila.fecha ? formatCellValue(fila.fecha, "date") : "Exist. inicial"}
                             </td>
-                            <td style={{ textAlign: "center" }}>{formatQty(fila.entradaC)}</td>
-                            <td style={{ textAlign: "center" }}>{formatQty(fila.entradaSecundariaC)}</td>
-                            <td style={{ textAlign: "center" }}>{formatCellValue(fila.entradaPU, "currency")}</td>
+                            <td style={{ textAlign: "center" }}>{formatQty(fila.entradaC, decimales)}</td>
+                            <td style={{ textAlign: "center" }}>{formatQty(fila.entradaSecundariaC, 2)}</td>
+                            <td className="kx-group-start" style={{ textAlign: "center" }}>{formatCellValue(fila.entradaPU, "currency")}</td>
                             <td style={{ textAlign: "center" }}>{formatCellValue(fila.entradaPT, "currency")}</td>
-                            <td style={{ textAlign: "center" }}>{formatQty(fila.salidaC)}</td>
+                            <td className="kx-group-start" style={{ textAlign: "center" }}>{formatQty(fila.salidaC, decimales)}</td>
                             <td style={{ textAlign: "center" }}>{formatCellValue(fila.salidaPU, "currency")}</td>
                             <td style={{ textAlign: "center" }}>{formatCellValue(fila.salidaPT, "currency")}</td>
-                            <td style={{ textAlign: "center" }}>{formatQty(fila.saldoC)}</td>
+                            <td className="kx-group-start" style={{ textAlign: "center" }}>{formatQty(fila.saldoC, decimales)}</td>
                             <td style={{ textAlign: "center" }}>{formatCellValue(fila.saldoPU, "currency")}</td>
                             <td style={{ textAlign: "center" }}>{formatCellValue(fila.saldoPT, "currency")}</td>
                           </tr>
@@ -355,6 +367,8 @@ export default function InventarioMateriaPrimaView() {
       <AgregarMovimientoInventarioModal
         row={movimientoTarget}
         nombre={movimientoTarget ? filas.find((f) => f.row.id === movimientoTarget.id)?.nombre ?? "" : ""}
+        unidad={movimientoTarget ? filas.find((f) => f.row.id === movimientoTarget.id)?.unidad ?? "" : ""}
+        saldoActual={movimientoTarget ? filas.find((f) => f.row.id === movimientoTarget.id)?.saldoActual ?? 0 : 0}
         onClose={() => setMovimientoTarget(null)}
         onSubmit={addInventarioMovimiento}
       />
