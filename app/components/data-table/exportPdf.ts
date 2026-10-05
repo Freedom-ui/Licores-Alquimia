@@ -1,6 +1,7 @@
 import type { Column } from "./types";
 import { formatCellValue } from "./format";
 import JsBarcode from "jsbarcode";
+import { EMPRESA, lineaDatosEmpresa } from "@/app/empresa";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("es-AR", {
   dateStyle: "short",
@@ -27,6 +28,7 @@ function slugify(text: string): string {
  * izquierda (leer un párrafo centrado es incómodo).
  */
 function alignForColumn<T>(col: Column<T>): "left" | "right" | "center" {
+  if (col.align === "center") return "center";
   switch (col.type ?? "text") {
     case "currency":
     case "number":
@@ -159,7 +161,7 @@ export async function exportRowsToPdf<T extends Record<string, unknown>>(
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  doc.text("Licores Alquimia", 14, 16);
+  doc.text(EMPRESA.nombre, 14, 16);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
@@ -168,9 +170,15 @@ export async function exportRowsToPdf<T extends Record<string, unknown>>(
   doc.setFontSize(8);
   doc.setTextColor(130);
   const cantidad = `${rows.length} registro${rows.length === 1 ? "" : "s"}`;
-  doc.text(`Generado el ${dateTimeFormatter.format(new Date())} · ${cantidad}`, 14, 28);
+  const datosEmpresa = lineaDatosEmpresa();
+  let y = 28;
+  if (datosEmpresa) {
+    doc.text(datosEmpresa, 14, y);
+    y += 4.5;
+  }
+  doc.text(`Generado el ${dateTimeFormatter.format(new Date())} · ${cantidad}`, 14, y);
 
-  const margin = { top: 33, left: 14, right: 14 };
+  const margin = { top: y + 5, left: 14, right: 14 };
   const usableWidth = doc.internal.pageSize.getWidth() - margin.left - margin.right;
 
   // Índices de columnas tipo "barcode"
@@ -206,9 +214,29 @@ export async function exportRowsToPdf<T extends Record<string, unknown>>(
   // así que hay margen de sobra para que el código se vea más grande.
   const BARCODE_ROW_HEIGHT = 20;
 
+  // Con columnas agrupadas el encabezado va en 2 filas, igual que en pantalla:
+  // las columnas sueltas ocupan las 2 (rowSpan) y cada grupo una celda común arriba.
+  type HeadCell = { content: string; colSpan?: number; rowSpan?: number };
+  const hasGroups = columns.some((c) => c.group);
+  const head: HeadCell[][] = [];
+  if (hasGroups) {
+    const top: HeadCell[] = [];
+    columns.forEach((c, i) => {
+      if (!c.group) top.push({ content: c.label, rowSpan: 2 });
+      else if (i === 0 || columns[i - 1].group !== c.group) {
+        let span = 1;
+        while (columns[i + span]?.group === c.group) span++;
+        top.push({ content: c.group, colSpan: span });
+      }
+    });
+    head.push(top, columns.filter((c) => c.group).map((c) => ({ content: c.label })));
+  } else {
+    head.push(columns.map((c) => ({ content: c.label })));
+  }
+
   autoTable(doc, {
     startY: margin.top,
-    head: [columns.map((c) => c.label)],
+    head,
     body: rows.map((row) =>
       columns.map((c) =>
         c.type === "barcode" ? "" : formatCellValue(row[c.key], c.type ?? "text")
@@ -242,7 +270,8 @@ export async function exportRowsToPdf<T extends Record<string, unknown>>(
     // como pasaba con "OP N°"/"Cantidad") — se fuerza acá para que encabezado
     // y datos queden siempre alineados entre sí, en ambas secciones.
     didParseCell: (data) => {
-      data.cell.styles.halign = alignForColumn(columns[data.column.index]);
+      const esGrupo = data.section === "head" && hasGroups && data.row.index === 0 && (data.cell.colSpan ?? 1) > 1;
+      data.cell.styles.halign = esGrupo ? "center" : alignForColumn(columns[data.column.index]);
       if (data.section === "body" && barcodeColIndexes.has(data.column.index)) {
         data.cell.styles.minCellHeight = BARCODE_ROW_HEIGHT;
       }

@@ -50,6 +50,7 @@ export default function FormFields<T>({
               <input
                 id={fieldId}
                 type={input}
+                step={input === "number" ? "any" : undefined}
                 placeholder={f.form?.placeholder}
                 pattern={f.form?.pattern}
                 title={f.form?.patternMessage}

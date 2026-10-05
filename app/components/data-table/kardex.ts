@@ -28,6 +28,8 @@ export type KardexMovimiento = {
   origenOperacionId?: number;
   /** Ídem `origenOperacionId`, pero para consumos generados por una Orden de producción. */
   origenOrdenId?: number;
+  /** Ídem, para ingresos generados por una compra del Libro de compras (Trazabilidad). */
+  origenCompraId?: number;
 };
 
 export type KardexFila = {

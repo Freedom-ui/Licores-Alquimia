@@ -25,6 +25,10 @@ export type LoteTerminado = {
   movimientos: KardexMovimiento[];
 };
 
+// Las ventas (salidas) no se cargan acá: el store las genera al iniciar a
+// partir de Operaciones, igual que al registrar una venta nueva, y la
+// existencia/costo de los lotes que vienen de una orden se recalculan desde
+// esa orden. Así cada lote sabe exactamente a qué clientes se vendió.
 export const productosTerminadosDemo: LoteTerminado[] = [
   {
     id: 1,
@@ -34,18 +38,9 @@ export const productosTerminadosDemo: LoteTerminado[] = [
     producto: "Licor Fino de Limón",
     formato: "500 cc",
     existenciaInicial: 53,
-    costoUnitario: 3490.82,
+    costoUnitario: 0,
     fechaVencimiento: null,
-    movimientos: [
-      { id: 1, fecha: "2026-08-08", tipo: "salida", cantidad: 1 },
-      { id: 2, fecha: "2026-08-10", tipo: "salida", cantidad: 2 },
-      { id: 3, fecha: "2026-08-16", tipo: "salida", cantidad: 2 },
-      { id: 4, fecha: "2026-08-22", tipo: "salida", cantidad: 3 },
-      { id: 5, fecha: "2026-08-24", tipo: "salida", cantidad: 20 },
-      { id: 6, fecha: "2026-08-25", tipo: "salida", cantidad: 4 },
-      { id: 7, fecha: "2026-08-25", tipo: "salida", cantidad: 1 },
-      { id: 8, fecha: "2026-09-04", tipo: "salida", cantidad: 1 },
-    ],
+    movimientos: [],
   },
   {
     id: 2,
@@ -55,14 +50,9 @@ export const productosTerminadosDemo: LoteTerminado[] = [
     producto: "Licor Fino de Limón, con N., P. e H.",
     formato: "500 cc",
     existenciaInicial: 30,
-    costoUnitario: 3490.82,
+    costoUnitario: 0,
     fechaVencimiento: null,
-    movimientos: [
-      { id: 1, fecha: "2026-08-16", tipo: "salida", cantidad: 1 },
-      { id: 2, fecha: "2026-08-22", tipo: "salida", cantidad: 4 },
-      { id: 3, fecha: "2026-08-22", tipo: "salida", cantidad: 1 },
-      { id: 4, fecha: "2026-08-25", tipo: "salida", cantidad: 1 },
-    ],
+    movimientos: [],
   },
   {
     id: 3,
@@ -72,9 +62,9 @@ export const productosTerminadosDemo: LoteTerminado[] = [
     producto: "Licor Fino de Limón, con M. y J.",
     formato: "500 cc",
     existenciaInicial: 20,
-    costoUnitario: 3490.82,
+    costoUnitario: 0,
     fechaVencimiento: null,
-    movimientos: [{ id: 1, fecha: "2026-08-22", tipo: "salida", cantidad: 2 }],
+    movimientos: [],
   },
   {
     id: 4,
@@ -83,14 +73,10 @@ export const productosTerminadosDemo: LoteTerminado[] = [
     origenOrdenId: 11,
     producto: "Licor Fino de Limón",
     formato: "750 cc Premium",
-    existenciaInicial: 12,
-    costoUnitario: 5980.15,
-    fechaVencimiento: "2028-09-15",
-    movimientos: [
-      { id: 1, fecha: "2026-09-04", tipo: "salida", cantidad: 2 },
-      { id: 2, fecha: "2026-09-08", tipo: "salida", cantidad: 1 },
-      { id: 3, fecha: "2026-09-15", tipo: "entrada", cantidad: 24, puEntrada: 5980.15 },
-    ],
+    existenciaInicial: 24,
+    costoUnitario: 0,
+    fechaVencimiento: "2028-09-02",
+    movimientos: [],
   },
   {
     id: 5,

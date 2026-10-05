@@ -2,6 +2,13 @@ export type OrdenInsumo = {
   materiaPrima: string;
   cantidad: number;
   costoUnitario: number;
+  /**
+   * Compra del Libro de compras (Trazabilidad) de la que sale este insumo: es
+   * el vínculo lote de proveedor → lote de producto. Sin valor = stock sin
+   * compra registrada (ej. existencia previa al sistema). Si un insumo sale
+   * de dos compras distintas, se carga en dos líneas.
+   */
+  compraId?: number;
 };
 
 export type OrdenProduccionRow = {
@@ -44,13 +51,13 @@ const ordenesSinCosto: OrdenSinCosto[] = [
     responsable: "ALQUIMIA",
     cantidadProducida: 53,
     insumos: [
-      { materiaPrima: "Alcohol", cantidad: 25, costoUnitario: 4200 },
-      { materiaPrima: "Limón", cantidad: 18, costoUnitario: 900 },
-      { materiaPrima: "Azúcar", cantidad: 12, costoUnitario: 1100 },
-      { materiaPrima: "Env. 500 ml Transparente", cantidad: 53, costoUnitario: 850 },
+      { materiaPrima: "Alcohol", cantidad: 25, costoUnitario: 2785.55, compraId: 1 },
+      { materiaPrima: "Limón", cantidad: 18, costoUnitario: 850, compraId: 5 },
+      { materiaPrima: "Azúcar", cantidad: 12, costoUnitario: 980, compraId: 2 },
+      { materiaPrima: "Env. 500 ml Transparente", cantidad: 53, costoUnitario: 145, compraId: 4 },
       { materiaPrima: "Tapa gris", cantidad: 53, costoUnitario: 120 },
       { materiaPrima: "Etiq. LIM x 500 cc", cantidad: 53, costoUnitario: 180 },
-      { materiaPrima: "Precintos env. 500 ml", cantidad: 53, costoUnitario: 45 },
+      { materiaPrima: "Precintos env. 500 ml", cantidad: 53, costoUnitario: 45, compraId: 3 },
     ],
   },
   {
@@ -63,11 +70,11 @@ const ordenesSinCosto: OrdenSinCosto[] = [
     responsable: "ALQUIMIA",
     cantidadProducida: 30,
     insumos: [
-      { materiaPrima: "Alcohol", cantidad: 14, costoUnitario: 4200 },
-      { materiaPrima: "Limón", cantidad: 10, costoUnitario: 900 },
+      { materiaPrima: "Alcohol", cantidad: 14, costoUnitario: 2785.55, compraId: 1 },
+      { materiaPrima: "Limón", cantidad: 10, costoUnitario: 850, compraId: 5 },
       { materiaPrima: "Naranja", cantidad: 6, costoUnitario: 700 },
       { materiaPrima: "Pomelo", cantidad: 6, costoUnitario: 750 },
-      { materiaPrima: "Hibiscus", cantidad: 2, costoUnitario: 1600 },
+      { materiaPrima: "Hibiscus", cantidad: 2, costoUnitario: 1600, compraId: 6 },
       { materiaPrima: "Env. 500 ml Ambar", cantidad: 30, costoUnitario: 900 },
       { materiaPrima: "Tapa dorada", cantidad: 30, costoUnitario: 140 },
     ],
@@ -82,10 +89,10 @@ const ordenesSinCosto: OrdenSinCosto[] = [
     responsable: "VICENTE, RODRIGO",
     cantidadProducida: 20,
     insumos: [
-      { materiaPrima: "Alcohol", cantidad: 9, costoUnitario: 4200 },
+      { materiaPrima: "Alcohol", cantidad: 9, costoUnitario: 2785.55, compraId: 1 },
       { materiaPrima: "Menta", cantidad: 4, costoUnitario: 1300 },
       { materiaPrima: "Jengibre", cantidad: 2, costoUnitario: 950 },
-      { materiaPrima: "Env. 500 ml Transparente", cantidad: 20, costoUnitario: 850 },
+      { materiaPrima: "Env. 500 ml Transparente", cantidad: 20, costoUnitario: 145, compraId: 4 },
       { materiaPrima: "Etiq. LMJ x 500 cc", cantidad: 20, costoUnitario: 180 },
     ],
   },
@@ -95,13 +102,15 @@ const ordenesSinCosto: OrdenSinCosto[] = [
     producto: "Licor Fino de Limón",
     formato: "750 cc Premium",
     fechaMaceracion: "2026-08-20",
-    fechaEmbotellado: "2026-09-15",
+    fechaEmbotellado: "2026-09-02",
     responsable: "ALQUIMIA",
     cantidadProducida: 24,
     insumos: [
-      { materiaPrima: "Alcohol", cantidad: 15, costoUnitario: 4200 },
-      { materiaPrima: "Limón", cantidad: 11, costoUnitario: 900 },
-      { materiaPrima: "Env. 750 ml Transp. c/tapón", cantidad: 24, costoUnitario: 1450 },
+      // El alcohol sale de dos compras del mismo lote de proveedor: una línea por compra.
+      { materiaPrima: "Alcohol", cantidad: 10.8, costoUnitario: 2785.55, compraId: 8 },
+      { materiaPrima: "Alcohol", cantidad: 4.2, costoUnitario: 2785.55, compraId: 11 },
+      { materiaPrima: "Limón", cantidad: 11, costoUnitario: 850, compraId: 10 },
+      { materiaPrima: "Env. 750 ml Transp. c/tapón", cantidad: 24, costoUnitario: 1450, compraId: 9 },
       { materiaPrima: "Etiq. LIM Prem. x 750 cc", cantidad: 24, costoUnitario: 260 },
       { materiaPrima: "Precintos env. 750 ml", cantidad: 24, costoUnitario: 60 },
     ],

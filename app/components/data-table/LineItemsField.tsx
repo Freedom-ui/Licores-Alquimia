@@ -74,26 +74,32 @@ export default function LineItemsField<L extends Record<string, unknown>>({
                       );
                     }
                     if (c.type === "select") {
+                      const opciones = c.optionsFor
+                        ? c.optionsFor(row, i)
+                        : (c.options ?? []).map((opt) => ({ value: opt, label: opt }));
                       return (
                         <td key={c.key}>
                           <select
                             value={value === null || value === undefined ? "" : String(value)}
                             onChange={(e) => updateRow(i, c.key, e.target.value)}
                           >
-                            <option value="">Seleccionar…</option>
-                            {c.options?.map((opt) => (
-                              <option key={opt} value={opt}>
-                                {opt}
+                            <option value="">{c.placeholder ?? "Seleccionar…"}</option>
+                            {opciones.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
                               </option>
                             ))}
                           </select>
                         </td>
                       );
                     }
+                    const numerico = c.type === "number" || c.type === "currency";
                     return (
                       <td key={c.key}>
                         <input
-                          type={c.type === "number" || c.type === "currency" ? "number" : "text"}
+                          type={numerico ? "number" : "text"}
+                          step={numerico ? "any" : undefined}
+                          min={numerico ? "0" : undefined}
                           placeholder={c.placeholder}
                           value={value === null || value === undefined ? "" : String(value)}
                           onChange={(e) => updateRow(i, c.key, e.target.value)}

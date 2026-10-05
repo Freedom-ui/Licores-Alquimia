@@ -101,8 +101,8 @@ export default function AgregarMovimientoInventarioModal({
           <div className="rf-field">
             <label htmlFor="mpmov-tipo">Tipo</label>
             <select id="mpmov-tipo" value={tipo} onChange={(e) => setTipo(e.target.value as "entrada" | "salida")}>
-              <option value="salida">Consumo</option>
-              <option value="entrada">Ingreso / compra</option>
+              <option value="salida">Consumo / merma</option>
+              <option value="entrada">Ingreso / ajuste</option>
             </select>
           </div>
           <div className="rf-field">
@@ -151,6 +151,13 @@ export default function AgregarMovimientoInventarioModal({
             </>
           )}
         </div>
+
+        {tipo === "entrada" && (
+          <p className="rf-hint">
+            Las compras a proveedores se cargan en Trazabilidad (Libro de compras): ahí queda registrado
+            el proveedor y el lote, y el ingreso aparece acá solo. Usá esto solo para ajustes.
+          </p>
+        )}
 
         {superaSaldo && (
           <p className="rf-hint">

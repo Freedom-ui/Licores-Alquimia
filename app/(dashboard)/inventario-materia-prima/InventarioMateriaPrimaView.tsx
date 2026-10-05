@@ -84,6 +84,7 @@ export default function InventarioMateriaPrimaView() {
   const [editTarget, setEditTarget] = useState<InventarioMateriaPrimaRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InventarioMateriaPrimaRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Cada materia prima trackeada es su propia tabla de kardex — se precalcula
   // acá, uniendo con el catálogo (nombre/unidad) para no rearmarlo por tarjeta.
@@ -172,6 +173,9 @@ export default function InventarioMateriaPrimaView() {
     try {
       deleteInventarioMateriaPrima(deleteTarget.id);
       setDeleteTarget(null);
+      setDeleteError(null);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "No se pudo quitar del inventario.");
     } finally {
       setDeleting(false);
     }
@@ -388,8 +392,12 @@ export default function InventarioMateriaPrimaView() {
             ? `¿Quitar "${filas.find((f) => f.row.id === deleteTarget.id)?.nombre}" del inventario? Se pierde todo su historial de movimientos. Esta acción no se puede deshacer.`
             : ""
         }
+        error={deleteError}
         confirming={deleting}
-        onCancel={() => setDeleteTarget(null)}
+        onCancel={() => {
+          setDeleteTarget(null);
+          setDeleteError(null);
+        }}
         onConfirm={confirmDelete}
       />
     </div>
