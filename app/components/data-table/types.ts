@@ -37,7 +37,12 @@ export type Column<T> = {
   align?: "left" | "right" | "center";
   /** Texto completo a mostrar como tooltip al pasar el mouse por el encabezado (útil si `label` está abreviado). */
   title?: string;
-  /** Metadata para generar el campo correspondiente en RecordFormModal (alta manual de un registro). */
+  /**
+   * Encabezado agrupador: columnas consecutivas con el mismo `group` se muestran
+   * bajo una celda común (ej. "Proveedor" sobre Nombre / Form. / Tipo / N°), en
+   * pantalla y en el PDF.
+   */
+  group?: string;  /** Metadata para generar el campo correspondiente en RecordFormModal (alta manual de un registro). */
   form?: ColumnFormConfig;
 };
 
@@ -58,6 +63,8 @@ export type DataTableProps<T> = {
   onEditRow?: (row: T) => void;
   /** Si se provee, agrega el botón de eliminar en cada fila. Se llama recién tras confirmar en el modal. */
   onDeleteRow?: (row: T) => void | Promise<void>;
+  /** Botones extra por fila, antes de editar/eliminar (ej. "Rastrear"). */
+  rowActions?: (row: T) => ReactNode;
 };
 
 export type RecordFormModalProps<T> = {
@@ -97,6 +104,8 @@ export type LineColumn<L> = {
   width?: string;
   /** Opciones para un input "select" (ej. la lista de materias primas). */
   options?: string[];
+  /** Opciones que dependen de la propia línea (ej. los lotes de la materia prima elegida). Pisa a `options`. */
+  optionsFor?: (row: L, index: number) => { value: string; label: string }[];
   /** Si es true, se muestra el valor formateado pero no se puede editar (ej. un total calculado). */
   readOnly?: boolean;
   placeholder?: string;

@@ -19,6 +19,7 @@ export default function DataTable<T extends Record<string, unknown>>({
   hideImport,
   onEditRow,
   onDeleteRow,
+  rowActions,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
@@ -106,7 +107,14 @@ export default function DataTable<T extends Record<string, unknown>>({
   }
 
   const hasFilters = search.trim() !== "" || Object.values(columnFilters).some(Boolean);
-  const hasRowActions = Boolean(onEditRow || onDeleteRow);
+  const hasRowActions = Boolean(onEditRow || onDeleteRow || rowActions);
+  const hasGroups = columns.some((c) => c.group);
+  // Primera columna de cada grupo y la que le sigue: llevan línea divisoria a la izquierda.
+  const dividerIndexes = new Set(
+    columns
+      .map((c, i) => (i > 0 && (c.group || columns[i - 1].group) && c.group !== columns[i - 1].group ? i : -1))
+      .filter((i) => i !== -1)
+  );
 
   const [pendingDelete, setPendingDelete] = useState<T | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -138,6 +146,41 @@ export default function DataTable<T extends Record<string, unknown>>({
   // Si la primera columna es un número (ej. "OP N°"), no tiene sentido citarlo
   // entre comillas como si fuera un nombre — se lee mejor como "registro N° 1".
   const deleteRowIsNumeric = deleteLabelColumn?.type === "number";
+
+  function renderHeaderCell(col: Column<T>, index: number, rowSpan: number) {
+    const isSorted = sort?.key === col.key;
+    const sortable = col.sortable !== false;
+    const classes = [sortable ? "dt-th-sortable" : "", dividerIndexes.has(index) ? "dt-col-divider" : ""]
+      .filter(Boolean)
+      .join(" ");
+    return (
+      <th
+        key={col.key}
+        rowSpan={rowSpan > 1 ? rowSpan : undefined}
+        style={{ width: col.width, textAlign: col.align ?? "left" }}
+        className={classes || undefined}
+        onClick={() => toggleSort(col)}
+        title={col.title}
+      >
+        <span
+          className="dt-th-label"
+          style={{
+            // El encabezado es un flex-row: text-align en el <th> no
+            // lo mueve (no es contenido inline), hay que centrarlo
+            // a mano para que quede alineado con el dato de abajo.
+            justifyContent: col.align === "center" ? "center" : col.align === "right" ? "flex-end" : "flex-start",
+          }}
+        >
+          <span className="dt-th-text">{col.label}</span>
+          {sortable && (
+            <span className={`dt-sort-icon ${isSorted ? "active" : ""}`}>
+              {isSorted ? (sort!.dir === "asc" ? "▲" : "▼") : "⇅"}
+            </span>
+          )}
+        </span>
+      </th>
+    );
+  }
 
   const [exporting, setExporting] = useState(false);
 
@@ -220,39 +263,33 @@ export default function DataTable<T extends Record<string, unknown>>({
       <div className="dt-table-scroll">
         <table className="dt-table">
           <thead>
-            <tr>
-              {columns.map((col) => {
-                const isSorted = sort?.key === col.key;
-                const sortable = col.sortable !== false;
-                return (
-                  <th
-                    key={col.key}
-                    style={{ width: col.width, textAlign: col.align ?? "left" }}
-                    className={sortable ? "dt-th-sortable" : ""}
-                    onClick={() => toggleSort(col)}
-                    title={col.title}
-                  >
-                    <span
-                      className="dt-th-label"
-                      style={{
-                        // El encabezado es un flex-row: text-align en el <th> no
-                        // lo mueve (no es contenido inline), hay que centrarlo
-                        // a mano para que quede alineado con el dato de abajo.
-                        justifyContent:
-                          col.align === "center" ? "center" : col.align === "right" ? "flex-end" : "flex-start",
-                      }}
+            {hasGroups && (
+              <tr>
+                {columns.map((col, i) => {
+                  if (!col.group) return renderHeaderCell(col, i, 2);
+                  if (i > 0 && columns[i - 1].group === col.group) return null;
+                  let span = 1;
+                  while (columns[i + span]?.group === col.group) span++;
+                  return (
+                    <th
+                      key={`grupo-${i}`}
+                      colSpan={span}
+                      className={`dt-th-group ${dividerIndexes.has(i) ? "dt-col-divider" : ""}`}
                     >
-                      <span className="dt-th-text">{col.label}</span>
-                      {sortable && (
-                        <span className={`dt-sort-icon ${isSorted ? "active" : ""}`}>
-                          {isSorted ? (sort!.dir === "asc" ? "▲" : "▼") : "⇅"}
-                        </span>
-                      )}
-                    </span>
+                      {col.group}
+                    </th>
+                  );
+                })}
+                {hasRowActions && (
+                  <th className="dt-actions-col" rowSpan={2}>
+                    Acciones
                   </th>
-                );
-              })}
-              {hasRowActions && <th className="dt-actions-col">Acciones</th>}
+                )}
+              </tr>
+            )}
+            <tr>
+              {columns.map((col, i) => (hasGroups && !col.group ? null : renderHeaderCell(col, i, 1)))}
+              {hasRowActions && !hasGroups && <th className="dt-actions-col">Acciones</th>}
             </tr>
           </thead>
           <tbody>
@@ -265,12 +302,13 @@ export default function DataTable<T extends Record<string, unknown>>({
             ) : (
               sortedRows.map((row, i) => (
                 <tr key={(row.id as string | number | undefined) ?? i}>
-                  {columns.map((col) => {
+                  {columns.map((col, ci) => {
                     const value = row[col.key];
                     const type = col.type ?? "text";
                     return (
                       <td
                         key={col.key}
+                        className={dividerIndexes.has(ci) ? "dt-col-divider" : undefined}
                         style={{ textAlign: col.align ?? "left" }}
                         title={formatCellValue(value, type)}
                       >
@@ -292,6 +330,7 @@ export default function DataTable<T extends Record<string, unknown>>({
                   })}
                   {hasRowActions && (
                     <td className="dt-actions-cell">
+                      {rowActions?.(row)}
                       {onEditRow && (
                         <button
                           type="button"

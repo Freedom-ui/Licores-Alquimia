@@ -1,3 +1,5 @@
+import TrazabilidadView from "./TrazabilidadView";
+
 export default function TrazabilidadPage() {
   return (
     <>
@@ -5,7 +7,7 @@ export default function TrazabilidadPage() {
         <span className="topbar-title">Trazabilidad</span>
       </div>
       <div className="content">
-        <div className="placeholder-view">Módulo de Trazabilidad — próximamente</div>
+        <TrazabilidadView />
       </div>
     </>
   );

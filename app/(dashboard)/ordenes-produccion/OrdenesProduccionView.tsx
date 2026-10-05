@@ -19,7 +19,7 @@ const columns: Column<OrdenProduccionRow>[] = [
 ];
 
 export default function OrdenesProduccionView() {
-  const { ordenesProduccion, productos, materiaPrima, saveOrden, deleteOrden } = useStore();
+  const { ordenesProduccion, productos, materiaPrima, compras, saveOrden, deleteOrden } = useStore();
   const [target, setTarget] = useState<OrdenFormTarget>(null);
 
   return (
@@ -41,6 +41,8 @@ export default function OrdenesProduccionView() {
         target={target}
         productos={productos}
         materiasPrimas={materiaPrima}
+        compras={compras}
+        ordenes={ordenesProduccion}
         onClose={() => setTarget(null)}
         onSubmit={saveOrden}
       />
