@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import ProductosTerminadosView from "./Productosterminadosview";
 
 export default function ProductosTerminadosPage() {
@@ -7,7 +8,9 @@ export default function ProductosTerminadosPage() {
         <span className="topbar-title">Productos terminados</span>
       </div>
       <div className="content">
-        <ProductosTerminadosView />
+        <Suspense>
+          <ProductosTerminadosView />
+        </Suspense>
       </div>
     </>
   );

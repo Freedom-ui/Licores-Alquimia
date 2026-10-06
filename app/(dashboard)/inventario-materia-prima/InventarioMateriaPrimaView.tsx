@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { formatCellValue } from "@/app/components/data-table/format";
 import { buildKardex } from "@/app/components/data-table/kardex";
 import { exportKardexToPdf, type KardexPdfColumnGroup } from "@/app/components/data-table/exportKardexPdf";
@@ -75,9 +76,19 @@ export default function InventarioMateriaPrimaView() {
     deleteInventarioMateriaPrima,
   } = useStore();
 
+  // ?foco=<id> (ej. desde una alerta de Estadísticas): abre esa tarjeta y la lleva a la vista.
+  const foco = Number(useSearchParams().get("foco")) || null;
   const [search, setSearch] = useState("");
   const [estado, setEstado] = useState<"" | "activo" | "agotado">("");
-  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  const [expanded, setExpanded] = useState<Record<number, boolean>>(() => (foco ? { [foco]: true } : {}));
+  const [resaltado, setResaltado] = useState<number | null>(foco);
+
+  useEffect(() => {
+    if (!foco) return;
+    document.getElementById(`mp-${foco}`)?.scrollIntoView({ block: "start" });
+    const t = setTimeout(() => setResaltado(null), 2000);
+    return () => clearTimeout(t);
+  }, [foco]);
   const [exporting, setExporting] = useState(false);
   const [addingNueva, setAddingNueva] = useState(false);
   const [movimientoTarget, setMovimientoTarget] = useState<InventarioMateriaPrimaRow | null>(null);
@@ -250,7 +261,7 @@ export default function InventarioMateriaPrimaView() {
           {filtradas.map(({ row, nombre, unidad, decimales, kardex, saldoActual, valorActual, totalIngresos, totalConsumos }) => {
             const abierto = Boolean(expanded[row.id]);
             return (
-              <div className="pt-card" key={row.id}>
+              <div className={`pt-card ${resaltado === row.id ? "pt-card-foco" : ""}`} key={row.id} id={`mp-${row.id}`}>
                 <div className="pt-card-header">
                   <button type="button" className="pt-card-toggle" onClick={() => toggleFila(row.id)}>
                     <span className={`pt-chevron ${abierto ? "open" : ""}`}>▸</span>

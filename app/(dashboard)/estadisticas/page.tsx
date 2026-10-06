@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+import EstadisticasView from "./EstadisticasView";
+
 export default function EstadisticasPage() {
   return (
     <>
@@ -5,7 +8,9 @@ export default function EstadisticasPage() {
         <span className="topbar-title">Estadísticas</span>
       </div>
       <div className="content">
-        <div className="placeholder-view">Módulo de Estadísticas — próximamente</div>
+        <Suspense fallback={<div className="placeholder-view">Cargando estadísticas…</div>}>
+          <EstadisticasView />
+        </Suspense>
       </div>
     </>
   );

@@ -21,7 +21,12 @@ export type IconName =
   | "tag"
   | "truck"
   | "users"
-  | "chart";
+  | "chart"
+  | "gauge"
+  | "trend"
+  | "flask"
+  | "cart"
+  | "coin";
 
 const paths: Record<IconName, React.ReactNode> = {
   home: (
@@ -102,6 +107,40 @@ const paths: Record<IconName, React.ReactNode> = {
       <rect x="4" y="12.5" width="3.2" height="7.5" rx="0.6" />
       <rect x="10.4" y="6.5" width="3.2" height="13.5" rx="0.6" />
       <rect x="16.8" y="9.5" width="3.2" height="10.5" rx="0.6" />
+    </>
+  ),
+  gauge: (
+    <>
+      <path d="M4 17a8 8 0 1 1 16 0" />
+      <path d="M12 17l4-5" />
+      <circle cx="12" cy="17" r="1.2" />
+    </>
+  ),
+  trend: (
+    <>
+      <path d="M3.5 17.5 9 12l3.5 3.5 8-8" />
+      <path d="M15.5 7.5h5v5" />
+    </>
+  ),
+  flask: (
+    <>
+      <path d="M9.5 3.5h5" />
+      <path d="M10.5 3.5v5.2L5.3 18a1.8 1.8 0 0 0 1.6 2.6h10.2a1.8 1.8 0 0 0 1.6-2.6l-5.2-9.3V3.5" />
+      <path d="M7.5 14.5h9" />
+    </>
+  ),
+  cart: (
+    <>
+      <path d="M3 4.5h2.2l2.2 10.5h10.3l2-7.5H6.4" />
+      <circle cx="9" cy="19" r="1.5" />
+      <circle cx="16.5" cy="19" r="1.5" />
+    </>
+  ),
+  coin: (
+    <>
+      <circle cx="12" cy="12" r="8.2" />
+      <path d="M14.6 9.2c-.5-.9-1.5-1.4-2.6-1.4-1.5 0-2.6.8-2.6 2s1.1 1.7 2.6 2.1 2.6.9 2.6 2.1-1.1 2-2.6 2c-1.2 0-2.2-.5-2.7-1.4" />
+      <path d="M12 6.2v1.6M12 16.2v1.6" />
     </>
   ),
 };
