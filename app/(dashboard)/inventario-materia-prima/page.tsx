@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import InventarioMateriaPrimaView from "./InventarioMateriaPrimaView";
 
 export default function InventarioMateriaPrimaPage() {
@@ -7,7 +8,9 @@ export default function InventarioMateriaPrimaPage() {
         <span className="topbar-title">Inventario de materia prima</span>
       </div>
       <div className="content">
-        <InventarioMateriaPrimaView />
+        <Suspense>
+          <InventarioMateriaPrimaView />
+        </Suspense>
       </div>
     </>
   );

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { formatCellValue } from "@/app/components/data-table/format";
 import { buildKardex } from "@/app/components/data-table/kardex";
 import { exportKardexToPdf } from "@/app/components/data-table/exportKardexPdf";
@@ -14,7 +15,17 @@ export default function ProductosTerminadosView() {
   const { productosTerminados, addMovimiento, updateLote, deleteLote } = useStore();
   const [search, setSearch] = useState("");
   const [estado, setEstado] = useState<"" | "activo" | "agotado">("");
-  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  // ?foco=<id de lote> (ej. desde una alerta de Estadísticas): abre ese lote y lo lleva a la vista.
+  const foco = Number(useSearchParams().get("foco")) || null;
+  const [expanded, setExpanded] = useState<Record<number, boolean>>(() => (foco ? { [foco]: true } : {}));
+  const [resaltado, setResaltado] = useState<number | null>(foco);
+
+  useEffect(() => {
+    if (!foco) return;
+    document.getElementById(`lote-${foco}`)?.scrollIntoView({ block: "start" });
+    const t = setTimeout(() => setResaltado(null), 2000);
+    return () => clearTimeout(t);
+  }, [foco]);
   const [exporting, setExporting] = useState(false);
   const [movimientoTarget, setMovimientoTarget] = useState<LoteTerminado | null>(null);
   const [editTarget, setEditTarget] = useState<LoteTerminado | null>(null);
@@ -152,7 +163,7 @@ export default function ProductosTerminadosView() {
           {filtrados.map(({ lote, filas, saldoActual, valorActual, totalEntradas, totalSalidas }) => {
             const abierto = Boolean(expanded[lote.id]);
             return (
-              <div className="pt-card" key={lote.id}>
+              <div className={`pt-card ${resaltado === lote.id ? "pt-card-foco" : ""}`} key={lote.id} id={`lote-${lote.id}`}>
                 <div className="pt-card-header">
                   <button type="button" className="pt-card-toggle" onClick={() => toggleLote(lote.id)}>
                     <span className={`pt-chevron ${abierto ? "open" : ""}`}>▸</span>
