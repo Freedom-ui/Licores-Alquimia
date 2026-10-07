@@ -1317,3 +1317,66 @@ body {
 
 .pt-card-foco { border-color: var(--naranja); box-shadow: 0 0 0 3px rgba(212,119,42,.25); }
 .pt-card { transition: border-color .3s, box-shadow .3s; }
+
+/* ── Panel principal ─────────────────────────────────────────────────────
+   Saludo + accesos rápidos arriba y, debajo, la misma grilla de 12 columnas
+   de Estadísticas (es-grid / es-bloque): tira de indicadores, gráfico con
+   alertas y tres listas cortas. Cada dato lleva a su sección. */
+.pp-wrapper { display: flex; flex-direction: column; gap: 14px; }
+
+.pp-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.pp-saludo h1 { font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -.2px; line-height: 1.2; }
+.pp-usuario { color: var(--naranja-dark); }
+.pp-fecha { margin-top: 3px; min-height: 18px; font-size: 12.5px; color: var(--text-muted); }
+.pp-sep { margin: 0 7px; color: var(--border-dark); }
+.pp-hora { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.pp-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.pp-accion { display: inline-flex; align-items: center; text-decoration: none; }
+
+.pp-bloque-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.pp-ver {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--naranja-dark);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.pp-ver:hover { text-decoration: underline; }
+
+/* Listas tipo libro: fecha · qué · cuánto, con divisorias finas. */
+.pp-lista { list-style: none; display: flex; flex-direction: column; margin: 0 -16px -6px; }
+.pp-lista li + li { border-top: 1px solid #ECE8E1; }
+.pp-fila {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  color: var(--text);
+  text-decoration: none;
+  transition: background .12s;
+}
+.pp-fila::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--naranja);
+  opacity: 0;
+  transition: opacity .12s;
+}
+.pp-fila:hover { background: #FCF8F2; }
+.pp-fila:hover::before { opacity: 1; }
+.pp-fila-fecha { flex-shrink: 0; width: 38px; font-size: 11.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.pp-fila-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pp-fila-titulo, .pp-fila-detalle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pp-fila-titulo { font-size: 12.5px; font-weight: 600; }
+.pp-fila-detalle { font-size: 11.5px; color: var(--text-muted); }
+.pp-fila-fin { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.pp-fila-valor { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pp-estado { padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.pp-estado.activo { color: var(--naranja-dark); background: rgba(212,119,42,.12); }
+.pp-estado.neutro { color: var(--text-muted); background: var(--bg); }

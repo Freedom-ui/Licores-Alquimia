@@ -81,7 +81,11 @@ export type Contexto = {
 // ── Ayudas ──────────────────────────────────────────────────────────────────
 
 function delta(actual: number, previo: number | null | undefined, mejorSi: "sube" | "baja" | "neutro", ctx: Contexto): Delta | undefined {
-  if (!ctx.comp) return undefined;
+  return ctx.comp ? deltaEntre(actual, previo, mejorSi) : undefined;
+}
+
+/** Variación de un número contra el de otro período, como pastilla ("▲ 12%", verde o roja según convenga). */
+export function deltaEntre(actual: number, previo: number | null | undefined, mejorSi: "sube" | "baja" | "neutro"): Delta {
   const v = variacion(actual, previo);
   // Textos cortos: van en una pastilla al lado del número.
   if (v === null) return { texto: actual === 0 && !previo ? "sin mov." : "antes: 0", tono: "neutro" };

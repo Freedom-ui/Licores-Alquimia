@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import TrazabilidadView from "./TrazabilidadView";
 
 export default function TrazabilidadPage() {
@@ -7,7 +8,9 @@ export default function TrazabilidadPage() {
         <span className="topbar-title">Trazabilidad</span>
       </div>
       <div className="content">
-        <TrazabilidadView />
+        <Suspense fallback={<div className="placeholder-view">Cargando…</div>}>
+          <TrazabilidadView />
+        </Suspense>
       </div>
     </>
   );

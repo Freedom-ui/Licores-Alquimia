@@ -59,7 +59,7 @@ Particularidades del entorno de pruebas:
 
 ## 3. Plan por fases (en orden de prioridad)
 
-### Fase 1 — Panel principal ☐ (plan aprobado por el usuario, falta implementar)
+### Fase 1 — Panel principal ☑ (aprobada por el usuario)
 Hoy es un placeholder (`app/(dashboard)/page.tsx`, título "Dashboard"). El cliente tiene que
 ver lo importante del día apenas entra y poder saltar desde cualquier dato a su sección de la
 sidebar. Estética de Estadísticas (fondo crema, tarjetas blancas, naranja solo para acentos),

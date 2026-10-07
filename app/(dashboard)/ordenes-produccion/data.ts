@@ -115,6 +115,38 @@ const ordenesSinCosto: OrdenSinCosto[] = [
       { materiaPrima: "Precintos env. 750 ml", cantidad: 24, costoUnitario: 60 },
     ],
   },
+  // En maceración: todavía sin embotellar (la cantidad es la estimada).
+  {
+    id: 12,
+    productoId: 1,
+    producto: "Licor Fino de Limón",
+    formato: "500 cc",
+    fechaMaceracion: "2026-09-23",
+    fechaEmbotellado: null,
+    responsable: "ALQUIMIA",
+    cantidadProducida: 55,
+    insumos: [
+      { materiaPrima: "Alcohol", cantidad: 25, costoUnitario: 2950, compraId: 12 },
+      { materiaPrima: "Limón", cantidad: 18, costoUnitario: 900, compraId: 13 },
+      { materiaPrima: "Azúcar", cantidad: 12, costoUnitario: 980, compraId: 7 },
+    ],
+  },
+  {
+    id: 13,
+    productoId: 2,
+    producto: "Licor Fino de Limón, con M. y J.",
+    formato: "500 cc",
+    fechaMaceracion: "2026-10-01",
+    fechaEmbotellado: null,
+    responsable: "VICENTE, RODRIGO",
+    cantidadProducida: 22,
+    insumos: [
+      { materiaPrima: "Alcohol", cantidad: 9, costoUnitario: 2950, compraId: 12 },
+      { materiaPrima: "Menta", cantidad: 4, costoUnitario: 1300 },
+      { materiaPrima: "Jengibre", cantidad: 2, costoUnitario: 950 },
+      { materiaPrima: "Azúcar", cantidad: 6, costoUnitario: 980, compraId: 7 },
+    ],
+  },
 ];
 
 export const ordenesProduccionDemo: OrdenProduccionRow[] = ordenesSinCosto.map((o) => ({
