@@ -104,4 +104,7 @@ export const comprasDemo: CompraRow[] = [
   { id: 9, fecha: "2026-08-14", materiaPrimaId: 23, cantidad: 60, costoUnitario: 1450, lote: "", proveedorId: 2, comprobanteForm: "Factura", comprobanteTipo: "A", comprobanteNumero: "0003 - 00001288", medioPago: "MPA" },
   { id: 10, fecha: "2026-08-15", materiaPrimaId: 2, cantidad: 20, costoUnitario: 850, cantidadCascara: 4.8, lote: "", proveedorId: 3, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "CDNI" },
   { id: 11, fecha: "2026-08-18", materiaPrimaId: 1, cantidad: 10.8, costoUnitario: 2785.55, lote: "L19/11/25", proveedorId: 4, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "MPR" },
+  { id: 12, fecha: "2026-09-19", materiaPrimaId: 1, cantidad: 40, costoUnitario: 2950, lote: "CE2309140", proveedorId: 4, comprobanteForm: "Factura", comprobanteTipo: "A", comprobanteNumero: "0004 - 00010377", medioPago: "MPR" },
+  { id: 13, fecha: "2026-09-21", materiaPrimaId: 2, cantidad: 25, costoUnitario: 900, cantidadCascara: 6, lote: "", proveedorId: 3, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "EFE" },
+  { id: 14, fecha: "2026-10-02", materiaPrimaId: 3, cantidad: 25, costoUnitario: 1020, lote: "L18/09/26M2", proveedorId: 5, comprobanteForm: "Factura", comprobanteTipo: "A", comprobanteNumero: "0013 - 00001741", medioPago: "MPR" },
 ];

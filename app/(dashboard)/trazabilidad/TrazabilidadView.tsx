@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import DataTable from "@/app/components/data-table/DataTable";
 import type { Column } from "@/app/components/data-table/types";
 import CompraFormModal, { type CompraFormTarget } from "./CompraFormModal";
@@ -53,7 +54,14 @@ export default function TrazabilidadView() {
     saveCompra,
     deleteCompra,
   } = useStore();
-  const [target, setTarget] = useState<CompraFormTarget>(null);
+  // ?nuevo=1 (desde los accesos rápidos del Panel principal): abre el alta directamente.
+  const nuevo = useSearchParams().get("nuevo") === "1";
+  const router = useRouter();
+  const pathname = usePathname();
+  const [target, setTarget] = useState<CompraFormTarget>(nuevo ? "new" : null);
+  useEffect(() => {
+    if (nuevo) router.replace(pathname, { scroll: false });
+  }, [nuevo, router, pathname]);
   const [rastreoId, setRastreoId] = useState<number | null>(null);
   const [fichaAbierta, setFichaAbierta] = useState(false);
 

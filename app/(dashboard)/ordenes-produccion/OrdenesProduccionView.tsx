@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import DataTable from "@/app/components/data-table/DataTable";
 import type { Column } from "@/app/components/data-table/types";
 import OrdenFormModal, { type OrdenFormTarget } from "./OrdenFormModal";
@@ -20,7 +21,14 @@ const columns: Column<OrdenProduccionRow>[] = [
 
 export default function OrdenesProduccionView() {
   const { ordenesProduccion, productos, materiaPrima, compras, saveOrden, deleteOrden } = useStore();
-  const [target, setTarget] = useState<OrdenFormTarget>(null);
+  // ?nuevo=1 (desde los accesos rápidos del Panel principal): abre el alta directamente.
+  const nuevo = useSearchParams().get("nuevo") === "1";
+  const router = useRouter();
+  const pathname = usePathname();
+  const [target, setTarget] = useState<OrdenFormTarget>(nuevo ? "new" : null);
+  useEffect(() => {
+    if (nuevo) router.replace(pathname, { scroll: false });
+  }, [nuevo, router, pathname]);
 
   return (
     <>
