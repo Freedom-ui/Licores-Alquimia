@@ -75,7 +75,7 @@ export default function CompraFormModal({
   materiasPrimas: MateriaPrimaRow[];
   onClose: () => void;
   /** Puede lanzar un Error con un mensaje para el usuario (se muestra en el modal). */
-  onSubmit: (id: number | null, values: CompraInput) => void;
+  onSubmit: (id: number | null, values: CompraInput) => Promise<void> | void;
 }) {
   const [values, setValues] = useState<FormState>(EMPTY);
   const [error, setError] = useState<string | null>(null);
@@ -96,7 +96,7 @@ export default function CompraFormModal({
   const porKilo = materia?.unidad === "Kilogramos";
   const total = Number(values.cantidad || 0) * Number(values.costoUnitario || 0);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
 
     if (!values.fecha || !values.materiaPrimaId || !values.cantidad || !values.costoUnitario || !values.proveedorId || !values.medioPago) {
@@ -125,7 +125,7 @@ export default function CompraFormModal({
     }
 
     try {
-      onSubmit(target && target !== "new" ? target.id : null, {
+      await onSubmit(target && target !== "new" ? target.id : null, {
         fecha: values.fecha,
         materiaPrimaId: Number(values.materiaPrimaId),
         cantidad,

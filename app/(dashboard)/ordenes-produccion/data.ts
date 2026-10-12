@@ -33,10 +33,9 @@ export function calcularCostoTotal(insumos: OrdenInsumo[]): number {
 
 type OrdenSinCosto = Omit<OrdenProduccionRow, "costoTotal">;
 
-// Demo en memoria, mismo patrón que el resto de las secciones: cuando el
-// modelo de OrdenProduccion esté en Prisma, reemplazar por /api/ordenes-produccion.
+// Datos de prueba: los carga el seed (prisma/seed.ts) en la base.
 // Al embotellarse (fechaEmbotellado != null) esta orden genera/actualiza
-// automáticamente su lote en Productos terminados (ver store.tsx) — por eso
+// automáticamente su lote en Productos terminados (ver _dominio/sync.ts) — por eso
 // cada orden referencia un `productoId` real del catálogo, no un nombre libre.
 // `costoTotal` se calcula acá mismo a partir de los insumos (nunca a mano),
 // para que nunca quede desincronizado con la suma real de la sub-tabla.

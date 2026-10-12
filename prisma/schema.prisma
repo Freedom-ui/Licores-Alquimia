@@ -1,5 +1,17 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Modelo de datos de Licores Alquimia. Espeja los tipos de cada sección
+// (app/(dashboard)/*/data.ts); la conversión fila ↔ tipo está en
+// app/(dashboard)/_datos/repositorio.ts.
+//
+// Convenciones:
+// - Fechas como texto "YYYY-MM-DD" (igual que en la app: se comparan como
+//   texto y no hay corrimientos por zona horaria).
+// - Cantidades y montos como Float (hay litros y kilos con decimales).
+// - Los ids los asigna la lógica de la app (son números de negocio: N° de OP,
+//   N° de orden), por eso se insertan explícitos.
+// - Los movimientos de kardex se numeran dentro de su lote / materia prima
+//   (clave compuesta), igual que en pantalla.
+// - origen*Id en los movimientos son marcas de qué los generó (venta, orden,
+//   compra) para actualizarlos o borrarlos en cascada; no son FK.
 
 generator client {
   provider = "prisma-client"
@@ -23,110 +35,209 @@ model Usuario {
   nombre       String
   rol          Rol      @default(OPERADOR)
   createdAt    DateTime @default(now())
-
-  ventasCreadas Venta[] @relation("VendedorRelacion")
 }
 
-// ── Catálogo ─────────────────────────────────────────────────
-model Producto {
-  id       Int    @id @default(autoincrement())
-  nombre   String @unique
-
-  lotes             Lote[]
-  ventas            Venta[]
-  movimientosStock  MovimientoStock[]
-}
-
-// ── Clientes ─────────────────────────────────────────────────
+// ── Catálogos ────────────────────────────────────────────────
 model Cliente {
-  id     Int     @id @default(autoincrement())
+  id                Int     @id @default(autoincrement())
+  razonSocial       String
+  apellidoNombre    String  @default("")
+  condicionIva      String  @default("")
+  cuit              String  @default("")
+  telefono          String  @default("")
+  email             String  @default("")
+  domicilio         String  @default("")
+  precioTradicional Float   @default(0)
+  precioPremium     Float?
+
+  operaciones Operacion[]
+}
+
+model Proveedor {
+  id          Int     @id @default(autoincrement())
+  razonSocial String
+  contacto    String  @default("")
+  producto    String  @default("")
+  cuitCuil    String  @default("")
+  email       String  @default("")
+  telefono    String  @default("")
+  cbu         String?
+  alias       String?
+
+  compras Compra[]
+}
+
+model MateriaPrima {
+  id     Int    @id @default(autoincrement())
   nombre String
-  tipo   String?
-  local  String?
-  canal  String?
+  /// Litros | Kilogramos | Unidades | Metros
+  unidad String
 
-  ventas Venta[]
+  compras    Compra[]
+  inventario InventarioMateriaPrima[]
 }
 
-// ── Trazabilidad ─────────────────────────────────────────────
-enum EstadoLote {
-  EN_PRODUCCION
-  ACTIVO
-  AGOTADO
-}
+model Producto {
+  id             Int    @id @default(autoincrement())
+  nombre         String
+  formato        String
+  codigoBarras   String @default("")
+  precioUnitario Float  @default(0)
 
-model Lote {
-  id               Int        @id @default(autoincrement())
-  numero           String     @unique
-  producto         Producto   @relation(fields: [productoId], references: [id])
-  productoId       Int
-  fechaProduccion  DateTime
-  cantidad         Int
-  responsable      String
-  estado           EstadoLote @default(EN_PRODUCCION)
-  alcohol          Float?
-  esencia          Float?
-  azucar           Float?
-  createdAt        DateTime   @default(now())
-
-  ventas Venta[]
+  operaciones Operacion[]
+  ordenes     OrdenProduccion[]
+  lotes       LoteTerminado[]
 }
 
 // ── Ventas ───────────────────────────────────────────────────
-enum Condicion {
-  CONTADO
-  CREDITO
-  CONSIGNACION
-}
-
-enum Canal {
-  MAYOR
-  MINOR
-}
-
-enum EstadoPago {
-  PENDIENTE
-  PAGADO
-}
-
-model Venta {
-  id             Int         @id @default(autoincrement())
-  numero         Int         @unique
-  fecha          DateTime    @default(now())
-
-  cliente        Cliente     @relation(fields: [clienteId], references: [id])
-  clienteId      Int
-
-  vendedor       Usuario     @relation("VendedorRelacion", fields: [vendedorId], references: [id])
-  vendedorId     Int
-
-  producto       Producto    @relation(fields: [productoId], references: [id])
-  productoId     Int
-
-  lote           Lote?       @relation(fields: [loteId], references: [id])
-  loteId         Int?
-
-  cantidad       Int
-  canal          Canal
-  condicion      Condicion
-  precioUnitario Float
-  total          Float
-  estadoPago     EstadoPago  @default(PENDIENTE)
-
-  createdAt      DateTime    @default(now())
-}
-
-// ── Stock ────────────────────────────────────────────────────
-enum TipoMovimiento {
-  ENTRADA
-  SALIDA
-}
-
-model MovimientoStock {
-  id         Int            @id @default(autoincrement())
-  tipo       TipoMovimiento
-  producto   Producto       @relation(fields: [productoId], references: [id])
+model Operacion {
+  id         Int      @id @default(autoincrement())
+  fecha      String
+  clienteId  Int
+  cliente    Cliente  @relation(fields: [clienteId], references: [id])
+  vendedor   String
+  cantidad   Float
   productoId Int
-  cantidad   Int
-  fecha      DateTime       @default(now())
+  producto   Producto @relation(fields: [productoId], references: [id])
+  canal      String
+  condicion  String
+  pu         Float
+  subTotal   Float
+
+  @@index([fecha])
+  @@index([clienteId])
+  @@index([productoId])
+}
+
+// ── Compras (Libro de compras - Trazabilidad) ────────────────
+model Compra {
+  id                Int          @id @default(autoincrement())
+  fecha             String
+  materiaPrimaId    Int
+  materiaPrima      MateriaPrima @relation(fields: [materiaPrimaId], references: [id])
+  cantidad          Float
+  costoUnitario     Float
+  cantidadCascara   Float?
+  /// Lote del proveedor ("" si no trae).
+  lote              String       @default("")
+  proveedorId       Int
+  proveedor         Proveedor    @relation(fields: [proveedorId], references: [id])
+  comprobanteForm   String       @default("")
+  comprobanteTipo   String       @default("")
+  comprobanteNumero String       @default("")
+  /// MPR | MPA | CDNI | EFE
+  medioPago         String
+
+  insumos OrdenInsumo[]
+
+  @@index([fecha])
+  @@index([materiaPrimaId])
+  @@index([proveedorId])
+}
+
+// ── Producción ───────────────────────────────────────────────
+model OrdenProduccion {
+  id                Int           @id @default(autoincrement())
+  productoId        Int
+  producto          Producto      @relation(fields: [productoId], references: [id])
+  fechaMaceracion   String
+  /// null = todavía macerando.
+  fechaEmbotellado  String?
+  responsable       String
+  cantidadProducida Float
+  costoTotal        Float
+
+  insumos OrdenInsumo[]
+
+  @@index([fechaMaceracion])
+  @@index([productoId])
+}
+
+model OrdenInsumo {
+  id            Int             @id @default(autoincrement())
+  ordenId       Int
+  orden         OrdenProduccion @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  /// Orden de la línea dentro de la orden de producción.
+  posicion      Int
+  /// Nombre de la materia prima (así lo guarda la orden; se renombra en cascada).
+  materiaPrima  String
+  cantidad      Float
+  costoUnitario Float
+  /// Compra del Libro de compras de la que sale (trazabilidad); null = stock sin compra.
+  compraId      Int?
+  compra        Compra?         @relation(fields: [compraId], references: [id])
+
+  @@index([ordenId])
+  @@index([compraId])
+}
+
+// ── Productos terminados (kardex por lote) ───────────────────
+model LoteTerminado {
+  id                Int       @id @default(autoincrement())
+  lote              Int
+  productoId        Int?
+  productoRef       Producto? @relation(fields: [productoId], references: [id])
+  /// Nombre y formato guardados (hay lotes históricos de productos que ya no están en el catálogo).
+  producto          String
+  formato           String
+  existenciaInicial Float
+  costoUnitario     Float
+  fechaVencimiento  String?
+  /// Orden de producción que generó el lote (marca, no FK).
+  origenOrdenId     Int?
+
+  movimientos MovimientoLote[]
+
+  @@index([productoId])
+  @@index([origenOrdenId])
+}
+
+model MovimientoLote {
+  loteId             Int
+  lote               LoteTerminado @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  id                 Int
+  /// null = fila de existencia inicial.
+  fecha              String?
+  /// entrada | salida
+  tipo               String
+  cantidad           Float
+  puEntrada          Float?
+  cantidadSecundaria Float?
+  origenOperacionId  Int?
+  origenOrdenId      Int?
+  origenCompraId     Int?
+
+  @@id([loteId, id])
+  @@index([origenOperacionId])
+}
+
+// ── Inventario de materia prima (kardex) ─────────────────────
+model InventarioMateriaPrima {
+  id                Int          @id @default(autoincrement())
+  materiaPrimaId    Int
+  materiaPrima      MateriaPrima @relation(fields: [materiaPrimaId], references: [id])
+  existenciaInicial Float
+  costoUnitario     Float
+
+  movimientos MovimientoInventario[]
+
+  @@index([materiaPrimaId])
+}
+
+model MovimientoInventario {
+  inventarioId       Int
+  inventario         InventarioMateriaPrima @relation(fields: [inventarioId], references: [id], onDelete: Cascade)
+  id                 Int
+  fecha              String?
+  tipo               String
+  cantidad           Float
+  puEntrada          Float?
+  cantidadSecundaria Float?
+  origenOperacionId  Int?
+  origenOrdenId      Int?
+  origenCompraId     Int?
+
+  @@id([inventarioId, id])
+  @@index([origenCompraId])
+  @@index([origenOrdenId])
 }

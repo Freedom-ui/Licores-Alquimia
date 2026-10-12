@@ -12,7 +12,7 @@ export default function EditLoteModal({
 }: {
   lote: LoteTerminado | null;
   onClose: () => void;
-  onSubmit: (loteId: number, values: LoteHeaderInput) => void;
+  onSubmit: (loteId: number, values: LoteHeaderInput) => Promise<void> | void;
 }) {
   const [existenciaInicial, setExistenciaInicial] = useState("");
   const [costoUnitario, setCostoUnitario] = useState("");
@@ -37,7 +37,7 @@ export default function EditLoteModal({
     onClose();
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!lote) return;
 
@@ -55,12 +55,14 @@ export default function EditLoteModal({
     setSubmitting(true);
     setError(null);
     try {
-      onSubmit(lote.id, {
+      await onSubmit(lote.id, {
         existenciaInicial: existencia,
         costoUnitario: costo,
         fechaVencimiento: fechaVencimiento || null,
       });
       onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudieron guardar los cambios.");
     } finally {
       setSubmitting(false);
     }

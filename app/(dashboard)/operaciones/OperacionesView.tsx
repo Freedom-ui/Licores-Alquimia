@@ -22,7 +22,7 @@ const columns: Column<OperacionRow>[] = [
 ];
 
 export default function OperacionesView() {
-  const { operaciones, clientes, addOperacion, updateOperacion, deleteOperacion } = useStore();
+  const { operaciones, clientes, productos, addOperacion, updateOperacion, deleteOperacion } = useStore();
   // ?nuevo=1 (desde los accesos rápidos del Panel principal): abre el alta directamente.
   const nuevo = useSearchParams().get("nuevo") === "1";
   const router = useRouter();
@@ -50,6 +50,7 @@ export default function OperacionesView() {
       <OperacionFormModal
         target={target}
         clientes={clientes}
+        productos={productos}
         onClose={() => setTarget(null)}
         onSubmit={(id, values) => (id === null ? addOperacion(values) : updateOperacion(id, values))}
       />

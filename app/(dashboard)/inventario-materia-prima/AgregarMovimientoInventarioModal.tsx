@@ -21,7 +21,7 @@ export default function AgregarMovimientoInventarioModal({
   /** Saldo vigente, para avisar si un consumo lo supera. */
   saldoActual: number;
   onClose: () => void;
-  onSubmit: (rowId: number, movimiento: Omit<KardexMovimiento, "id">) => void;
+  onSubmit: (rowId: number, movimiento: Omit<KardexMovimiento, "id">) => Promise<void> | void;
 }) {
   const [tipo, setTipo] = useState<"entrada" | "salida">("salida");
   const [fecha, setFecha] = useState("");
@@ -54,7 +54,7 @@ export default function AgregarMovimientoInventarioModal({
   const cantidadNum = Number(cantidad) || 0;
   const superaSaldo = tipo === "salida" && cantidadNum > saldoActual;
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!row) return;
 
@@ -75,7 +75,7 @@ export default function AgregarMovimientoInventarioModal({
     setSubmitting(true);
     setError(null);
     try {
-      onSubmit(row.id, {
+      await onSubmit(row.id, {
         fecha,
         tipo,
         cantidad: cant,
@@ -83,6 +83,8 @@ export default function AgregarMovimientoInventarioModal({
         cantidadSecundaria: tipo === "entrada" && cantidadSecundaria ? Number(cantidadSecundaria) : undefined,
       });
       onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar el movimiento.");
     } finally {
       setSubmitting(false);
     }

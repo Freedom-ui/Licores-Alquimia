@@ -14,7 +14,7 @@ export default function EditInventarioModal({
   row: InventarioMateriaPrimaRow | null;
   nombre: string;
   onClose: () => void;
-  onSubmit: (rowId: number, values: InventarioMateriaPrimaHeaderInput) => void;
+  onSubmit: (rowId: number, values: InventarioMateriaPrimaHeaderInput) => Promise<void> | void;
 }) {
   const [existenciaInicial, setExistenciaInicial] = useState("");
   const [costoUnitario, setCostoUnitario] = useState("");
@@ -37,7 +37,7 @@ export default function EditInventarioModal({
     onClose();
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!row) return;
 
@@ -55,8 +55,10 @@ export default function EditInventarioModal({
     setSubmitting(true);
     setError(null);
     try {
-      onSubmit(row.id, { existenciaInicial: existencia, costoUnitario: costo });
+      await onSubmit(row.id, { existenciaInicial: existencia, costoUnitario: costo });
       onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudieron guardar los cambios.");
     } finally {
       setSubmitting(false);
     }

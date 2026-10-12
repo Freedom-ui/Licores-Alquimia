@@ -25,8 +25,3 @@ export const productosDemo: ProductoRow[] = [
 export function productoLabel(p: Pick<ProductoRow, "nombre" | "formato">): string {
   return `${p.nombre} — ${p.formato}`;
 }
-
-export function findProductoById(id: number | string): ProductoRow | undefined {
-  const numId = Number(id);
-  return productosDemo.find((p) => p.id === numId);
-}

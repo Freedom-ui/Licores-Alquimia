@@ -1,5 +1,5 @@
 // Kardex de Inventario de materia prima: una fila del catálogo `materiaPrima`
-// (store.tsx) = una tabla de Ingresos s/Insumo + Compras + Consumos + Saldo.
+// (_dominio/sync.ts) = una tabla de Ingresos s/Insumo + Compras + Consumos + Saldo.
 // Reusa el mismo patrón y motor de cálculo que Productos terminados
 // (buildKardex en app/components/data-table/kardex.ts), con una diferencia:
 // la entrada acá también puede traer una `cantidadSecundaria` (ej. kilos de
@@ -27,8 +27,8 @@ export type InventarioMateriaPrimaRow = {
 };
 
 // Punto de partida del demo: solo la existencia previa al sistema (stock sin
-// compra registrada). El resto de los movimientos NO se cargan acá: el store
-// los genera al iniciar a partir del Libro de compras (ingresos) y de las
+// compra registrada). El resto de los movimientos NO se cargan acá: el seed
+// los genera a partir del Libro de compras (ingresos) y de las
 // Órdenes de producción (consumos), con el mismo código que se usa al cargar
 // una compra u orden nueva — así el inventario siempre coincide con ambas.
 // Las materias primas que se compran por primera vez se agregan solas.

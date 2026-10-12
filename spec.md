@@ -50,7 +50,9 @@ Arquitectura clave:
 - Dependencia `xlsx` (SheetJS) ya instalada → para la migración desde Excel.
 
 Particularidades del entorno de pruebas:
-- Usuario de prueba local: `test_qa` (la contraseña la tiene el usuario).
+- Usuario de prueba local: `test_qa` (la contraseña la tiene el usuario). Para los recorridos
+  automáticos de Claude existe `claude_qa`, con la contraseña en `.claude/qa-usuario.local`
+  (ignorado por git).
 - En el panel del navegador de Claude, entrar a una página por recarga directa a veces
   queda en "Cargando…" (el panel oculto no pinta y React no revela el Suspense): navegar
   a otra sección y volver con un clic. Las descargas aparecen en `C:\Users\patan\Downloads`.
@@ -136,7 +138,7 @@ hoy el panel saldría casi vacío. Se amplían un poco los datos (paso 6).
 modal correcto); `<title>` = "Panel principal · Licores Alquimia"; 1024/1366/1440/1920 px sin
 huecos ni scroll horizontal; Estadísticas sin cambios tras la extracción.
 
-### Fase 2 — Base de datos real ☐ (la más grande)
+### Fase 2 — Base de datos real ☑ (aprobada por el usuario)
 - Rediseñar `prisma/schema.prisma` espejando los tipos reales de cada `*/data.ts`
   (Cliente, Proveedor, MateriaPrima, Producto, Operacion, OrdenProduccion + OrdenInsumo,
   LoteTerminado + Movimiento, InventarioMP + Movimiento, Compra, Usuario) con FKs e
@@ -150,6 +152,22 @@ huecos ni scroll horizontal; Estadísticas sin cambios tras la extracción.
   falsos más completos).
 - Test: cada sección CRUD + automatizaciones (compra→inventario, orden→consumos/lote,
   venta FIFO, guardas de borrado) y que todo persista al recargar/reiniciar.
+
+**Cómo quedó** (para retomar):
+- Esquema en `prisma/schema.prisma` + migración `20261008120000_modelo_completo` (Usuario no
+  cambia). Fechas como texto `YYYY-MM-DD`, cantidades Float, ids de negocio explícitos,
+  movimientos de kardex con clave compuesta (lote/materia + N° de movimiento).
+- Lógica pura en `app/(dashboard)/_dominio/`: `sync.ts` (sincronizaciones), `acciones.ts`
+  (`aplicar(estado, accion)` con todas las validaciones y guardas), `demo.ts` (datos de prueba).
+- Servidor en `app/(dashboard)/_datos/`: `repositorio.ts` (`cargarEstado` / `guardarCambios`,
+  que escribe solo las diferencias) y `acciones.ts` (server action `ejecutar`, en transacción).
+- `store.tsx` recibe el estado inicial del layout y manda cada cambio a `ejecutar`; las
+  funciones de `useStore()` ahora devuelven promesas (errores con mensaje para el usuario).
+- Nombres de cliente/producto en ventas, órdenes y lotes se derivan del catálogo al leer.
+- `npm run db:migrate` y `npm run db:seed` (`-- --reemplazar` si ya hay datos); no tocan usuarios.
+- Probado: 33 acciones automáticas (base = lógica en cada una) + recorrido en el navegador de
+  todas las secciones (altas, ediciones, bajas, guardas, FIFO, consumos, lote al embotellar,
+  rastreo, renombres, persistencia al recargar). Datos de prueba limpiados: base = demo.
 
 ### Fase 3 — Rework del login ☐
 Seguro pero simple, para una PC hogareña (protege datos sensibles de terceros en la casa).
@@ -186,7 +204,10 @@ entregar, el cliente lo usará con su planilla real.
 ### Fase 6 — Correcciones menores y estética ☐
 Lista conocida (ampliar durante las fases anteriores):
 - Error de lint preexistente en `app/(dashboard)/nav-tree.tsx` (setState en effect).
-- Renombrar cliente/producto no actualiza el texto guardado en Operaciones/Órdenes.
+- ~~Renombrar cliente/producto no actualiza el texto guardado en Operaciones/Órdenes.~~
+  Resuelto en la Fase 2 (los nombres salen del catálogo).
+- Clientes: dejar vacío "Precio Premium" lo guarda como 0 en vez de "sin precio" (los
+  formularios genéricos convierten los números vacíos en 0).
 - Detalles visuales detectados en el recorrido general (alineaciones, textos, vacíos).
 
 ### Fase 7 — Features nuevas ☐

@@ -1,6 +1,6 @@
 // Kardex de productos terminados: un lote = una tabla de Entradas / Salidas / Saldo,
-// igual a la planilla de Excel que se usaba antes. Datos de demo en memoria; cuando
-// el modelo de Lote/MovimientoStock tenga estos campos, reemplazar por /api/productos-terminados.
+// igual a la planilla de Excel que se usaba antes. Los datos de prueba de abajo los
+// carga el seed (prisma/seed.ts) en la base.
 // La lógica de kardex (KardexMovimiento, buildKardex) vive en
 // app/components/data-table/kardex.ts, compartida con Inventario de materia prima.
 
@@ -25,7 +25,7 @@ export type LoteTerminado = {
   movimientos: KardexMovimiento[];
 };
 
-// Las ventas (salidas) no se cargan acá: el store las genera al iniciar a
+// Las ventas (salidas) no se cargan acá: el seed las genera a
 // partir de Operaciones, igual que al registrar una venta nueva, y la
 // existencia/costo de los lotes que vienen de una orden se recalculan desde
 // esa orden. Así cada lote sabe exactamente a qué clientes se vendió.
@@ -81,7 +81,7 @@ export const productosTerminadosDemo: LoteTerminado[] = [
   {
     id: 5,
     // Lote histórico, anterior a que el número de lote pasara a coincidir con
-    // el N° de Orden de producción (ver store.tsx: syncLoteParaOrden usa
+    // el N° de Orden de producción (ver _dominio/sync.ts: syncLoteParaOrden usa
     // `lote: orden.id`) — por eso su número no sigue esa secuencia.
     lote: 1,
     // Sin productoId: lote de un producto que ya no está en el catálogo vigente

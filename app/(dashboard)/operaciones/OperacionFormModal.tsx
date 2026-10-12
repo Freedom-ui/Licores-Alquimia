@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import ModalShell from "@/app/components/data-table/ModalShell";
 import { formatCellValue } from "@/app/components/data-table/format";
 import type { ClienteRow } from "../clientes/data";
-import { productosDemo, productoLabel, findProductoById } from "../productos/data";
+import { productoLabel, type ProductoRow } from "../productos/data";
 import { VENDEDORES, type OperacionRow } from "./data";
 
 const CANALES = ["Menor", "Mayor"];
@@ -37,11 +37,13 @@ const EMPTY: FormState = {
 export default function OperacionFormModal({
   target,
   clientes,
+  productos,
   onClose,
   onSubmit,
 }: {
   target: OperacionFormTarget;
   clientes: ClienteRow[];
+  productos: ProductoRow[];
   onClose: () => void;
   onSubmit: (
     id: number | null,
@@ -80,7 +82,7 @@ export default function OperacionFormModal({
       // Al elegir un producto se sugiere su precio de lista, pero el usuario
       // puede pisarlo después (ej. un cliente con precio preferencial).
       if (key === "productoId") {
-        const producto = findProductoById(value);
+        const producto = productos.find((p) => p.id === Number(value));
         if (producto) next.pu = String(producto.precioUnitario);
       }
       return next;
@@ -190,7 +192,7 @@ export default function OperacionFormModal({
             </label>
             <select id="op-producto" value={values.productoId} onChange={(e) => update("productoId", e.target.value)}>
               <option value="">Seleccionar…</option>
-              {productosDemo.map((p) => (
+              {productos.map((p) => (
                 <option key={p.id} value={p.id}>
                   {productoLabel(p)}
                 </option>

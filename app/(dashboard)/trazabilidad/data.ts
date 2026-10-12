@@ -9,7 +9,7 @@
 // comprobante), igual que en la planilla.
 //
 // Cada compra genera automáticamente su ingreso en el Inventario de materia
-// prima (ver store.tsx) y las Órdenes de producción indican de qué compra
+// prima (ver _dominio/sync.ts) y las Órdenes de producción indican de qué compra
 // sale cada insumo (OrdenInsumo.compraId): eso es lo que permite rastrear un
 // lote de punta a punta.
 

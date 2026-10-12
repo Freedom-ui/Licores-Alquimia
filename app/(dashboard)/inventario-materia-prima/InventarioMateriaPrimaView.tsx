@@ -182,7 +182,7 @@ export default function InventarioMateriaPrimaView() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      deleteInventarioMateriaPrima(deleteTarget.id);
+      await deleteInventarioMateriaPrima(deleteTarget.id);
       setDeleteTarget(null);
       setDeleteError(null);
     } catch (err) {

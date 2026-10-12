@@ -10,8 +10,7 @@ export type ProveedorRow = {
   alias?: string;
 };
 
-// Demo en memoria: cuando el modelo de Proveedor tenga estos campos en
-// Prisma, reemplazar por las llamadas reales a /api/proveedores.
+// Datos de prueba: los carga el seed (prisma/seed.ts) en la base.
 export const proveedoresDemo: ProveedorRow[] = [
   {
     id: 1,

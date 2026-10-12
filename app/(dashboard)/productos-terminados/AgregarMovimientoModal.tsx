@@ -13,7 +13,7 @@ export default function AgregarMovimientoModal({
   /** Lote al que se le agrega el movimiento; el modal está abierto mientras no sea null. */
   lote: LoteTerminado | null;
   onClose: () => void;
-  onSubmit: (loteId: number, movimiento: Omit<KardexMovimiento, "id">) => void;
+  onSubmit: (loteId: number, movimiento: Omit<KardexMovimiento, "id">) => Promise<void> | void;
 }) {
   const [tipo, setTipo] = useState<"entrada" | "salida">("salida");
   const [fecha, setFecha] = useState("");
@@ -40,7 +40,7 @@ export default function AgregarMovimientoModal({
     onClose();
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!lote) return;
 
@@ -57,13 +57,15 @@ export default function AgregarMovimientoModal({
     setSubmitting(true);
     setError(null);
     try {
-      onSubmit(lote.id, {
+      await onSubmit(lote.id, {
         fecha,
         tipo,
         cantidad: cant,
         puEntrada: tipo === "entrada" && puEntrada ? Number(puEntrada) : undefined,
       });
       onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar el movimiento.");
     } finally {
       setSubmitting(false);
     }

@@ -15,7 +15,7 @@ export default function AgregarMateriaPrimaInventarioModal({
   /** Materias primas del catálogo que todavía no tienen kardex en esta sección. */
   opciones: MateriaPrimaRow[];
   onClose: () => void;
-  onSubmit: (v: NuevaMateriaPrimaInventarioInput) => void;
+  onSubmit: (v: NuevaMateriaPrimaInventarioInput) => Promise<void> | void;
 }) {
   const [materiaPrimaId, setMateriaPrimaId] = useState("");
   const [existenciaInicial, setExistenciaInicial] = useState("");
@@ -41,7 +41,7 @@ export default function AgregarMateriaPrimaInventarioModal({
     onClose();
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
 
     if (!materiaPrimaId) {
@@ -62,8 +62,10 @@ export default function AgregarMateriaPrimaInventarioModal({
     setSubmitting(true);
     setError(null);
     try {
-      onSubmit({ materiaPrimaId: Number(materiaPrimaId), existenciaInicial: existencia, costoUnitario: costo });
+      await onSubmit({ materiaPrimaId: Number(materiaPrimaId), existenciaInicial: existencia, costoUnitario: costo });
       onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo agregar la materia prima.");
     } finally {
       setSubmitting(false);
     }

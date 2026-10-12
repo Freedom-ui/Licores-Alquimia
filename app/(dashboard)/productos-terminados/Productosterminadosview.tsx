@@ -31,6 +31,7 @@ export default function ProductosTerminadosView() {
   const [editTarget, setEditTarget] = useState<LoteTerminado | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LoteTerminado | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Cada lote es "algo diferente": no es una fila más, es su propia tabla de
   // kardex. Se precalcula acá para no rearmarla en cada render de la tarjeta.
@@ -100,8 +101,11 @@ export default function ProductosTerminadosView() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      deleteLote(deleteTarget.id);
+      await deleteLote(deleteTarget.id);
       setDeleteTarget(null);
+      setDeleteError(null);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "No se pudo eliminar el lote.");
     } finally {
       setDeleting(false);
     }
@@ -296,8 +300,12 @@ export default function ProductosTerminadosView() {
             ? `¿Eliminar el lote ${deleteTarget.lote} (${deleteTarget.producto} — ${deleteTarget.formato})? Esta acción no se puede deshacer.`
             : ""
         }
+        error={deleteError}
         confirming={deleting}
-        onCancel={() => setDeleteTarget(null)}
+        onCancel={() => {
+          setDeleteTarget(null);
+          setDeleteError(null);
+        }}
         onConfirm={confirmDelete}
       />
     </div>
