@@ -25,6 +25,7 @@
 
 import { createContext, useContext, useState, type ReactNode } from "react";
 import type { KardexMovimiento } from "@/app/components/data-table/kardex";
+import { irAlLogin } from "./ControlInactividad";
 import type { CompraInput } from "./trazabilidad/data";
 import type {
   Accion,
@@ -94,7 +95,10 @@ export function StoreProvider({ inicial, children }: { inicial: Estado; children
 
   async function run(accion: Accion) {
     const r = await ejecutar(accion);
-    if (!r.ok) throw new Error(r.error);
+    if (!r.ok) {
+      if (r.sinSesion) irAlLogin("expirada");
+      throw new Error(r.error);
+    }
     setEstado(r.estado);
   }
 

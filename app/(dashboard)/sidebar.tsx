@@ -1,24 +1,25 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { panelPrincipal, navSections } from "./nav-data";
 import NavTree from "./nav-tree";
 import Icon from "./icons";
+import { irAlLogin } from "./ControlInactividad";
+import { cerrarSesion } from "../(acceso)/acciones";
 
-export default function Sidebar({
-  usuario,
-}: {
-  usuario: { username: string; rol: string };
-}) {
+export default function Sidebar({ usuario }: { usuario: string }) {
   const pathname = usePathname();
-  const router = useRouter();
+  const [saliendo, setSaliendo] = useState(false);
 
   async function handleLogout() {
-    await fetch("/api/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
+    setSaliendo(true);
+    try {
+      await cerrarSesion();
+    } finally {
+      irAlLogin("salida");
+    }
   }
 
   return (
@@ -70,11 +71,12 @@ export default function Sidebar({
 
       <div className="sidebar-footer">
         <div className="sidebar-user">
-          <span className="su-nombre">{usuario.username}</span>
-          <span className="su-rol">{usuario.rol}</span>
+          <span className="su-nombre" title={usuario}>
+            {usuario}
+          </span>
         </div>
-        <button className="logout-btn" onClick={handleLogout}>
-          Cerrar sesión
+        <button className="logout-btn" onClick={handleLogout} disabled={saliendo}>
+          {saliendo ? "Cerrando…" : "Cerrar sesión"}
         </button>
       </div>
     </aside>

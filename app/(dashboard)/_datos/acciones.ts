@@ -6,14 +6,18 @@
 // guarda las diferencias y devuelve el estado actualizado.
 
 import { prisma } from "@/lib/prisma";
-import { leerSesion } from "../sesion";
+import { obtenerSesion } from "@/lib/auth/sesion";
 import { aplicar, ErrorNegocio, type Accion, type Estado } from "../_dominio/acciones";
 import { cargarEstado, guardarCambios } from "./repositorio";
 
-export type Resultado = { ok: true; estado: Estado } | { ok: false; error: string };
+export type Resultado =
+  | { ok: true; estado: Estado }
+  // sinSesion: la sesión venció o no existe; la pantalla vuelve al login.
+  | { ok: false; error: string; sinSesion?: true };
 
 export async function ejecutar(accion: Accion): Promise<Resultado> {
-  if (!(await leerSesion())) return { ok: false, error: "Tu sesión terminó: volvé a iniciar sesión." };
+  // Las server actions son públicas: se valida la sesión en cada cambio (y cuenta como uso).
+  if (!(await obtenerSesion())) return { ok: false, error: "Tu sesión terminó: volvé a iniciar sesión.", sinSesion: true };
   try {
     const estado = await prisma.$transaction(
       async (tx) => {

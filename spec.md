@@ -45,13 +45,13 @@ Arquitectura clave:
   pantallas como bloques en `secciones.ts`, PDF en `exportEstadisticasPdf.ts`).
 - Prisma 7 + SQLite (`dev.db`, `lib/prisma.ts`) existe pero **solo se usa para
   usuarios/login**; el `schema.prisma` actual está desactualizado respecto del modelo real.
-- Login actual: cookie `session` con JSON sin firmar (falsificable), registro público
-  abierto, `middleware.ts` (Next 16 avisa que pasa a llamarse `proxy`).
+- Login (Fase 3): cuenta única con sesión guardada en la base, código de recuperación y
+  cierre por inactividad (`lib/auth/`, `app/(acceso)/`, `proxy.ts`).
 - Dependencia `xlsx` (SheetJS) ya instalada → para la migración desde Excel.
 
 Particularidades del entorno de pruebas:
-- Usuario de prueba local: `test_qa` (la contraseña la tiene el usuario). Para los recorridos
-  automáticos de Claude existe `claude_qa`, con la contraseña en `.claude/qa-usuario.local`
+- Usuarios en la base de desarrollo (12/10/2026 se borraron los demás): `tadeoqa` (el del
+  usuario; la contraseña la tiene él) y, para los recorridos automáticos de Claude, `claude_qa`, con la contraseña en `.claude/qa-usuario.local`
   (ignorado por git).
 - En el panel del navegador de Claude, entrar a una página por recarga directa a veces
   queda en "Cargando…" (el panel oculto no pinta y React no revela el Suspense): navegar
@@ -148,7 +148,7 @@ huecos ni scroll horizontal; Estadísticas sin cambios tras la extracción.
   no reescribir la lógica de negocio.
 - `store.tsx` pasa a leer/escribir contra esa capa manteniendo **la misma interfaz
   `useStore()`** (las vistas no deberían cambiar).
-- Script de seed con los datos de prueba actuales (en la Fase 5 se reemplazan por datos
+- Script de seed con los datos de prueba actuales (en la Fase 6 se reemplazan por datos
   falsos más completos).
 - Test: cada sección CRUD + automatizaciones (compra→inventario, orden→consumos/lote,
   venta FIFO, guardas de borrado) y que todo persista al recargar/reiniciar.
@@ -169,62 +169,174 @@ huecos ni scroll horizontal; Estadísticas sin cambios tras la extracción.
   todas las secciones (altas, ediciones, bajas, guardas, FIFO, consumos, lote al embotellar,
   rastreo, renombres, persistencia al recargar). Datos de prueba limpiados: base = demo.
 
-### Fase 3 — Rework del login ☐
-Seguro pero simple, para una PC hogareña (protege datos sensibles de terceros en la casa).
-- Sesión firmada (cookie httpOnly con token aleatorio guardado en DB, o JWT firmado con
-  secreto en `.env`), expiración por inactividad y "cerrar sesión" real.
-- Sin registro público: **primer arranque** crea el usuario administrador; luego el admin
-  crea/desactiva usuarios desde una pantalla de Usuarios. Roles ADMIN / OPERADOR.
-- Cambio de contraseña; reglas mínimas de contraseña; bloqueo temporal tras varios
-  intentos fallidos; recuperación por "reset" desde el admin.
-- Migrar `middleware.ts` → `proxy` según Next 16 y validar la sesión del lado servidor en
-  el layout y en la capa de datos (no solo por presencia de cookie).
-- Test: no se puede entrar sin login, cookie manipulada no sirve, expiración, roles.
+### Fase 3 — Rework del login ☑ (aprobada por el usuario)
+Seguro pero simple: **una sola cuenta en una sola PC** (la usa únicamente el cliente) para
+proteger los datos en la computadora. Sin registro público, sin roles ni pantalla de usuarios
+(decisión del usuario, 12/10/2026).
+- **Primer arranque**: si no hay ninguna cuenta, la app pide crear usuario + contraseña.
+- **Código de recuperación** de 7 caracteres (mezcla minúsculas, mayúsculas y números). Se
+  muestra **una sola vez** al entrar por primera vez, con botón Copiar y el aviso de que es muy
+  importante guardarlo; hay que tildar "Ya lo anoté" para seguir. Sirve para recuperar el
+  usuario y/o la contraseña; al usarlo se genera uno nuevo y el anterior deja de servir.
+- Sesión con token al azar en cookie httpOnly (en la base solo su SHA-256), vence a los
+  **15 minutos sin uso** (la pantalla vuelve sola al login) o a las 12 h; "Cerrar sesión" la
+  borra de la base.
+- Reglas mínimas: usuario 3–30 caracteres (letras, números, `.` `_` `-`); contraseña ≥ 8 con
+  al menos una letra y un número. Bloqueo de 15 min tras 5 intentos fallidos (login o código).
+- Sin pantalla "Mi cuenta" (el usuario la pidió sacar): el pie de la sidebar muestra solo el
+  nombre de usuario (grande, naranja) y "Cerrar sesión". Cambiar usuario o contraseña se hace
+  con "¿Olvidaste tu usuario o contraseña?" + el código de recuperación.
+- `middleware.ts` → `proxy.ts`; la sesión se valida contra la base en el layout, el login y
+  cada server action.
 
-### Fase 4 — Migración de datos desde Excel ☐
+**Cómo quedó** (para retomar):
+- Migración `20261012120000_login_cuenta_unica`: `Usuario` pierde `nombre` y `rol` y gana
+  `codigoRecuperacionHash` (bcrypt) y `codigoPendiente` (texto plano solo hasta que confirma
+  que lo guardó, así recargar no lo pierde); tablas `Sesion` e `IntentoFallido`. Los usuarios
+  viejos conservan usuario y contraseña; como no tenían código, se les genera en el próximo
+  ingreso y ven la pantalla del código.
+- `lib/auth/reglas.ts`: constantes y validadores puros (los usan formularios y servidor).
+  `lib/auth/sesion.ts`: crear/obtener/cerrar sesión, códigos, bloqueo por intentos.
+  `SESION_INACTIVIDAD_MIN` en `.env` cambia los 15 min (solo para pruebas).
+- Pantallas en `app/(acceso)/`: `/login`, `/configuracion-inicial`, `/codigo-recuperacion`,
+  `/recuperar` (server actions en `acciones.ts`).
+- `ControlInactividad.tsx` en el layout del dashboard: cuenta la actividad (compartida entre
+  pestañas), mantiene viva la sesión y, al vencer, la cierra y hace una navegación completa al
+  login (no queda nada en memoria).
+- `proxy.ts` solo mira si existe la cookie (recomendación de Next 16: sin base en Proxy).
+- Se borraron `/registro`, `app/api/{login,logout,register}` y `app/(dashboard)/sesion.ts`.
+- Si una acción encuentra la sesión vencida (`sinSesion` en `ejecutar`), la
+  pantalla va directo al login.
+- `lib/prisma.ts` guarda en `globalThis` también la clase del cliente: después de una
+  migración + `prisma generate` el dev server toma el cliente nuevo sin reiniciarse (antes
+  seguía con el viejo y fallaba con "Cannot read properties of undefined").
+- Probado (build de producción en :3001): sin cookie / cookie inventada / cookie vieja JSON →
+  login; guardar con la sesión vencida se rechaza y no escribe; cierre por inactividad (con
+  `SESION_INACTIVIDAD_MIN=1`); bloqueo a los 5 fallos aun con la contraseña correcta; código
+  (Copiar, casilla obligatoria, persiste al recargar, secciones redirigen a él mientras está
+  pendiente); recuperar (código mal/bien, reglas, código nuevo e invalidación del viejo);
+  cerrar sesión + Atrás; primer arranque con la
+  tabla de usuarios vacía (después se restauraron los usuarios). La contraseña y el código
+  de `claude_qa` cambiaron: están en `.claude/qa-usuario.local`.
+
+### Fase 4 — Validación de datos en los formularios ☐
+Va antes del importador de Excel (que reusa los mismos validadores) y completa la seguridad
+de la Fase 3: las server actions son públicas, así que el servidor tiene que revalidar todo.
+- Inventario de todos los formularios: genéricos `RecordFormModal` / `EditRecordModal`
+  (Clientes, Proveedores, Materia prima, Productos, configurados por columnas en
+  `app/components/data-table/types.ts`), `OperacionFormModal`, `OrdenFormModal` (+ líneas
+  de insumos), `CompraFormModal`, modales de Inventario (alta, movimiento, edición) y de
+  Productos terminados (movimiento, edición de lote) y las pantallas de acceso (login,
+  configuración inicial, recuperar: ya validan con `lib/auth/reglas.ts`).
+- Reglas por tipo de dato: números sin negativos ni vacíos que se vuelvan 0; enteros donde
+  la unidad lo pide (botellas, unidades); montos > 0 y con 2 decimales como máximo; fechas
+  reales y en rangos lógicos (no futuras en ventas/compras, embotellado ≥ maceración,
+  vencimiento > embotellado); textos sin espacios sobrantes, obligatorios no vacíos y con
+  largo máximo; CUIT/CUIL con formato y dígito verificador; email; teléfono; CBU (22
+  dígitos + verificador) y alias; código de barras con caracteres válidos para CODE39;
+  N° de comprobante (ya existe).
+- Reglas de negocio: salida manual ≤ saldo del lote/materia prima; insumo ≤ disponible de
+  su compra; aviso si una venta supera el stock del producto; no duplicar CUIT ni nombres
+  de materia prima/producto+formato; listas cerradas solo con sus valores.
+- Cómo se muestra: texto chico en rojo debajo del campo con qué está mal y cómo
+  corregirlo (ej. "Ingresá una cantidad mayor a 0, por ejemplo 12"). Se valida al salir
+  del campo y al guardar; el foco va al primer error. Los inputs impiden lo imposible desde
+  el vamos (`min`, `step`, `inputMode`, `maxLength`, sin letras en campos numéricos).
+- Cómo se arma: validadores puros compartidos (un módulo nuevo junto a
+  `app/components/data-table/format.ts`). Los usan los formularios **y** el servidor en
+  `_dominio/acciones.ts`, que rechaza con `ErrorNegocio` cualquier dato inválido aunque
+  no venga de la pantalla.
+- Incluye arreglar en Clientes que dejar vacío "Precio Premium" lo guarda como 0 en vez de
+  "sin precio" (los formularios genéricos convierten los números vacíos en 0).
+- Test: por formulario, una lista de entradas inválidas (negativos, letras, fechas
+  imposibles, campos vacíos, valores fuera de la lógica): cada una muestra su mensaje y no
+  guarda nada; las mismas, mandadas directo a la server action, se rechazan.
+
+### Fase 5 — Migración de datos desde Excel ☐
 Requiere el archivo Excel del cliente (pedírselo al usuario). Su contenido actual también
 es de prueba: se usa para validar la estructura de hojas/columnas y el importador; al
 entregar, el cliente lo usará con su planilla real.
 - Pantalla "Importar Excel" (activar el botón que hoy está deshabilitado en DataTable):
   subir el .xlsx, mapear hojas → secciones, **vista previa con validación** (errores por
-  fila, duplicados, referencias faltantes), confirmar e importar en una transacción.
+  fila, duplicados, referencias faltantes) usando los mismos validadores de la Fase 4,
+  confirmar e importar en una transacción.
 - Orden de importación por dependencias: catálogos → compras → órdenes → lotes → ventas.
 - Reporte final de lo importado y lo rechazado. Idempotente (no duplica si se reimporta).
 - Test: con el Excel del cliente; cotejar totales contra la planilla.
 
-### Fase 5 — Inyección de datos falsos + testeo general ☐
+### Fase 6 — Inyección de datos falsos + testeo general ☐
 - Script que genera datos falsos pero coherentes y realistas (varios meses de operación:
   clientes y proveedores con nombres/CUIT/contactos verosímiles, compras con comprobantes,
   órdenes, lotes, ventas con estacionalidad), respetando la cadena de trazabilidad, FIFO
   y que los saldos cierren. Reemplaza los datos de demo actuales (que también son de
-  prueba). Que se pueda volver a correr para regenerar una DB de prueba limpia.
+  prueba). Que se pueda volver a correr para regenerar una DB de prueba limpia. Todo lo
+  generado tiene que pasar los validadores de la Fase 4.
 - Testeo de punta a punta de todas las secciones, PDFs, estadísticas con comparaciones,
   rendimiento con volumen.
 
-### Fase 6 — Correcciones menores y estética ☐
+### Fase 7 — Pantallas horizontales y navegadores ☐
+Va después de tener datos falsos con volumen, nombres largos y montos grandes (lo que más
+rompe el layout) y antes de las correcciones estéticas.
+
+**Pantallas** (todas horizontales, con los datos de la Fase 6):
+- Tamaños: 1024×768, 1280×720/800, 1366×768 (la notebook más común), 1440×900,
+  1536×864 (Windows al 125 %), 1600×900, 1920×1080, 2560×1440 y ultrawide 3440×1440;
+  en Mac, los tamaños por defecto de las MacBook (1440×900, 1470×956, 1512×982,
+  1728×1117) con pantalla Retina. Además, escalado de Windows 100/125/150 % y zoom del
+  navegador del 80 al 150 %.
+- Qué revisar en cada sección, modal y en el panel: tablas (anchos de columna, textos
+  largos cortados con tooltip, scroll horizontal solo dentro de la tabla), tira de
+  indicadores, gráficos (ejes, leyendas, etiquetas de datos y donas sin superponerse),
+  grillas sin huecos, barras de herramientas que bajan de línea bien, sidebar, y modales
+  que entran en pantallas bajas (scroll interno). En ultrawide, decidir ancho máximo o más
+  columnas para que nada quede estirado.
+- Resultado: una matriz sección × tamaño en este spec con lo verificado y lo corregido
+  (CSS con container queries/`minmax`/`clamp` y ajustes de las opciones de ECharts en
+  `estadisticas/graficos.ts`).
+
+**Navegadores** (uso local en Windows y Mac):
+- Motores a cubrir: Chromium (Chrome, Edge, Brave, Opera, Vivaldi), Gecko (Firefox) y
+  WebKit (Safari en Mac).
+- Puntos de riesgo: inputs de fecha y número (Firefox deja escribir letras en
+  `type=number`), soporte de CSS (container queries, `:has`), descargas de PDF, gráficos en
+  canvas, cookie de sesión en `localhost` en el build de producción, y que nada dependa de
+  internet al correr (fuentes y librerías servidas localmente). En Safari: selector de
+  fechas, descargas de PDF (bloqueo de ventanas emergentes) y scroll dentro de modales.
+- Cómo se prueba: suite de humo automatizada con Playwright en Chromium, Firefox y WebKit
+  (login, cada sección, un alta/edición/baja, un PDF), más un checklist manual corto para
+  que el usuario lo corra en los navegadores de marca (Edge, Brave, Opera) y en Safari en
+  una Mac real (Claude no puede manejar una Mac: hace falta acceso a una).
+- Definir versiones mínimas soportadas y anotarlas en el README de la entrega.
+
+### Fase 8 — Correcciones menores y estética ☐
 Lista conocida (ampliar durante las fases anteriores):
 - Error de lint preexistente en `app/(dashboard)/nav-tree.tsx` (setState en effect).
 - ~~Renombrar cliente/producto no actualiza el texto guardado en Operaciones/Órdenes.~~
   Resuelto en la Fase 2 (los nombres salen del catálogo).
-- Clientes: dejar vacío "Precio Premium" lo guarda como 0 en vez de "sin precio" (los
-  formularios genéricos convierten los números vacíos en 0).
 - Detalles visuales detectados en el recorrido general (alineaciones, textos, vacíos).
 
-### Fase 7 — Features nuevas ☐
+### Fase 9 — Features nuevas ☐
 Proponer al usuario una lista para que elija (ejemplos): búsqueda global, avisos de stock
 en el panel, cuentas corrientes de clientes (ventas a crédito/cobros), precios por lista
 mayorista/minorista, etiquetas con código de barras para imprimir, recordatorios de
 vencimiento, respaldo/exportación completa. **No implementar sin aprobación.**
 
-### Fase 8 — Entrega al cliente ☐
-- Build de producción y forma simple de abrirla: acceso directo / `.bat` que levanta el
-  servidor y abre el navegador (evaluar empaquetado tipo Electron solo si hace falta).
-- Backups automáticos del archivo SQLite (diario, con rotación) y restauración simple.
-- Instalación guiada (Node incluido o instalador), `.env` generado en el primer arranque.
+### Fase 10 — Entrega al cliente ☐
+Para Windows y Mac (Intel y Apple Silicon).
+- Build de producción y forma simple de abrirla: en Windows, acceso directo / `.bat`; en
+  Mac, un `.command` (o app de Automator) que levanta el servidor y abre el navegador
+  (evaluar empaquetado tipo Electron solo si hace falta).
+- Backups automáticos del archivo SQLite (diario, con rotación) y restauración simple, con
+  rutas que funcionen en ambos sistemas (sin barras ni carpetas propias de Windows).
+- Instalación guiada (Node incluido o instalador) para cada sistema, `.env` generado en el
+  primer arranque. Las dependencias se instalan en la máquina destino (`npm ci`): la
+  librería nativa de SQLite es distinta en Windows y en Mac, no se copia `node_modules`.
 - README de uso para el cliente (no técnico) + guía corta de instalación.
-- Test en una PC limpia simulando al cliente.
+- Test en una PC con Windows limpia y en una Mac simulando al cliente, repitiendo ahí el
+  checklist de navegadores de la Fase 7.
 
 ## 4. Verificación estándar de cada fase
 `npx tsc --noEmit`, `npx eslint`, `npx next build`, prueba en el navegador (golden path
 + casos borde + responsive), PDFs abiertos y revisados, y mostrarle el resultado al
-usuario antes de seguir.
+usuario antes de seguir. Desde la Fase 7, probar también en Firefox y al menos en
+1366×768 y 1920×1080.

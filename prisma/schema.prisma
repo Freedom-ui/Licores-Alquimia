@@ -22,19 +22,45 @@ datasource db {
   provider = "sqlite"
 }
 
-// ── Usuarios y roles ─────────────────────────────────────────
-enum Rol {
-  ADMIN
-  OPERADOR
-}
+// ── Acceso (cuenta única) ────────────────────────────────────
+// La app la usa una sola persona en una sola PC: el primer arranque crea la
+// cuenta y no hay registro ni roles. La lógica está en lib/auth/.
 
 model Usuario {
-  id           Int      @id @default(autoincrement())
-  username     String   @unique
-  passwordHash String
-  nombre       String
-  rol          Rol      @default(OPERADOR)
-  createdAt    DateTime @default(now())
+  id                     Int       @id @default(autoincrement())
+  username               String    @unique
+  passwordHash           String
+  // Código para recuperar usuario/contraseña (bcrypt). Null = todavía no se
+  // generó (se genera al entrar).
+  codigoRecuperacionHash String?
+  // El código en texto plano solo mientras no confirmó "Ya lo guardé": así
+  // recargar la pantalla del código no lo pierde. Después se borra.
+  codigoPendiente        String?
+  createdAt              DateTime  @default(now())
+  actualizadoEn          DateTime  @default(now()) @updatedAt
+  sesiones               Sesion[]
+}
+
+// Sesión iniciada: la cookie lleva un token al azar y acá se guarda solo su
+// SHA-256 (una copia de la base no sirve para entrar).
+model Sesion {
+  id        String   @id
+  usuarioId Int
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  creadaEn  DateTime @default(now())
+  ultimoUso DateTime @default(now())
+
+  @@index([usuarioId])
+}
+
+// Intentos fallidos de ingreso o de recuperación, para el bloqueo temporal.
+// Se cuentan todos juntos (es una sola PC) y un ingreso correcto los borra.
+model IntentoFallido {
+  id    Int      @id @default(autoincrement())
+  tipo  String // "login" | "recuperacion"
+  fecha DateTime @default(now())
+
+  @@index([fecha])
 }
 
 // ── Catálogos ────────────────────────────────────────────────

@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import PanelView from "./_panel/PanelView";
-import { leerSesion } from "./sesion";
+import { obtenerSesion } from "@/lib/auth/sesion";
 
 export const metadata: Metadata = { title: "Panel principal" };
 
 export default async function PanelPrincipalPage() {
-  const sesion = await leerSesion();
+  const sesion = await obtenerSesion({ tocar: false });
 
   return (
     <>
