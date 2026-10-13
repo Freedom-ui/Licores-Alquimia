@@ -2,8 +2,14 @@
 
 import { useState, type FormEvent } from "react";
 import ModalShell from "@/app/components/data-table/ModalShell";
-import type { LoteHeaderInput } from "../store";
+import { CampoNumero, ErrorCampo, CampoFecha } from "@/app/components/data-table/FormFields";
+import { fechaMaximaVencimiento } from "@/app/components/data-table/validacion";
+import { useErroresFormulario } from "@/app/components/data-table/useErroresFormulario";
+import { useStore, type LoteHeaderInput } from "../store";
+import { validarEncabezadoLote } from "../_dominio/reglas";
 import type { LoteTerminado } from "./data";
+
+type FormState = { existenciaInicial: string; costoUnitario: string; fechaVencimiento: string };
 
 export default function EditLoteModal({
   lote,
@@ -12,24 +18,39 @@ export default function EditLoteModal({
 }: {
   lote: LoteTerminado | null;
   onClose: () => void;
-  onSubmit: (loteId: number, values: LoteHeaderInput) => Promise<void> | void;
+  onSubmit: (loteId: number, values: LoteHeaderInput) => Promise<void>;
 }) {
-  const [existenciaInicial, setExistenciaInicial] = useState("");
-  const [costoUnitario, setCostoUnitario] = useState("");
-  const [fechaVencimiento, setFechaVencimiento] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const estado = useStore();
+  const [values, setValues] = useState<FormState>({ existenciaInicial: "", costoUnitario: "", fechaVencimiento: "" });
   const [submitting, setSubmitting] = useState(false);
   // Rastrea para qué lote están cargados los valores actuales, para poder
   // resetear el formulario durante el render cuando `lote` cambia.
   const [loadedLoteId, setLoadedLoteId] = useState<number | null>(null);
+  const f = useErroresFormulario("lote", (v: FormState) => {
+    if (!lote) return {};
+    const r = validarEncabezadoLote(v, lote, estado);
+    return r.ok ? {} : r.errores;
+  });
 
   const currentId = lote?.id ?? null;
   if (currentId !== loadedLoteId) {
     setLoadedLoteId(currentId);
-    setExistenciaInicial(lote ? String(lote.existenciaInicial) : "");
-    setCostoUnitario(lote ? String(lote.costoUnitario) : "");
-    setFechaVencimiento(lote?.fechaVencimiento ?? "");
-    setError(null);
+    setValues({
+      existenciaInicial: lote ? String(lote.existenciaInicial) : "",
+      costoUnitario: lote ? String(lote.costoUnitario) : "",
+      fechaVencimiento: lote?.fechaVencimiento ?? "",
+    });
+    f.limpiar();
+  }
+
+  function update(key: keyof FormState, value: string) {
+    const next = { ...values, [key]: value };
+    setValues(next);
+    f.alEscribir(next);
+  }
+
+  function campo(key: keyof FormState) {
+    return { ...f.props(key), onBlur: () => f.alSalir(key, values) };
   }
 
   function close() {
@@ -39,30 +60,16 @@ export default function EditLoteModal({
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!lote) return;
-
-    const existencia = Number(existenciaInicial);
-    const costo = Number(costoUnitario);
-    if (!existenciaInicial || existencia < 0) {
-      setError('Completá "Existencia inicial" con un valor válido.');
-      return;
-    }
-    if (!costoUnitario || costo < 0) {
-      setError('Completá "Costo unitario" con un valor válido.');
-      return;
-    }
+    if (!lote || !f.alGuardar(values)) return;
+    const r = validarEncabezadoLote(values, lote, estado);
+    if (!r.ok) return;
 
     setSubmitting(true);
-    setError(null);
     try {
-      await onSubmit(lote.id, {
-        existenciaInicial: existencia,
-        costoUnitario: costo,
-        fechaVencimiento: fechaVencimiento || null,
-      });
+      await onSubmit(lote.id, r.valor);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudieron guardar los cambios.");
+      f.deServidor(err, "No se pudieron guardar los cambios.");
     } finally {
       setSubmitting(false);
     }
@@ -76,46 +83,40 @@ export default function EditLoteModal({
       width={440}
       onClose={close}
     >
-      <form className="rf-form" onSubmit={handleSubmit}>
+      <form className="rf-form" onSubmit={handleSubmit} noValidate>
         <div className="rf-fields-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div className="rf-field">
-            <label htmlFor="lote-existencia">
+            <label htmlFor="lote-existenciaInicial">
               Existencia inicial<span className="rf-required">*</span>
             </label>
-            <input
-              id="lote-existencia"
-              type="number"
-              min="0"
-              value={existenciaInicial}
-              onChange={(e) => setExistenciaInicial(e.target.value)}
+            <CampoNumero
+              {...campo("existenciaInicial")}
+              decimales={false}
+              valor={values.existenciaInicial}
+              onCambio={(v) => update("existenciaInicial", v)}
             />
+            <ErrorCampo f={f} campo="existenciaInicial" />
           </div>
           <div className="rf-field">
-            <label htmlFor="lote-costo">
+            <label htmlFor="lote-costoUnitario">
               Costo unitario<span className="rf-required">*</span>
             </label>
-            <input
-              id="lote-costo"
-              type="number"
-              min="0"
-              step="0.01"
-              value={costoUnitario}
-              onChange={(e) => setCostoUnitario(e.target.value)}
-            />
+            <CampoNumero {...campo("costoUnitario")} valor={values.costoUnitario} onCambio={(v) => update("costoUnitario", v)} />
+            <ErrorCampo f={f} campo="costoUnitario" />
           </div>
           <div className="rf-field rf-field-full">
-            <label htmlFor="lote-vencimiento">Fecha de vencimiento</label>
-            <input
-              id="lote-vencimiento"
-              type="date"
-              placeholder="Si aplica"
-              value={fechaVencimiento}
-              onChange={(e) => setFechaVencimiento(e.target.value)}
+            <label htmlFor="lote-fechaVencimiento">Fecha de vencimiento</label>
+            <CampoFecha
+              {...campo("fechaVencimiento")}
+              max={fechaMaximaVencimiento()}
+              valor={values.fechaVencimiento}
+              onCambio={(v) => update("fechaVencimiento", v)}
             />
+            <ErrorCampo f={f} campo="fechaVencimiento" />
           </div>
         </div>
 
-        {error && <div className="rf-error">{error}</div>}
+        {f.general && <div className="rf-error">{f.general}</div>}
 
         <div className="rf-actions-row">
           <button type="button" className="rf-cancel-btn" onClick={close} disabled={submitting}>

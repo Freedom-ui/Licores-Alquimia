@@ -163,6 +163,11 @@ export function saldoLote(l: LoteTerminado): number {
   return l.movimientos.reduce((s, m) => (m.tipo === "entrada" ? s + m.cantidad : s - m.cantidad), l.existenciaInicial);
 }
 
+/** Saldo de una materia prima en el inventario (mismo cálculo que el kardex, sin valorizar). */
+export function saldoInventario(r: InventarioMateriaPrimaRow): number {
+  return round2(r.movimientos.reduce((s, m) => (m.tipo === "entrada" ? s + m.cantidad : s - m.cantidad), r.existenciaInicial));
+}
+
 export function quitarSalidaDeOperacion(lotes: LoteTerminado[], operacionId: number): LoteTerminado[] {
   return lotes.map((l) =>
     l.movimientos.some((m) => m.origenOperacionId === operacionId)

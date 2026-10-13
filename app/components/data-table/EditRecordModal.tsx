@@ -2,27 +2,25 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import type { EditRecordModalProps } from "./types";
-import {
-  findMissingRequiredField,
-  getEditableFields,
-  getFormGridColumns,
-  getFormModalWidth,
-  parseFormValues,
-  rowToFormValues,
-} from "./format";
+import { getEditableFields, getFormGridColumns, getFormModalWidth, rowToFormValues } from "./format";
 import FormFields from "./FormFields";
 import ModalShell from "./ModalShell";
+import { useErroresFormulario } from "./useErroresFormulario";
 
 export default function EditRecordModal<T extends Record<string, unknown>>({
   title,
   columns,
   row,
   onClose,
+  validar,
   onSubmit,
 }: EditRecordModalProps<T>) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const f = useErroresFormulario("rf-editar", (v: Record<string, string>) => {
+    const r = validar(v);
+    return r.ok ? {} : r.errores;
+  });
   // Rastrea de qué fila son los `values` actuales, para poder recargarlos
   // durante el render cuando `row` cambia (sin pasar por un efecto).
   const [loadedRow, setLoadedRow] = useState<T | null>(null);
@@ -33,7 +31,7 @@ export default function EditRecordModal<T extends Record<string, unknown>>({
   if (row !== loadedRow) {
     setLoadedRow(row);
     setValues(row ? rowToFormValues(fields, row) : {});
-    setError(null);
+    f.limpiar();
   }
 
   function close() {
@@ -41,43 +39,35 @@ export default function EditRecordModal<T extends Record<string, unknown>>({
     onClose();
   }
 
+  function change(key: string, value: string) {
+    const next = { ...values, [key]: value };
+    setValues(next);
+    f.alEscribir(next);
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-
-    const missing = findMissingRequiredField(fields, values);
-    if (missing) {
-      setError(`Completá "${missing.title ?? missing.label}".`);
-      return;
-    }
+    if (!f.alGuardar(values)) return;
+    const r = validar(values);
+    if (!r.ok) return;
 
     setSubmitting(true);
-    setError(null);
     try {
-      await onSubmit(parseFormValues(fields, values));
+      await onSubmit(r.valor);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudieron guardar los cambios.");
+      f.deServidor(err, "No se pudieron guardar los cambios.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <ModalShell
-      open={row !== null}
-      eyebrow={title}
-      title="Editar registro"
-      width={modalWidth}
-      onClose={close}
-    >
-      <form className="rf-form" onSubmit={handleSubmit}>
-        <FormFields
-          columns={columns}
-          values={values}
-          onChange={(key, value) => setValues((prev) => ({ ...prev, [key]: value }))}
-        />
+    <ModalShell open={row !== null} eyebrow={title} title="Editar registro" width={modalWidth} onClose={close}>
+      <form className="rf-form" onSubmit={handleSubmit} noValidate>
+        <FormFields columns={columns} values={values} onChange={change} f={f} />
 
-        {error && <div className="rf-error">{error}</div>}
+        {f.general && <div className="rf-error">{f.general}</div>}
 
         <div className="rf-actions-row">
           <button type="button" className="rf-cancel-btn" onClick={close} disabled={submitting}>

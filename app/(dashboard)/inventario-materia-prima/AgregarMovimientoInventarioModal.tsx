@@ -2,8 +2,16 @@
 
 import { useState, type FormEvent } from "react";
 import ModalShell from "@/app/components/data-table/ModalShell";
+import { CampoNumero, ErrorCampo, CampoFecha } from "@/app/components/data-table/FormFields";
 import type { KardexMovimiento } from "@/app/components/data-table/kardex";
+import { useErroresFormulario } from "@/app/components/data-table/useErroresFormulario";
 import type { InventarioMateriaPrimaRow } from "./data";
+import { useStore } from "../store";
+import { validarMovimientoInventario } from "../_dominio/reglas";
+
+type FormState = { tipo: "entrada" | "salida"; fecha: string; cantidad: string; puEntrada: string; cantidadSecundaria: string };
+
+const EMPTY: FormState = { tipo: "salida", fecha: "", cantidad: "", puEntrada: "", cantidadSecundaria: "" };
 
 export default function AgregarMovimientoInventarioModal({
   row,
@@ -18,31 +26,38 @@ export default function AgregarMovimientoInventarioModal({
   nombre: string;
   /** Unidad de medida del catálogo: si es "Unidades" solo se admiten cantidades enteras. */
   unidad: string;
-  /** Saldo vigente, para avisar si un consumo lo supera. */
+  /** Saldo vigente: un consumo no puede superarlo. */
   saldoActual: number;
   onClose: () => void;
-  onSubmit: (rowId: number, movimiento: Omit<KardexMovimiento, "id">) => Promise<void> | void;
+  onSubmit: (rowId: number, movimiento: Omit<KardexMovimiento, "id">) => Promise<void>;
 }) {
-  const [tipo, setTipo] = useState<"entrada" | "salida">("salida");
-  const [fecha, setFecha] = useState("");
-  const [cantidad, setCantidad] = useState("");
-  const [puEntrada, setPuEntrada] = useState("");
-  const [cantidadSecundaria, setCantidadSecundaria] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const estado = useStore();
+  const [values, setValues] = useState<FormState>(EMPTY);
   const [submitting, setSubmitting] = useState(false);
   // Rastrea para qué fila están cargados los valores actuales, para poder
   // resetear el formulario durante el render cuando `row` cambia.
   const [loadedRowId, setLoadedRowId] = useState<number | null>(null);
+  const f = useErroresFormulario("mpmov", (v: FormState) => {
+    if (!row) return {};
+    const r = validarMovimientoInventario(v, row, estado);
+    return r.ok ? {} : r.errores;
+  });
 
   const currentId = row?.id ?? null;
   if (currentId !== loadedRowId) {
     setLoadedRowId(currentId);
-    setTipo("salida");
-    setFecha("");
-    setCantidad("");
-    setPuEntrada("");
-    setCantidadSecundaria("");
-    setError(null);
+    setValues(EMPTY);
+    f.limpiar();
+  }
+
+  function update<K extends keyof FormState>(key: K, value: FormState[K]) {
+    const next = { ...values, [key]: value };
+    setValues(next);
+    f.alEscribir(next);
+  }
+
+  function campo(key: keyof FormState) {
+    return { ...f.props(key), onBlur: () => f.alSalir(key, values) };
   }
 
   function close() {
@@ -51,40 +66,19 @@ export default function AgregarMovimientoInventarioModal({
   }
 
   const porUnidad = unidad === "Unidades";
-  const cantidadNum = Number(cantidad) || 0;
-  const superaSaldo = tipo === "salida" && cantidadNum > saldoActual;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!row) return;
-
-    if (!fecha) {
-      setError('Completá "Fecha".');
-      return;
-    }
-    const cant = Number(cantidad);
-    if (!cant || cant <= 0) {
-      setError('Completá "Cantidad" con un valor mayor a 0.');
-      return;
-    }
-    if (porUnidad && !Number.isInteger(cant)) {
-      setError('Esta materia prima se cuenta por unidad: "Cantidad" tiene que ser un número entero.');
-      return;
-    }
+    if (!row || !f.alGuardar(values)) return;
+    const r = validarMovimientoInventario(values, row, estado);
+    if (!r.ok) return;
 
     setSubmitting(true);
-    setError(null);
     try {
-      await onSubmit(row.id, {
-        fecha,
-        tipo,
-        cantidad: cant,
-        puEntrada: tipo === "entrada" && puEntrada ? Number(puEntrada) : undefined,
-        cantidadSecundaria: tipo === "entrada" && cantidadSecundaria ? Number(cantidadSecundaria) : undefined,
-      });
+      await onSubmit(row.id, r.valor);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar el movimiento.");
+      f.deServidor(err, "No se pudo guardar el movimiento.");
     } finally {
       setSubmitting(false);
     }
@@ -98,77 +92,75 @@ export default function AgregarMovimientoInventarioModal({
       width={440}
       onClose={close}
     >
-      <form className="rf-form" onSubmit={handleSubmit}>
+      <form className="rf-form" onSubmit={handleSubmit} noValidate>
         <div className="rf-fields-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div className="rf-field">
             <label htmlFor="mpmov-tipo">Tipo</label>
-            <select id="mpmov-tipo" value={tipo} onChange={(e) => setTipo(e.target.value as "entrada" | "salida")}>
+            <select {...campo("tipo")} value={values.tipo} onChange={(e) => update("tipo", e.target.value as FormState["tipo"])}>
               <option value="salida">Consumo / merma</option>
               <option value="entrada">Ingreso / ajuste</option>
             </select>
+            <ErrorCampo f={f} campo="tipo" />
           </div>
           <div className="rf-field">
             <label htmlFor="mpmov-fecha">
               Fecha<span className="rf-required">*</span>
             </label>
-            <input id="mpmov-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+            <CampoFecha {...campo("fecha")} valor={values.fecha} onCambio={(v) => update("fecha", v)} />
+            <ErrorCampo f={f} campo="fecha" />
           </div>
           <div className="rf-field">
             <label htmlFor="mpmov-cantidad">
               Cantidad<span className="rf-required">*</span>
             </label>
-            <input
-              id="mpmov-cantidad"
-              type="number"
-              min="0"
-              step={porUnidad ? "1" : "0.01"}
-              value={cantidad}
-              onChange={(e) => setCantidad(e.target.value)}
+            <CampoNumero
+              {...campo("cantidad")}
+              decimales={!porUnidad}
+              placeholder={porUnidad ? "Ej: 12" : "Ej: 2,5"}
+              valor={values.cantidad}
+              onCambio={(v) => update("cantidad", v)}
             />
+            <ErrorCampo f={f} campo="cantidad" />
           </div>
-          {tipo === "entrada" && (
+          {values.tipo === "entrada" && (
             <>
               <div className="rf-field">
-                <label htmlFor="mpmov-costo">Costo unitario</label>
-                <input
-                  id="mpmov-costo"
-                  type="number"
-                  step="0.01"
+                <label htmlFor="mpmov-puEntrada">Costo unitario</label>
+                <CampoNumero
+                  {...campo("puEntrada")}
                   placeholder="Opcional"
-                  value={puEntrada}
-                  onChange={(e) => setPuEntrada(e.target.value)}
+                  valor={values.puEntrada}
+                  onCambio={(v) => update("puEntrada", v)}
                 />
+                <ErrorCampo f={f} campo="puEntrada" />
               </div>
               <div className="rf-field rf-field-full">
-                <label htmlFor="mpmov-cascara">Cantidad de cáscara (si aplica)</label>
-                <input
-                  id="mpmov-cascara"
-                  type="number"
-                  step="0.01"
+                <label htmlFor="mpmov-cantidadSecundaria">Cantidad de cáscara (si aplica)</label>
+                <CampoNumero
+                  {...campo("cantidadSecundaria")}
                   placeholder="Opcional — solo para insumos que la generan (ej. cítricos)"
-                  value={cantidadSecundaria}
-                  onChange={(e) => setCantidadSecundaria(e.target.value)}
+                  valor={values.cantidadSecundaria}
+                  onCambio={(v) => update("cantidadSecundaria", v)}
                 />
+                <ErrorCampo f={f} campo="cantidadSecundaria" />
               </div>
             </>
           )}
         </div>
 
-        {tipo === "entrada" && (
+        {values.tipo === "entrada" ? (
           <p className="rf-hint">
             Las compras a proveedores se cargan en Trazabilidad (Libro de compras): ahí queda registrado
             el proveedor y el lote, y el ingreso aparece acá solo. Usá esto solo para ajustes.
           </p>
-        )}
-
-        {superaSaldo && (
+        ) : (
           <p className="rf-hint">
-            Este consumo supera el saldo actual ({saldoActual.toLocaleString("es-AR")}). Si guardás, el
-            saldo va a quedar en negativo — puede que falte cargar una compra.
+            Saldo actual: {saldoActual.toLocaleString("es-AR")}. Un consumo no puede superarlo: si falta
+            stock, cargá antes la compra en Trazabilidad.
           </p>
         )}
 
-        {error && <div className="rf-error">{error}</div>}
+        {f.general && <div className="rf-error">{f.general}</div>}
 
         <div className="rf-actions-row">
           <button type="button" className="rf-cancel-btn" onClick={close} disabled={submitting}>

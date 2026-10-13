@@ -957,6 +957,37 @@ body {
   border-radius: var(--radius);
 }
 
+/* Error de un campo: texto chico en rojo debajo + borde rojo (mismos tonos que el login). */
+.rf-field-error { font-size: 11.5px; line-height: 1.4; color: #A12A2A; }
+.rf-field input.rf-input-error,
+.rf-field select.rf-input-error,
+.rf-field textarea.rf-input-error,
+.li-table input.rf-input-error,
+.li-table select.rf-input-error { border-color: #B23A3A; }
+.rf-field input.rf-input-error:focus,
+.rf-field select.rf-input-error:focus,
+.rf-field textarea.rf-input-error:focus,
+.li-table input.rf-input-error:focus,
+.li-table select.rf-input-error:focus { border-color: #B23A3A; box-shadow: 0 0 0 2px rgba(178,58,58,.15); }
+.tz-pago-options.rf-input-error { outline: 1px solid #B23A3A; outline-offset: 3px; border-radius: var(--radius); }
+/* CampoFecha: texto dd/mm/aaaa + botón de calendario (el input nativo queda oculto debajo). */
+.campo-fecha { position: relative; display: inline-flex; align-items: center; }
+.rf-field .campo-fecha { display: flex; }
+.campo-fecha > input[type="text"] { flex: 1; min-width: 0; padding-right: 34px; }
+.es-fecha { width: 132px; }
+.campo-fecha-btn {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; padding: 4px; border: 0; border-radius: 4px;
+  background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.campo-fecha-btn:hover, .campo-fecha-btn:focus-visible { color: var(--naranja); background: rgba(212,119,42,.08); outline: none; }
+.campo-fecha-btn svg { width: 100%; height: 100%; display: block; }
+.campo-fecha input.campo-fecha-picker {
+  position: absolute; left: 0; bottom: 0; width: 1px; height: 1px;
+  padding: 0; border: 0; opacity: 0; pointer-events: none;
+}
+.li-errores { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+
 .rf-hint {
   background: rgba(212,119,42,.08);
   color: var(--naranja-dark);

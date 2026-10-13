@@ -2,33 +2,32 @@
 
 import { useState, type FormEvent } from "react";
 import type { RecordFormModalProps } from "./types";
-import {
-  findMissingRequiredField,
-  getEditableFields,
-  getFormGridColumns,
-  getFormModalWidth,
-  parseFormValues,
-} from "./format";
+import { getEditableFields, getFormGridColumns, getFormModalWidth } from "./format";
 import FormFields from "./FormFields";
 import ModalShell from "./ModalShell";
+import { useErroresFormulario } from "./useErroresFormulario";
 
 export default function RecordFormModal<T extends Record<string, unknown>>({
   title,
   columns,
   triggerLabel,
+  validar,
   onSubmit,
 }: RecordFormModalProps<T>) {
   const [open, setOpen] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const f = useErroresFormulario("rf-nuevo", (v: Record<string, string>) => {
+    const r = validar(v);
+    return r.ok ? {} : r.errores;
+  });
 
   const fields = getEditableFields(columns);
   const modalWidth = getFormModalWidth(getFormGridColumns(fields.length));
 
   function openModal() {
     setValues({});
-    setError(null);
+    f.limpiar();
     setOpen(true);
   }
 
@@ -37,22 +36,24 @@ export default function RecordFormModal<T extends Record<string, unknown>>({
     setOpen(false);
   }
 
+  function change(key: string, value: string) {
+    const next = { ...values, [key]: value };
+    setValues(next);
+    f.alEscribir(next);
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-
-    const missing = findMissingRequiredField(fields, values);
-    if (missing) {
-      setError(`Completá "${missing.title ?? missing.label}".`);
-      return;
-    }
+    if (!f.alGuardar(values)) return;
+    const r = validar(values);
+    if (!r.ok) return;
 
     setSubmitting(true);
-    setError(null);
     try {
-      await onSubmit(parseFormValues(fields, values));
+      await onSubmit(r.valor);
       setOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar el registro.");
+      f.deServidor(err, "No se pudo guardar el registro.");
     } finally {
       setSubmitting(false);
     }
@@ -65,14 +66,10 @@ export default function RecordFormModal<T extends Record<string, unknown>>({
       </button>
 
       <ModalShell open={open} eyebrow={title} title="Nuevo registro" width={modalWidth} onClose={close}>
-        <form className="rf-form" onSubmit={handleSubmit}>
-          <FormFields
-            columns={columns}
-            values={values}
-            onChange={(key, value) => setValues((prev) => ({ ...prev, [key]: value }))}
-          />
+        <form className="rf-form" onSubmit={handleSubmit} noValidate>
+          <FormFields columns={columns} values={values} onChange={change} f={f} />
 
-          {error && <div className="rf-error">{error}</div>}
+          {f.general && <div className="rf-error">{f.general}</div>}
 
           <div className="rf-actions-row">
             <button type="button" className="rf-cancel-btn" onClick={close} disabled={submitting}>

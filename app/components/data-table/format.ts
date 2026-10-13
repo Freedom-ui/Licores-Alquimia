@@ -79,30 +79,6 @@ export function getEditableFields<T>(columns: Column<T>[]): Column<T>[] {
   return columns.filter((c) => c.form?.include ?? c.key !== "id");
 }
 
-/** Primer campo obligatorio sin completar, o null si está todo OK. */
-export function findMissingRequiredField<T>(
-  fields: Column<T>[],
-  values: Record<string, string>
-): Column<T> | null {
-  for (const f of fields) {
-    if (f.form?.required && !(values[f.key] ?? "").trim()) return f;
-  }
-  return null;
-}
-
-/** Convierte los valores de texto del formulario a su tipo final (number para inputs numéricos). */
-export function parseFormValues<T>(
-  fields: Column<T>[],
-  values: Record<string, string>
-): Record<string, string | number> {
-  const parsed: Record<string, string | number> = {};
-  for (const f of fields) {
-    const raw = values[f.key] ?? "";
-    parsed[f.key] = resolveFormInput(f) === "number" ? Number(raw || 0) : raw;
-  }
-  return parsed;
-}
-
 /** Vuelca los valores actuales de una fila al shape de texto que usa el formulario. */
 export function rowToFormValues<T extends Record<string, unknown>>(
   fields: Column<T>[],

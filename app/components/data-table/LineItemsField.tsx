@@ -1,12 +1,19 @@
 "use client";
 
 import { formatCellValue } from "./format";
+import { CampoNumero } from "./FormFields";
+import type { ErroresFormulario } from "./useErroresFormulario";
 import type { LineColumn } from "./types";
 
 /**
  * Sub-tabla editable de "líneas" dentro de un formulario (ej. los insumos de
  * una orden de producción). Reusable: cualquier sección con un patrón
  * maestro-detalle (cabecera + líneas) puede usar esto para las líneas.
+ *
+ * Los valores numéricos se guardan como texto (tal como se escriben, así una
+ * celda vacía queda vacía y no vuelve a mostrar "0"); se convierten al validar.
+ * Con `f` + `campo`, cada celda es el campo "<campo>.<n° de línea>.<columna>"
+ * del formulario: borde rojo si tiene error y la lista de errores debajo.
  */
 export default function LineItemsField<L extends Record<string, unknown>>({
   label,
@@ -14,6 +21,9 @@ export default function LineItemsField<L extends Record<string, unknown>>({
   rows,
   onChange,
   emptyRow,
+  f,
+  campo,
+  valoresParaValidar,
 }: {
   label: string;
   columns: LineColumn<L>[];
@@ -21,13 +31,13 @@ export default function LineItemsField<L extends Record<string, unknown>>({
   onChange: (rows: L[]) => void;
   /** Fábrica de una línea nueva en blanco (con los valores por defecto que corresponda). */
   emptyRow: () => L;
+  f?: ErroresFormulario;
+  campo?: string;
+  /** Valores completos del formulario, para validar una celda al salir de ella. */
+  valoresParaValidar?: () => unknown;
 }) {
-  function updateRow(index: number, key: string, raw: string) {
-    const col = columns.find((c) => c.key === key);
-    const value: unknown =
-      col?.type === "number" || col?.type === "currency" ? Number(raw || 0) : raw;
-    const next = rows.map((row, i) => (i === index ? { ...row, [key]: value } : row));
-    onChange(next);
+  function updateRow(index: number, key: string, value: string) {
+    onChange(rows.map((row, i) => (i === index ? { ...row, [key]: value } : row)));
   }
 
   function removeRow(index: number) {
@@ -37,6 +47,26 @@ export default function LineItemsField<L extends Record<string, unknown>>({
   function addRow() {
     onChange([...rows, emptyRow()]);
   }
+
+  const nombre = (i: number, key: string) => `${campo}.${i}.${key}`;
+  const propsCelda = (i: number, key: string) =>
+    f && campo
+      ? {
+          ...f.props(nombre(i, key)),
+          "aria-label": `${columns.find((c) => c.key === key)?.label ?? key}, línea ${i + 1}`,
+          onBlur: () => valoresParaValidar && f.alSalir(nombre(i, key), valoresParaValidar()),
+        }
+      : {};
+
+  const erroresDeLineas =
+    f && campo
+      ? rows.flatMap((_, i) =>
+          columns
+            .map((c) => ({ c, error: f.error(nombre(i, c.key)) }))
+            .filter((x) => x.error)
+            .map(({ c, error }) => ({ id: nombre(i, c.key), texto: `Línea ${i + 1} · ${c.label}: ${error}` }))
+        )
+      : [];
 
   return (
     <div className="li-field">
@@ -66,6 +96,7 @@ export default function LineItemsField<L extends Record<string, unknown>>({
                 <tr key={i}>
                   {columns.map((c) => {
                     const value = row[c.key];
+                    const texto = value === null || value === undefined ? "" : String(value);
                     if (c.readOnly) {
                       return (
                         <td key={c.key} className="li-readonly">
@@ -79,10 +110,7 @@ export default function LineItemsField<L extends Record<string, unknown>>({
                         : (c.options ?? []).map((opt) => ({ value: opt, label: opt }));
                       return (
                         <td key={c.key}>
-                          <select
-                            value={value === null || value === undefined ? "" : String(value)}
-                            onChange={(e) => updateRow(i, c.key, e.target.value)}
-                          >
+                          <select {...propsCelda(i, c.key)} value={texto} onChange={(e) => updateRow(i, c.key, e.target.value)}>
                             <option value="">{c.placeholder ?? "Seleccionar…"}</option>
                             {opciones.map((opt) => (
                               <option key={opt.value} value={opt.value}>
@@ -93,15 +121,25 @@ export default function LineItemsField<L extends Record<string, unknown>>({
                         </td>
                       );
                     }
-                    const numerico = c.type === "number" || c.type === "currency";
+                    if (c.type === "number" || c.type === "currency") {
+                      return (
+                        <td key={c.key}>
+                          <CampoNumero
+                            {...propsCelda(i, c.key)}
+                            placeholder={c.placeholder}
+                            valor={texto}
+                            onCambio={(v) => updateRow(i, c.key, v)}
+                          />
+                        </td>
+                      );
+                    }
                     return (
                       <td key={c.key}>
                         <input
-                          type={numerico ? "number" : "text"}
-                          step={numerico ? "any" : undefined}
-                          min={numerico ? "0" : undefined}
+                          {...propsCelda(i, c.key)}
+                          type="text"
                           placeholder={c.placeholder}
-                          value={value === null || value === undefined ? "" : String(value)}
+                          value={texto}
                           onChange={(e) => updateRow(i, c.key, e.target.value)}
                         />
                       </td>
@@ -128,6 +166,16 @@ export default function LineItemsField<L extends Record<string, unknown>>({
           </tbody>
         </table>
       </div>
+
+      {erroresDeLineas.length > 0 && f && (
+        <ul className="li-errores">
+          {erroresDeLineas.map((x) => (
+            <li key={x.id} id={`${f.idDe(x.id)}-error`} className="rf-field-error">
+              {x.texto}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <button type="button" className="li-add-btn" onClick={addRow}>
         + Agregar línea

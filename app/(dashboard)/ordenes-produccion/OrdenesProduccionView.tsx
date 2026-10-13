@@ -20,7 +20,7 @@ const columns: Column<OrdenProduccionRow>[] = [
 ];
 
 export default function OrdenesProduccionView() {
-  const { ordenesProduccion, productos, materiaPrima, compras, saveOrden, deleteOrden } = useStore();
+  const { ordenesProduccion, saveOrden, deleteOrden } = useStore();
   // ?nuevo=1 (desde los accesos rápidos del Panel principal): abre el alta directamente.
   const nuevo = useSearchParams().get("nuevo") === "1";
   const router = useRouter();
@@ -45,15 +45,7 @@ export default function OrdenesProduccionView() {
         onDeleteRow={(row) => deleteOrden(row.id)}
       />
 
-      <OrdenFormModal
-        target={target}
-        productos={productos}
-        materiasPrimas={materiaPrima}
-        compras={compras}
-        ordenes={ordenesProduccion}
-        onClose={() => setTarget(null)}
-        onSubmit={saveOrden}
-      />
+      <OrdenFormModal target={target} onClose={() => setTarget(null)} onSubmit={saveOrden} />
     </>
   );
 }

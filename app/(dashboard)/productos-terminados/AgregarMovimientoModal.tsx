@@ -2,8 +2,18 @@
 
 import { useState, type FormEvent } from "react";
 import ModalShell from "@/app/components/data-table/ModalShell";
+import { CampoNumero, ErrorCampo, CampoFecha } from "@/app/components/data-table/FormFields";
 import type { KardexMovimiento } from "@/app/components/data-table/kardex";
+import { fmtNumero } from "@/app/components/data-table/validacion";
+import { useErroresFormulario } from "@/app/components/data-table/useErroresFormulario";
 import type { LoteTerminado } from "./data";
+import { useStore } from "../store";
+import { validarMovimientoLote } from "../_dominio/reglas";
+import { saldoLote } from "../_dominio/sync";
+
+type FormState = { tipo: "entrada" | "salida"; fecha: string; cantidad: string; puEntrada: string };
+
+const EMPTY: FormState = { tipo: "salida", fecha: "", cantidad: "", puEntrada: "" };
 
 export default function AgregarMovimientoModal({
   lote,
@@ -13,26 +23,35 @@ export default function AgregarMovimientoModal({
   /** Lote al que se le agrega el movimiento; el modal está abierto mientras no sea null. */
   lote: LoteTerminado | null;
   onClose: () => void;
-  onSubmit: (loteId: number, movimiento: Omit<KardexMovimiento, "id">) => Promise<void> | void;
+  onSubmit: (loteId: number, movimiento: Omit<KardexMovimiento, "id">) => Promise<void>;
 }) {
-  const [tipo, setTipo] = useState<"entrada" | "salida">("salida");
-  const [fecha, setFecha] = useState("");
-  const [cantidad, setCantidad] = useState("");
-  const [puEntrada, setPuEntrada] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const estado = useStore();
+  const [values, setValues] = useState<FormState>(EMPTY);
   const [submitting, setSubmitting] = useState(false);
   // Rastrea para qué lote están cargados los valores actuales, para poder
   // resetear el formulario durante el render cuando `lote` cambia.
   const [loadedLoteId, setLoadedLoteId] = useState<number | null>(null);
+  const f = useErroresFormulario("mov", (v: FormState) => {
+    if (!lote) return {};
+    const r = validarMovimientoLote(v, lote, estado);
+    return r.ok ? {} : r.errores;
+  });
 
   const currentId = lote?.id ?? null;
   if (currentId !== loadedLoteId) {
     setLoadedLoteId(currentId);
-    setTipo("salida");
-    setFecha("");
-    setCantidad("");
-    setPuEntrada("");
-    setError(null);
+    setValues(EMPTY);
+    f.limpiar();
+  }
+
+  function update<K extends keyof FormState>(key: K, value: FormState[K]) {
+    const next = { ...values, [key]: value };
+    setValues(next);
+    f.alEscribir(next);
+  }
+
+  function campo(key: keyof FormState) {
+    return { ...f.props(key), onBlur: () => f.alSalir(key, values) };
   }
 
   function close() {
@@ -42,30 +61,16 @@ export default function AgregarMovimientoModal({
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!lote) return;
-
-    if (!fecha) {
-      setError('Completá "Fecha".');
-      return;
-    }
-    const cant = Number(cantidad);
-    if (!cant || cant <= 0) {
-      setError('Completá "Cantidad" con un valor mayor a 0.');
-      return;
-    }
+    if (!lote || !f.alGuardar(values)) return;
+    const r = validarMovimientoLote(values, lote, estado);
+    if (!r.ok) return;
 
     setSubmitting(true);
-    setError(null);
     try {
-      await onSubmit(lote.id, {
-        fecha,
-        tipo,
-        cantidad: cant,
-        puEntrada: tipo === "entrada" && puEntrada ? Number(puEntrada) : undefined,
-      });
+      await onSubmit(lote.id, r.valor);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar el movimiento.");
+      f.deServidor(err, "No se pudo guardar el movimiento.");
     } finally {
       setSubmitting(false);
     }
@@ -79,47 +84,55 @@ export default function AgregarMovimientoModal({
       width={440}
       onClose={close}
     >
-      <form className="rf-form" onSubmit={handleSubmit}>
+      <form className="rf-form" onSubmit={handleSubmit} noValidate>
         <div className="rf-fields-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div className="rf-field">
             <label htmlFor="mov-tipo">Tipo</label>
-            <select id="mov-tipo" value={tipo} onChange={(e) => setTipo(e.target.value as "entrada" | "salida")}>
+            <select {...campo("tipo")} value={values.tipo} onChange={(e) => update("tipo", e.target.value as FormState["tipo"])}>
               <option value="salida">Salida (venta)</option>
               <option value="entrada">Entrada (embotellado)</option>
             </select>
+            <ErrorCampo f={f} campo="tipo" />
           </div>
           <div className="rf-field">
             <label htmlFor="mov-fecha">
               Fecha<span className="rf-required">*</span>
             </label>
-            <input id="mov-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+            <CampoFecha {...campo("fecha")} valor={values.fecha} onCambio={(v) => update("fecha", v)} />
+            <ErrorCampo f={f} campo="fecha" />
           </div>
           <div className="rf-field">
             <label htmlFor="mov-cantidad">
-              Cantidad<span className="rf-required">*</span>
+              Cantidad (botellas)<span className="rf-required">*</span>
             </label>
-            <input
-              id="mov-cantidad"
-              type="number"
-              value={cantidad}
-              onChange={(e) => setCantidad(e.target.value)}
+            <CampoNumero
+              {...campo("cantidad")}
+              decimales={false}
+              placeholder="Ej: 12"
+              valor={values.cantidad}
+              onCambio={(v) => update("cantidad", v)}
             />
+            <ErrorCampo f={f} campo="cantidad" />
           </div>
-          {tipo === "entrada" && (
+          {values.tipo === "entrada" && (
             <div className="rf-field">
-              <label htmlFor="mov-costo">Costo unitario</label>
-              <input
-                id="mov-costo"
-                type="number"
+              <label htmlFor="mov-puEntrada">Costo unitario</label>
+              <CampoNumero
+                {...campo("puEntrada")}
                 placeholder="Opcional"
-                value={puEntrada}
-                onChange={(e) => setPuEntrada(e.target.value)}
+                valor={values.puEntrada}
+                onCambio={(v) => update("puEntrada", v)}
               />
+              <ErrorCampo f={f} campo="puEntrada" />
             </div>
           )}
         </div>
 
-        {error && <div className="rf-error">{error}</div>}
+        {lote && values.tipo === "salida" && (
+          <p className="rf-hint">Saldo del lote: {fmtNumero(saldoLote(lote))} botellas. Una salida no puede superarlo.</p>
+        )}
+
+        {f.general && <div className="rf-error">{f.general}</div>}
 
         <div className="rf-actions-row">
           <button type="button" className="rf-cancel-btn" onClick={close} disabled={submitting}>

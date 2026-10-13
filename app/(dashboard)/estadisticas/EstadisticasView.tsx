@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Icon from "../icons";
+import { CampoFecha } from "@/app/components/data-table/FormFields";
+import { esFechaReal } from "@/app/components/data-table/validacion";
 import { useStore } from "../store";
 import Grafico from "./Grafico";
 import { Alertas, Kpis } from "./Indicadores";
@@ -132,20 +134,21 @@ export default function EstadisticasView() {
           </select>
           {preset === "personalizado" && (
             <>
-              <input
-                type="date"
+              {/* Solo se aplica una fecha completa y real; mientras se escribe, el filtro sigue con la anterior. */}
+              <CampoFecha
                 className="es-fecha"
                 aria-label="Desde"
-                value={personalizado.desde}
-                onChange={(e) => e.target.value && setPersonalizado((p) => ({ ...p, desde: e.target.value }))}
+                max={null}
+                valor={personalizado.desde}
+                onCambio={(v) => esFechaReal(v) && setPersonalizado((p) => ({ ...p, desde: v }))}
               />
               <span className="es-sep">a</span>
-              <input
-                type="date"
+              <CampoFecha
                 className="es-fecha"
                 aria-label="Hasta"
-                value={personalizado.hasta}
-                onChange={(e) => e.target.value && setPersonalizado((p) => ({ ...p, hasta: e.target.value }))}
+                max={null}
+                valor={personalizado.hasta}
+                onCambio={(v) => esFechaReal(v) && setPersonalizado((p) => ({ ...p, hasta: v }))}
               />
             </>
           )}

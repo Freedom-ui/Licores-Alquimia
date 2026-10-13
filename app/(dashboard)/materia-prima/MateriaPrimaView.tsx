@@ -7,14 +7,16 @@ import EditRecordModal from "@/app/components/data-table/EditRecordModal";
 import type { Column } from "@/app/components/data-table/types";
 import type { MateriaPrimaRow } from "./data";
 import { UNIDADES_MEDIDA } from "./data";
+import { LARGO_NOMBRE } from "@/app/components/data-table/validacion";
 import { useStore } from "../store";
+import { validarMateriaPrima } from "../_dominio/reglas";
 
 const columns: Column<MateriaPrimaRow>[] = [
   {
     key: "nombre",
     label: "Nombre",
     width: "72%",
-    form: { required: true, placeholder: "Ej: Etiq. LIM x 500 cc" },
+    form: { required: true, placeholder: "Ej: Etiq. LIM x 500 cc", maxLength: LARGO_NOMBRE },
   },
   {
     key: "unidad",
@@ -27,7 +29,8 @@ const columns: Column<MateriaPrimaRow>[] = [
 ];
 
 export default function MateriaPrimaView() {
-  const { materiaPrima, addMateriaPrima, updateMateriaPrima, deleteMateriaPrima } = useStore();
+  const store = useStore();
+  const { materiaPrima, addMateriaPrima, updateMateriaPrima, deleteMateriaPrima } = store;
   const [editingRow, setEditingRow] = useState<MateriaPrimaRow | null>(null);
 
   return (
@@ -37,7 +40,12 @@ export default function MateriaPrimaView() {
         columns={columns}
         rows={materiaPrima}
         actions={
-          <RecordFormModal title="Materia prima" columns={columns} onSubmit={addMateriaPrima} />
+          <RecordFormModal
+            title="Materia prima"
+            columns={columns}
+            validar={(v) => validarMateriaPrima(v, store, null)}
+            onSubmit={addMateriaPrima}
+          />
         }
         onEditRow={setEditingRow}
         onDeleteRow={(row) => deleteMateriaPrima(row.id)}
@@ -48,8 +56,9 @@ export default function MateriaPrimaView() {
         columns={columns}
         row={editingRow}
         onClose={() => setEditingRow(null)}
-        onSubmit={(v) => {
-          if (editingRow) updateMateriaPrima(editingRow.id, v);
+        validar={(v) => validarMateriaPrima(v, store, editingRow?.id ?? null)}
+        onSubmit={async (v) => {
+          if (editingRow) await updateMateriaPrima(editingRow.id, v);
         }}
       />
     </>

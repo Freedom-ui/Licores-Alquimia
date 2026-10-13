@@ -6,14 +6,16 @@ import RecordFormModal from "@/app/components/data-table/RecordFormModal";
 import EditRecordModal from "@/app/components/data-table/EditRecordModal";
 import type { Column } from "@/app/components/data-table/types";
 import type { ProductoRow } from "./data";
+import { LARGO_CODIGO_BARRAS, LARGO_CORTO, LARGO_NOMBRE } from "@/app/components/data-table/validacion";
 import { useStore } from "../store";
+import { validarProducto } from "../_dominio/reglas";
 
 const columns: Column<ProductoRow>[] = [
   {
     key: "nombre",
     label: "Nombre",
     width: "28%",
-    form: { required: true, placeholder: "Ej: Licor Fino de Limón" },
+    form: { required: true, placeholder: "Ej: Licor Fino de Limón", maxLength: LARGO_NOMBRE },
   },
   {
     key: "formato",
@@ -21,7 +23,7 @@ const columns: Column<ProductoRow>[] = [
     type: "tag",
     filterable: true,
     width: "18%",
-    form: { required: true, placeholder: "Ej: 750 cc Premium" },
+    form: { required: true, placeholder: "Ej: 750 cc Premium", maxLength: LARGO_CORTO },
   },
   {
     key: "codigoBarras",
@@ -29,7 +31,7 @@ const columns: Column<ProductoRow>[] = [
     type: "barcode",
     align: "center",
     width: "26%",
-    form: { required: true, placeholder: "Ej: 2611122201TRA" },
+    form: { required: true, placeholder: "Ej: 2611122201TRA", maxLength: LARGO_CODIGO_BARRAS },
   },
     {
     key: "precioUnitario",
@@ -42,7 +44,8 @@ const columns: Column<ProductoRow>[] = [
 ];
 
 export default function ProductosView() {
-  const { productos, addProducto, updateProducto, deleteProducto } = useStore();
+  const store = useStore();
+  const { productos, addProducto, updateProducto, deleteProducto } = store;
   const [editingRow, setEditingRow] = useState<ProductoRow | null>(null);
 
   return (
@@ -51,7 +54,14 @@ export default function ProductosView() {
         title="Productos"
         columns={columns}
         rows={productos}
-        actions={<RecordFormModal title="Productos" columns={columns} onSubmit={addProducto} />}
+        actions={
+          <RecordFormModal
+            title="Productos"
+            columns={columns}
+            validar={(v) => validarProducto(v, store, null)}
+            onSubmit={addProducto}
+          />
+        }
         onEditRow={setEditingRow}
         onDeleteRow={(row) => deleteProducto(row.id)}
       />
@@ -60,8 +70,9 @@ export default function ProductosView() {
         columns={columns}
         row={editingRow}
         onClose={() => setEditingRow(null)}
-        onSubmit={(v) => {
-          if (editingRow) updateProducto(editingRow.id, v);
+        validar={(v) => validarProducto(v, store, editingRow?.id ?? null)}
+        onSubmit={async (v) => {
+          if (editingRow) await updateProducto(editingRow.id, v);
         }}
       />
     </>

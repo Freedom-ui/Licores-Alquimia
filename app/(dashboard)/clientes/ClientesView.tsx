@@ -5,25 +5,23 @@ import DataTable from "@/app/components/data-table/DataTable";
 import RecordFormModal from "@/app/components/data-table/RecordFormModal";
 import EditRecordModal from "@/app/components/data-table/EditRecordModal";
 import type { Column } from "@/app/components/data-table/types";
-import type { ClienteRow } from "./data";
+import { LARGO_DOMICILIO, LARGO_EMAIL, LARGO_NOMBRE } from "@/app/components/data-table/validacion";
+import { CONDICIONES_IVA, type ClienteRow } from "./data";
 import { useStore } from "../store";
-
-const CONDICIONES_IVA = ["R. Inscripto", "Monotributo", "Exento", "Consumidor Final"];
-// Acepta "30-71401632-2" y "30 - 71401632 - 2" (ambos formatos aparecen en los datos reales).
-const CUIT_PATTERN = "\\d{2}\\s*-\\s*\\d{8}\\s*-\\s*\\d{1}";
+import { validarCliente } from "../_dominio/reglas";
 
 const columns: Column<ClienteRow>[] = [
   {
     key: "razonSocial",
     label: "Razón social",
     width: "12%",
-    form: { required: true, placeholder: "Ej: Bouchee Bebidas SRL" },
+    form: { required: true, placeholder: "Ej: Bouchee Bebidas SRL", maxLength: LARGO_NOMBRE },
   },
   {
     key: "apellidoNombre",
     label: "Apellido y nombre",
     width: "16%",
-    form: { placeholder: "Ej: Juan Pérez" },
+    form: { placeholder: "Ej: Juan Pérez", maxLength: LARGO_NOMBRE },
   },
   {
     key: "condicionIva",
@@ -37,21 +35,17 @@ const columns: Column<ClienteRow>[] = [
     key: "cuit",
     label: "CUIT/CUIL",
     width: "8%",
-    form: {
-      required: true,
-      placeholder: "Ej: 30-71401632-2",
-      pattern: CUIT_PATTERN,
-      patternMessage: "Formato esperado: XX-XXXXXXXX-X",
-    },
+    // Obligatorio salvo para Consumidor Final (lo decide validarCliente).
+    form: { placeholder: "Ej: 30-71401632-2", maxLength: 20 },
   },
   {
     key: "telefono",
     label: "Tel/Cel",
     width: "8%",
-    form: { placeholder: "Ej: 223 - 519 - 9971" },
+    form: { placeholder: "Ej: 223 - 519 - 9971", maxLength: 25 },
   },
-  { key: "email", label: "Mail", type: "email", width: "15%" },
-  { key: "domicilio", label: "Domicilio", width: "18%" },
+  { key: "email", label: "Mail", type: "email", width: "15%", form: { maxLength: LARGO_EMAIL } },
+  { key: "domicilio", label: "Domicilio", width: "18%", form: { maxLength: LARGO_DOMICILIO } },
   {
     key: "precioTradicional",
     label: "P. Trad.",
@@ -66,11 +60,13 @@ const columns: Column<ClienteRow>[] = [
     title: "Precio Premium",
     type: "currency",
     width: "7%",
+    form: { placeholder: "Opcional" },
   },
 ];
 
 export default function ClientesView() {
-  const { clientes, addCliente, updateCliente, deleteCliente } = useStore();
+  const store = useStore();
+  const { clientes, addCliente, updateCliente, deleteCliente } = store;
   const [editingRow, setEditingRow] = useState<ClienteRow | null>(null);
 
   return (
@@ -79,7 +75,14 @@ export default function ClientesView() {
         title="Clientes"
         columns={columns}
         rows={clientes}
-        actions={<RecordFormModal title="Clientes" columns={columns} onSubmit={addCliente} />}
+        actions={
+          <RecordFormModal
+            title="Clientes"
+            columns={columns}
+            validar={(v) => validarCliente(v, store, null)}
+            onSubmit={addCliente}
+          />
+        }
         onEditRow={setEditingRow}
         onDeleteRow={(row) => deleteCliente(row.id)}
       />
@@ -89,8 +92,9 @@ export default function ClientesView() {
         columns={columns}
         row={editingRow}
         onClose={() => setEditingRow(null)}
-        onSubmit={(v) => {
-          if (editingRow) updateCliente(editingRow.id, v);
+        validar={(v) => validarCliente(v, store, editingRow?.id ?? null)}
+        onSubmit={async (v) => {
+          if (editingRow) await updateCliente(editingRow.id, v);
         }}
       />
     </>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { Resultado } from "./validacion";
 
 export type ColumnType = "text" | "number" | "currency" | "date" | "tag" | "email" | "barcode";
 export type FormInputType = "text" | "number" | "date" | "email" | "select" | "textarea";
@@ -8,15 +9,18 @@ export type ColumnFormConfig = {
   include?: boolean;
   /** Tipo de input a renderizar. Si se omite, se infiere del `type` de la columna. */
   input?: FormInputType;
-  /** Si el campo es obligatorio para poder guardar. */
+  /**
+   * Muestra el asterisco de obligatorio. La validación de verdad (obligatorios,
+   * formatos, duplicados) la hace el `validar` del formulario, el mismo que el servidor.
+   */
   required?: boolean;
   /** Opciones para un input "select" (ej. valores posibles de un tag). */
   options?: string[];
   placeholder?: string;
-  /** Regex HTML5 (sin delimitadores) para validar el formato del valor, ej. CUIT/CUIL. */
-  pattern?: string;
-  /** Mensaje que muestra el navegador cuando el valor no matchea `pattern`. */
-  patternMessage?: string;
+  /** Largo máximo que deja escribir el input (el servidor lo vuelve a controlar). */
+  maxLength?: number;
+  /** En campos numéricos: false = solo enteros (no deja escribir coma ni punto). Default: true. */
+  decimales?: boolean;
 };
 
 export type Column<T> = {
@@ -74,8 +78,13 @@ export type RecordFormModalProps<T> = {
   columns: Column<T>[];
   /** Texto del botón que abre el modal. Default: "+ Nuevo". */
   triggerLabel?: string;
-  /** Se llama al confirmar el formulario con los valores ya tipados (number para campos numéricos). */
-  onSubmit: (values: Record<string, string | number>) => void | Promise<void>;
+  /**
+   * Reglas del formulario (las mismas que corre el servidor): recibe los
+   * valores tal como se escribieron y devuelve el valor limpio o los errores por campo.
+   */
+  validar: (values: Record<string, string>) => Resultado<Record<string, unknown>>;
+  /** Se llama con el valor limpio que devolvió `validar`. Si falla, el error se muestra en el modal. */
+  onSubmit: (values: Record<string, unknown>) => Promise<void>;
 };
 
 export type EditRecordModalProps<T> = {
@@ -86,8 +95,10 @@ export type EditRecordModalProps<T> = {
   /** Fila a editar; el modal está abierto mientras no sea null. */
   row: T | null;
   onClose: () => void;
-  /** Se llama al confirmar el formulario con los valores ya tipados. */
-  onSubmit: (values: Record<string, string | number>) => void | Promise<void>;
+  /** Ver RecordFormModalProps.validar. */
+  validar: (values: Record<string, string>) => Resultado<Record<string, unknown>>;
+  /** Se llama con el valor limpio que devolvió `validar`. Si falla, el error se muestra en el modal. */
+  onSubmit: (values: Record<string, unknown>) => Promise<void>;
 };
 
 /**

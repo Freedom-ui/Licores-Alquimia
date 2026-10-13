@@ -20,7 +20,8 @@
  * (_datos/acciones.ts), que lo valida, aplica las sincronizaciones y lo
  * guarda en una transacción, y devuelve el estado actualizado. Las
  * funciones de `useStore()` devuelven una promesa: si el cambio no se puede
- * hacer, la promesa falla con un Error cuyo mensaje es para el usuario.
+ * hacer, la promesa falla con un ErrorGuardado: su mensaje es para el
+ * usuario y `campo` dice en qué campo del formulario mostrarlo.
  */
 
 import { createContext, useContext, useState, type ReactNode } from "react";
@@ -47,7 +48,17 @@ export type {
 } from "./_dominio/acciones";
 export { usadoDeCompra } from "./_dominio/sync";
 
-type Valores = Record<string, string | number>;
+type Valores = Record<string, unknown>;
+
+/** Error al guardar: el mensaje es para el usuario; `campo` (si viene) es el campo del formulario al que corresponde. */
+export class ErrorGuardado extends Error {
+  constructor(
+    mensaje: string,
+    readonly campo?: string
+  ) {
+    super(mensaje);
+  }
+}
 type Movimiento = Omit<KardexMovimiento, "id">;
 
 type Store = Estado & {
@@ -97,7 +108,7 @@ export function StoreProvider({ inicial, children }: { inicial: Estado; children
     const r = await ejecutar(accion);
     if (!r.ok) {
       if (r.sinSesion) irAlLogin("expirada");
-      throw new Error(r.error);
+      throw new ErrorGuardado(r.error, r.campo);
     }
     setEstado(r.estado);
   }

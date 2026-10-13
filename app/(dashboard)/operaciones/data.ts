@@ -27,6 +27,9 @@ export const VENDEDORES = [
   "FERRARO, DOMINGO",
 ];
 
+export const CANALES = ["Menor", "Mayor"];
+export const CONDICIONES = ["Contado", "Crédito", "Consignación"];
+
 export const operacionesDemo: OperacionRow[] = [
   { id: 1, fecha: "2026-08-08", clienteId: 1, cliente: "PARTICULAR", vendedor: "MONEY, LEANDRO", cantidad: 1, productoId: 1, descripcion: "Licor Fino de Limón — 500 cc", canal: "Menor", condicion: "Contado", pu: 10000, subTotal: 10000 },
   { id: 2, fecha: "2026-08-10", clienteId: 1, cliente: "PARTICULAR", vendedor: "VIOLINO, CLAUDIO", cantidad: 2, productoId: 1, descripcion: "Licor Fino de Limón — 500 cc", canal: "Menor", condicion: "Contado", pu: 10000, subTotal: 20000 },

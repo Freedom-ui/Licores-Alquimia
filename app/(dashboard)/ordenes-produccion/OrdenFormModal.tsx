@@ -3,27 +3,42 @@
 import { useState, type FormEvent } from "react";
 import ModalShell from "@/app/components/data-table/ModalShell";
 import LineItemsField from "@/app/components/data-table/LineItemsField";
+import { CampoNumero, ErrorCampo, CampoFecha } from "@/app/components/data-table/FormFields";
 import { formatCellValue } from "@/app/components/data-table/format";
 import type { LineColumn } from "@/app/components/data-table/types";
-import type { OrdenInsumo, OrdenProduccionRow } from "./data";
-import type { ProductoRow } from "../productos/data";
+import { LARGO_RESPONSABLE, parsearNumero } from "@/app/components/data-table/validacion";
+import { useErroresFormulario } from "@/app/components/data-table/useErroresFormulario";
+import type { OrdenProduccionRow } from "./data";
 import { productoLabel } from "../productos/data";
-import type { MateriaPrimaRow } from "../materia-prima/data";
 import type { CompraRow } from "../trazabilidad/data";
 import { formatCantidad } from "../trazabilidad/data";
-import { usadoDeCompra } from "../store";
+import { usadoDeCompra, useStore, type OrdenInput } from "../store";
+import { validarOrden } from "../_dominio/reglas";
 
-// compraId va como texto porque es el valor de un <select>; se convierte al guardar.
-type InsumoFormRow = Omit<OrdenInsumo, "compraId"> & { compraId: string; costoTotalLinea: number };
+// Todo como texto, tal como está en los inputs (compraId es el valor de un
+// <select>); validarOrden lo convierte y lo valida al guardar.
+type InsumoFormRow = {
+  materiaPrima: string;
+  compraId: string;
+  cantidad: string;
+  costoUnitario: string;
+  costoTotalLinea: number;
+};
 
 function emptyInsumoRow(): InsumoFormRow {
-  return { materiaPrima: "", compraId: "", cantidad: 0, costoUnitario: 0, costoTotalLinea: 0 };
+  return { materiaPrima: "", compraId: "", cantidad: "", costoUnitario: "", costoTotalLinea: 0 };
 }
 
 const EPSILON = 1e-9;
 
+/** Número de un input, o 0 si está vacío o mal escrito (solo para los totales en pantalla). */
+const num = (v: string) => {
+  const n = parsearNumero(v);
+  return n === null || Number.isNaN(n) ? 0 : n;
+};
+
 function withTotales(rows: InsumoFormRow[]): InsumoFormRow[] {
-  return rows.map((r) => ({ ...r, costoTotalLinea: r.cantidad * r.costoUnitario }));
+  return rows.map((r) => ({ ...r, costoTotalLinea: num(r.cantidad) * num(r.costoUnitario) }));
 }
 
 export type OrdenFormTarget = OrdenProduccionRow | "new" | null;
@@ -44,50 +59,43 @@ const EMPTY: FormState = {
   cantidadProducida: "",
 };
 
+/** Lo que se valida: la cabecera + las líneas (sin el total calculado). */
+function aValidar(values: FormState, insumos: InsumoFormRow[]) {
+  return {
+    ...values,
+    insumos: insumos.map(({ materiaPrima, compraId, cantidad, costoUnitario }) => ({ materiaPrima, compraId, cantidad, costoUnitario })),
+  };
+}
+
 export default function OrdenFormModal({
   target,
-  productos,
-  materiasPrimas,
-  compras,
-  ordenes,
   onClose,
   onSubmit,
 }: {
   /** Fila a editar, "new" para alta, null = modal cerrado. */
   target: OrdenFormTarget;
-  productos: ProductoRow[];
-  materiasPrimas: MateriaPrimaRow[];
-  /** Libro de compras: de acá salen los lotes que se pueden asignar a cada insumo. */
-  compras: CompraRow[];
-  /** Todas las órdenes, para saber cuánto de cada compra ya usaron las demás. */
-  ordenes: OrdenProduccionRow[];
   onClose: () => void;
-  onSubmit: (
-    id: number | null,
-    values: {
-      productoId: number;
-      fechaMaceracion: string;
-      fechaEmbotellado: string | null;
-      responsable: string;
-      cantidadProducida: number;
-      insumos: OrdenInsumo[];
-    }
-  ) => void | Promise<void>;
+  onSubmit: (id: number | null, values: OrdenInput) => Promise<void>;
 }) {
+  const estado = useStore();
+  const { productos, materiaPrima: materiasPrimas, compras, ordenesProduccion: ordenes } = estado;
   const [values, setValues] = useState<FormState>(EMPTY);
   const [insumos, setInsumos] = useState<InsumoFormRow[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   // Rastrea para qué `target` están cargados los valores actuales, para poder
   // recargarlos durante el render cuando `target` cambia (sin pasar por un efecto).
   const [loadedTarget, setLoadedTarget] = useState<OrdenFormTarget>(null);
 
   const ordenId = target && target !== "new" ? target.id : undefined;
+  const f = useErroresFormulario("orden", (v: ReturnType<typeof aValidar>) => {
+    const r = validarOrden(v, estado, ordenId ?? null);
+    return r.ok ? {} : r.errores;
+  });
 
   /** Cuánto queda de una compra para esta línea: descuenta lo que usan las otras órdenes y las otras líneas de esta. */
   function disponibleDe(compra: CompraRow, rows: InsumoFormRow[], exceptIndex: number): number {
     const enEstaOrden = rows.reduce(
-      (sum, r, j) => (j !== exceptIndex && r.compraId === String(compra.id) ? sum + r.cantidad : sum),
+      (sum, r, j) => (j !== exceptIndex && r.compraId === String(compra.id) ? sum + num(r.cantidad) : sum),
       0
     );
     return compra.cantidad - usadoDeCompra(ordenes, compra.id, ordenId) - enEstaOrden;
@@ -136,6 +144,12 @@ export default function OrdenFormModal({
     { key: "costoTotalLinea", label: "Costo total", type: "currency", width: "15%", readOnly: true },
   ];
 
+  function cambiar(nextValues: FormState, nextInsumos: InsumoFormRow[]) {
+    setValues(nextValues);
+    setInsumos(nextInsumos);
+    f.alEscribir(aValidar(nextValues, nextInsumos));
+  }
+
   // Al elegir la materia prima se propone sola la compra más vieja con stock
   // (FIFO) y su costo real; al cambiar de compra a mano, también se trae su costo.
   function handleInsumosChange(next: InsumoFormRow[]) {
@@ -144,16 +158,16 @@ export default function OrdenFormModal({
       if (!prev || prev.materiaPrima !== row.materiaPrima) {
         const sugerida = compraSugerida(next, i);
         return sugerida
-          ? { ...row, compraId: String(sugerida.id), costoUnitario: sugerida.costoUnitario }
+          ? { ...row, compraId: String(sugerida.id), costoUnitario: String(sugerida.costoUnitario) }
           : { ...row, compraId: "" };
       }
       if (row.compraId && row.compraId !== prev.compraId) {
         const elegida = compras.find((c) => String(c.id) === row.compraId);
-        if (elegida) return { ...row, costoUnitario: elegida.costoUnitario };
+        if (elegida) return { ...row, costoUnitario: String(elegida.costoUnitario) };
       }
       return row;
     });
-    setInsumos(withTotales(ajustadas));
+    cambiar(values, withTotales(ajustadas));
   }
 
   const lineasSinCompra = insumos.filter((r) => r.materiaPrima && !r.compraId).length;
@@ -172,14 +186,27 @@ export default function OrdenFormModal({
         cantidadProducida: String(target.cantidadProducida),
       });
       setInsumos(
-        withTotales(target.insumos.map((i) => ({ ...i, compraId: i.compraId ? String(i.compraId) : "", costoTotalLinea: 0 })))
+        withTotales(
+          target.insumos.map((i) => ({
+            materiaPrima: i.materiaPrima,
+            compraId: i.compraId ? String(i.compraId) : "",
+            cantidad: String(i.cantidad),
+            costoUnitario: String(i.costoUnitario),
+            costoTotalLinea: 0,
+          }))
+        )
       );
     }
-    setError(null);
+    f.limpiar();
   }
 
   function update<K extends keyof FormState>(key: K, value: string) {
-    setValues((prev) => ({ ...prev, [key]: value }));
+    cambiar({ ...values, [key]: value }, insumos);
+  }
+
+  /** Props comunes de un campo de la cabecera: id, estado de error y validación al salir. */
+  function campo(key: keyof FormState) {
+    return { ...f.props(key), onBlur: () => f.alSalir(key, aValidar(values, insumos)) };
   }
 
   function close() {
@@ -191,73 +218,17 @@ export default function OrdenFormModal({
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-
-    if (
-      !values.productoId ||
-      !values.fechaMaceracion ||
-      !values.responsable ||
-      !values.cantidadProducida
-    ) {
-      setError("Completá todos los campos obligatorios.");
-      return;
-    }
-
-    const insumosValidos = insumos.filter((r) => r.materiaPrima && r.cantidad > 0);
-    if (insumosValidos.length === 0) {
-      setError("Agregá al menos un insumo con materia prima y cantidad.");
-      return;
-    }
-
-    // Integridad de la trazabilidad: la compra tiene que ser de esa materia
-    // prima, anterior a la maceración, y no se puede usar más de lo comprado.
-    const usoPorCompra = new Map<string, number>();
-    for (const r of insumosValidos) {
-      if (!r.compraId) continue;
-      const compra = compras.find((c) => String(c.id) === r.compraId);
-      const mp = materiasPrimas.find((m) => m.nombre === r.materiaPrima);
-      if (!compra || compra.materiaPrimaId !== mp?.id) {
-        setError(`La compra elegida para "${r.materiaPrima}" no corresponde a esa materia prima.`);
-        return;
-      }
-      if (compra.fecha > values.fechaMaceracion) {
-        setError(
-          `La compra OP ${compra.id} (${formatCellValue(compra.fecha, "date")}) es posterior a la fecha de maceración: no puede haberse usado en esta orden.`
-        );
-        return;
-      }
-      usoPorCompra.set(r.compraId, (usoPorCompra.get(r.compraId) ?? 0) + r.cantidad);
-    }
-    for (const [compraId, uso] of usoPorCompra) {
-      const compra = compras.find((c) => String(c.id) === compraId)!;
-      const disponible = compra.cantidad - usadoDeCompra(ordenes, compra.id, ordenId);
-      if (uso > disponible + EPSILON) {
-        const unidad = materiasPrimas.find((m) => m.id === compra.materiaPrimaId)?.unidad;
-        setError(
-          `De la compra OP ${compra.id} quedan ${formatCantidad(Math.max(disponible, 0), unidad)} y esta orden usa ${formatCantidad(uso, unidad)}. Si sale de otra compra, agregá otra línea con esa compra.`
-        );
-        return;
-      }
-    }
+    const datos = aValidar(values, insumos);
+    if (!f.alGuardar(datos)) return;
+    const r = validarOrden(datos, estado, ordenId ?? null);
+    if (!r.ok) return;
 
     setSubmitting(true);
-    setError(null);
     try {
-      await onSubmit(target === "new" || !target ? null : target.id, {
-        productoId: Number(values.productoId),
-        fechaMaceracion: values.fechaMaceracion,
-        fechaEmbotellado: values.fechaEmbotellado || null,
-        responsable: values.responsable,
-        cantidadProducida: Number(values.cantidadProducida),
-        insumos: insumosValidos.map(({ materiaPrima, cantidad, costoUnitario, compraId }) => ({
-          materiaPrima,
-          cantidad,
-          costoUnitario,
-          ...(compraId ? { compraId: Number(compraId) } : {}),
-        })),
-      });
+      await onSubmit(ordenId ?? null, r.valor);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar la orden.");
+      f.deServidor(err, "No se pudo guardar la orden.");
     } finally {
       setSubmitting(false);
     }
@@ -271,17 +242,13 @@ export default function OrdenFormModal({
       width={940}
       onClose={close}
     >
-      <form className="rf-form" onSubmit={handleSubmit}>
+      <form className="rf-form" onSubmit={handleSubmit} noValidate>
         <div className="rf-fields-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
           <div className="rf-field rf-field-full">
-            <label htmlFor="orden-producto">
+            <label htmlFor="orden-productoId">
               Producto<span className="rf-required">*</span>
             </label>
-            <select
-              id="orden-producto"
-              value={values.productoId}
-              onChange={(e) => update("productoId", e.target.value)}
-            >
+            <select {...campo("productoId")} value={values.productoId} onChange={(e) => update("productoId", e.target.value)}>
               <option value="">Seleccionar…</option>
               {productos.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -289,29 +256,21 @@ export default function OrdenFormModal({
                 </option>
               ))}
             </select>
+            <ErrorCampo f={f} campo="productoId" />
           </div>
 
           <div className="rf-field">
-            <label htmlFor="orden-maceracion">
+            <label htmlFor="orden-fechaMaceracion">
               Fecha de maceración<span className="rf-required">*</span>
             </label>
-            <input
-              id="orden-maceracion"
-              type="date"
-              value={values.fechaMaceracion}
-              onChange={(e) => update("fechaMaceracion", e.target.value)}
-            />
+            <CampoFecha {...campo("fechaMaceracion")} valor={values.fechaMaceracion} onCambio={(v) => update("fechaMaceracion", v)} />
+            <ErrorCampo f={f} campo="fechaMaceracion" />
           </div>
 
           <div className="rf-field">
-            <label htmlFor="orden-embotellado">Fecha de embotellado</label>
-            <input
-              id="orden-embotellado"
-              type="date"
-              placeholder="Si ya se embotelló"
-              value={values.fechaEmbotellado}
-              onChange={(e) => update("fechaEmbotellado", e.target.value)}
-            />
+            <label htmlFor="orden-fechaEmbotellado">Fecha de embotellado</label>
+            <CampoFecha {...campo("fechaEmbotellado")} valor={values.fechaEmbotellado} onCambio={(v) => update("fechaEmbotellado", v)} />
+            <ErrorCampo f={f} campo="fechaEmbotellado" />
           </div>
 
           <div className="rf-field">
@@ -319,25 +278,28 @@ export default function OrdenFormModal({
               Responsable<span className="rf-required">*</span>
             </label>
             <input
-              id="orden-responsable"
+              {...campo("responsable")}
               type="text"
               placeholder="Ej: Alquimia"
+              maxLength={LARGO_RESPONSABLE}
               value={values.responsable}
               onChange={(e) => update("responsable", e.target.value)}
             />
+            <ErrorCampo f={f} campo="responsable" />
           </div>
 
           <div className="rf-field">
-            <label htmlFor="orden-cantidad">
-              Cantidad producida<span className="rf-required">*</span>
+            <label htmlFor="orden-cantidadProducida">
+              Cantidad producida (botellas)<span className="rf-required">*</span>
             </label>
-            <input
-              id="orden-cantidad"
-              type="number"
-              min="1"
-              value={values.cantidadProducida}
-              onChange={(e) => update("cantidadProducida", e.target.value)}
+            <CampoNumero
+              {...campo("cantidadProducida")}
+              decimales={false}
+              placeholder="Ej: 120"
+              valor={values.cantidadProducida}
+              onCambio={(v) => update("cantidadProducida", v)}
             />
+            <ErrorCampo f={f} campo="cantidadProducida" />
           </div>
         </div>
 
@@ -347,6 +309,9 @@ export default function OrdenFormModal({
           rows={insumos}
           onChange={handleInsumosChange}
           emptyRow={emptyInsumoRow}
+          f={f}
+          campo="insumos"
+          valoresParaValidar={() => aValidar(values, insumos)}
         />
 
         <div className="li-total-row">
@@ -375,7 +340,7 @@ export default function OrdenFormModal({
           </p>
         )}
 
-        {error && <div className="rf-error">{error}</div>}
+        {f.general && <div className="rf-error">{f.general}</div>}
 
         <div className="rf-actions-row">
           <button type="button" className="rf-cancel-btn" onClick={close} disabled={submitting}>

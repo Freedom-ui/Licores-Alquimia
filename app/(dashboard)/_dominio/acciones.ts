@@ -5,6 +5,11 @@
 // Es la misma lógica que antes vivía en el store del navegador; ahora la
 // corre el servidor dentro de una transacción (ver _datos/acciones.ts) y
 // guarda en la base solo lo que cambió.
+//
+// Lo que llega del navegador no es confiable (las server actions son
+// públicas): cada acción valida sus datos con reglas.ts (las mismas reglas
+// que usan los formularios) y guarda solo el valor limpio que devuelven, y
+// todo id se busca antes de usarlo.
 
 import type { ClienteRow } from "../clientes/data";
 import type { ProveedorRow } from "../proveedores/data";
@@ -14,8 +19,24 @@ import type { OperacionRow } from "../operaciones/data";
 import { calcularCostoTotal, type OrdenInsumo, type OrdenProduccionRow } from "../ordenes-produccion/data";
 import type { LoteTerminado } from "../productos-terminados/data";
 import type { InventarioMateriaPrimaRow } from "../inventario-materia-prima/data";
-import { formatComprobante, type CompraInput, type CompraRow } from "../trazabilidad/data";
+import type { CompraInput, CompraRow } from "../trazabilidad/data";
 import type { KardexMovimiento } from "@/app/components/data-table/kardex";
+import {
+  leerId,
+  validarAltaInventario,
+  validarCliente,
+  validarCompra,
+  validarEncabezadoInventario,
+  validarEncabezadoLote,
+  validarMateriaPrima,
+  validarMovimientoInventario,
+  validarMovimientoLote,
+  validarOperacion,
+  validarOrden,
+  validarProducto,
+  validarProveedor,
+  type Resultado,
+} from "./reglas";
 import {
   nextId,
   quitarConsumosDeOrden,
@@ -25,7 +46,6 @@ import {
   syncEntradaParaCompra,
   syncLoteParaOrden,
   syncSalidaParaOperacion,
-  usadoDeCompra,
 } from "./sync";
 
 export type Estado = {
@@ -78,7 +98,8 @@ export type NuevaMateriaPrimaInventarioInput = InventarioMateriaPrimaHeaderInput
   materiaPrimaId: number;
 };
 
-type Valores = Record<string, string | number>;
+/** Valores de un formulario de catálogo: se validan y limpian en reglas.ts. */
+type Valores = Record<string, unknown>;
 type Movimiento = Omit<KardexMovimiento, "id">;
 
 export type Accion =
@@ -109,163 +130,230 @@ export type Accion =
   | { tipo: "saveCompra"; id: number | null; v: CompraInput }
   | { tipo: "deleteCompra"; id: number };
 
-/** Error esperable (una regla del negocio impide el cambio): su mensaje se le muestra al usuario. */
-export class ErrorNegocio extends Error {}
+/**
+ * Error esperable (un dato inválido o una regla del negocio impide el
+ * cambio): su mensaje se le muestra al usuario. `campo` dice en qué campo del
+ * formulario mostrarlo; sin campo va en el cartel general.
+ */
+export class ErrorNegocio extends Error {
+  constructor(
+    mensaje: string,
+    readonly campo?: string
+  ) {
+    super(mensaje);
+  }
+}
 
 const listaIds = (ids: number[]) => [...new Set(ids)].join(", ");
+
+/** El valor validado, o ErrorNegocio con el primer error (y su campo). */
+function exigir<T>(r: Resultado<T>): T {
+  if (r.ok) return r.valor;
+  const [campo, mensaje] = Object.entries(r.errores)[0];
+  throw new ErrorNegocio(mensaje, campo);
+}
+
+/** Busca por id lo que llega del navegador (puede ser cualquier cosa); si no existe, error. */
+function buscar<T extends { id: number }>(rows: T[], id: unknown): T {
+  const n = leerId(id);
+  const row = n === null ? undefined : rows.find((r) => r.id === n);
+  if (!row) throw new ErrorNegocio("Ese registro ya no existe (puede que se haya borrado en otra pestaña). Recargá la página.");
+  return row;
+}
+
+/** null para un alta, o el id de un registro que existe. */
+function idEdicion<T extends { id: number }>(rows: T[], id: unknown): number | null {
+  return id === null ? null : buscar(rows, id).id;
+}
 
 export function aplicar(e: Estado, a: Accion): Estado {
   switch (a.tipo) {
     // ── Clientes / Proveedores / Materia prima / Productos: CRUD simple ──
-    case "addCliente":
-      return { ...e, clientes: [...e.clientes, { id: nextId(e.clientes), ...a.v } as ClienteRow] };
-    case "updateCliente":
-      return { ...e, clientes: e.clientes.map((r) => (r.id === a.id ? ({ ...r, ...a.v } as ClienteRow) : r)) };
+    case "addCliente": {
+      const v = exigir(validarCliente(a.v, e, null));
+      return { ...e, clientes: [...e.clientes, { id: nextId(e.clientes), ...v }] };
+    }
+    case "updateCliente": {
+      const { id } = buscar(e.clientes, a.id);
+      const v = exigir(validarCliente(a.v, e, id));
+      return { ...e, clientes: e.clientes.map((r) => (r.id === id ? { id, ...v } : r)) };
+    }
     case "deleteCliente": {
+      const { id } = buscar(e.clientes, a.id);
       // Las ventas guardan al cliente: borrarlo dejaría operaciones sin dueño.
-      const ops = e.operaciones.filter((o) => o.clienteId === a.id).map((o) => o.id);
+      const ops = e.operaciones.filter((o) => o.clienteId === id).map((o) => o.id);
       if (ops.length > 0) {
         throw new ErrorNegocio(`Este cliente tiene operaciones cargadas (OP N° ${listaIds(ops)}). No se puede eliminar sin perder esas ventas.`);
       }
-      return { ...e, clientes: e.clientes.filter((r) => r.id !== a.id) };
+      return { ...e, clientes: e.clientes.filter((r) => r.id !== id) };
     }
 
-    case "addProveedor":
-      return { ...e, proveedores: [...e.proveedores, { id: nextId(e.proveedores), ...a.v } as ProveedorRow] };
-    case "updateProveedor":
-      return { ...e, proveedores: e.proveedores.map((r) => (r.id === a.id ? ({ ...r, ...a.v } as ProveedorRow) : r)) };
+    case "addProveedor": {
+      const v = exigir(validarProveedor(a.v, e, null));
+      return { ...e, proveedores: [...e.proveedores, { id: nextId(e.proveedores), ...v }] };
+    }
+    case "updateProveedor": {
+      const { id } = buscar(e.proveedores, a.id);
+      const v = exigir(validarProveedor(a.v, e, id));
+      return { ...e, proveedores: e.proveedores.map((r) => (r.id === id ? { id, ...v } : r)) };
+    }
     case "deleteProveedor": {
+      const { id } = buscar(e.proveedores, a.id);
       // El Libro de compras referencia al proveedor: borrarlo dejaría compras
       // sin origen, que es justo lo que la trazabilidad tiene que poder mostrar.
-      const usadas = e.compras.filter((c) => c.proveedorId === a.id).map((c) => c.id);
+      const usadas = e.compras.filter((c) => c.proveedorId === id).map((c) => c.id);
       if (usadas.length > 0) {
         throw new ErrorNegocio(
           `Este proveedor figura en el Libro de compras (OP N° ${listaIds(usadas)}). No se puede eliminar sin perder la trazabilidad de esas compras.`
         );
       }
-      return { ...e, proveedores: e.proveedores.filter((r) => r.id !== a.id) };
+      return { ...e, proveedores: e.proveedores.filter((r) => r.id !== id) };
     }
 
-    case "addMateriaPrima":
-      return { ...e, materiaPrima: [...e.materiaPrima, { id: nextId(e.materiaPrima), ...a.v } as unknown as MateriaPrimaRow] };
+    case "addMateriaPrima": {
+      const v = exigir(validarMateriaPrima(a.v, e, null));
+      return { ...e, materiaPrima: [...e.materiaPrima, { id: nextId(e.materiaPrima), ...v }] };
+    }
     case "updateMateriaPrima": {
-      const anterior = e.materiaPrima.find((r) => r.id === a.id);
-      const materiaPrima = e.materiaPrima.map((r) => (r.id === a.id ? ({ ...r, ...a.v } as unknown as MateriaPrimaRow) : r));
+      const anterior = buscar(e.materiaPrima, a.id);
+      const v = exigir(validarMateriaPrima(a.v, e, anterior.id));
+      const materiaPrima = e.materiaPrima.map((r) => (r.id === anterior.id ? { id: anterior.id, ...v } : r));
       // Las órdenes guardan el insumo por nombre (texto): si se renombra acá hay
       // que renombrarlo también en ellas, si no una orden que se edite después
       // ya no encontraría su materia prima y dejaría de descontar del inventario.
-      const nuevoNombre = typeof a.v.nombre === "string" ? a.v.nombre : undefined;
-      if (!anterior || !nuevoNombre || nuevoNombre === anterior.nombre) return { ...e, materiaPrima };
+      if (v.nombre === anterior.nombre) return { ...e, materiaPrima };
       return {
         ...e,
         materiaPrima,
         ordenesProduccion: e.ordenesProduccion.map((o) =>
           o.insumos.some((i) => i.materiaPrima === anterior.nombre)
-            ? { ...o, insumos: o.insumos.map((i) => (i.materiaPrima === anterior.nombre ? { ...i, materiaPrima: nuevoNombre } : i)) }
+            ? { ...o, insumos: o.insumos.map((i) => (i.materiaPrima === anterior.nombre ? { ...i, materiaPrima: v.nombre } : i)) }
             : o
         ),
       };
     }
-    case "deleteMateriaPrima":
-      if (e.compras.some((c) => c.materiaPrimaId === a.id)) {
+    case "deleteMateriaPrima": {
+      const { id } = buscar(e.materiaPrima, a.id);
+      if (e.compras.some((c) => c.materiaPrimaId === id)) {
         throw new ErrorNegocio("Esta materia prima tiene compras en el Libro de compras (Trazabilidad). No se puede eliminar del catálogo.");
       }
       // Se lanza el error (DataTable lo muestra en el diálogo de confirmación)
       // en vez de borrar: sino la fila del inventario quedaba huérfana, sin
       // nombre ni unidad, con todo su historial de movimientos colgando.
-      if (e.inventarioMateriaPrima.some((r) => r.materiaPrimaId === a.id)) {
+      if (e.inventarioMateriaPrima.some((r) => r.materiaPrimaId === id)) {
         throw new ErrorNegocio(
           "Esta materia prima está en el Inventario de materia prima. Quitala de ahí primero para poder eliminarla del catálogo."
         );
       }
-      return { ...e, materiaPrima: e.materiaPrima.filter((r) => r.id !== a.id) };
+      return { ...e, materiaPrima: e.materiaPrima.filter((r) => r.id !== id) };
+    }
 
-    case "addProducto":
-      return { ...e, productos: [...e.productos, { id: nextId(e.productos), ...a.v } as ProductoRow] };
-    case "updateProducto":
-      return { ...e, productos: e.productos.map((r) => (r.id === a.id ? ({ ...r, ...a.v } as ProductoRow) : r)) };
+    case "addProducto": {
+      const v = exigir(validarProducto(a.v, e, null));
+      return { ...e, productos: [...e.productos, { id: nextId(e.productos), ...v }] };
+    }
+    case "updateProducto": {
+      const { id } = buscar(e.productos, a.id);
+      const v = exigir(validarProducto(a.v, e, id));
+      return { ...e, productos: e.productos.map((r) => (r.id === id ? { id, ...v } : r)) };
+    }
     case "deleteProducto": {
-      const ops = e.operaciones.filter((o) => o.productoId === a.id).map((o) => o.id);
+      const { id } = buscar(e.productos, a.id);
+      const ops = e.operaciones.filter((o) => o.productoId === id).map((o) => o.id);
       if (ops.length > 0) {
         throw new ErrorNegocio(`Este producto tiene ventas cargadas (OP N° ${listaIds(ops)}). No se puede eliminar del catálogo.`);
       }
-      const ordenes = e.ordenesProduccion.filter((o) => o.productoId === a.id).map((o) => o.id);
+      const ordenes = e.ordenesProduccion.filter((o) => o.productoId === id).map((o) => o.id);
       if (ordenes.length > 0) {
         throw new ErrorNegocio(`Este producto tiene órdenes de producción (N° ${listaIds(ordenes)}). No se puede eliminar del catálogo.`);
       }
-      const lotes = e.productosTerminados.filter((l) => l.productoId === a.id).map((l) => l.lote);
+      const lotes = e.productosTerminados.filter((l) => l.productoId === id).map((l) => l.lote);
       if (lotes.length > 0) {
         throw new ErrorNegocio(`Este producto tiene lotes en Productos terminados (lote ${listaIds(lotes)}). No se puede eliminar del catálogo.`);
       }
-      return { ...e, productos: e.productos.filter((r) => r.id !== a.id) };
+      return { ...e, productos: e.productos.filter((r) => r.id !== id) };
     }
 
     // ── Productos terminados: movimientos manuales + edición/baja de lote ──
-    case "addMovimiento":
+    case "addMovimiento": {
+      const lote = buscar(e.productosTerminados, a.loteId);
+      const movimiento = exigir(validarMovimientoLote(a.movimiento, lote, e));
       return {
         ...e,
         productosTerminados: e.productosTerminados.map((l) =>
-          l.id === a.loteId ? { ...l, movimientos: [...l.movimientos, { ...a.movimiento, id: nextId(l.movimientos) }] } : l
+          l.id === lote.id ? { ...l, movimientos: [...l.movimientos, { ...movimiento, id: nextId(l.movimientos) }] } : l
         ),
       };
-    case "updateLote":
-      return { ...e, productosTerminados: e.productosTerminados.map((l) => (l.id === a.loteId ? { ...l, ...a.v } : l)) };
-    case "deleteLote":
-      return { ...e, productosTerminados: e.productosTerminados.filter((l) => l.id !== a.loteId) };
+    }
+    case "updateLote": {
+      const lote = buscar(e.productosTerminados, a.loteId);
+      const v = exigir(validarEncabezadoLote(a.v, lote, e));
+      return { ...e, productosTerminados: e.productosTerminados.map((l) => (l.id === lote.id ? { ...l, ...v } : l)) };
+    }
+    case "deleteLote": {
+      const lote = buscar(e.productosTerminados, a.loteId);
+      return { ...e, productosTerminados: e.productosTerminados.filter((l) => l.id !== lote.id) };
+    }
 
     // ── Inventario de materia prima: movimientos manuales (ajustes, mermas,
     // stock previo) + alta/edición/baja. Las compras y los consumos de las
     // órdenes entran solos (ver sync.ts).
-    case "addInventarioMateriaPrima":
-      if (e.inventarioMateriaPrima.some((r) => r.materiaPrimaId === a.v.materiaPrimaId)) {
-        throw new ErrorNegocio("Esta materia prima ya está en el inventario.");
-      }
+    case "addInventarioMateriaPrima": {
+      const v = exigir(validarAltaInventario(a.v, e));
       return {
         ...e,
         inventarioMateriaPrima: [
           ...e.inventarioMateriaPrima,
           {
             id: nextId(e.inventarioMateriaPrima),
-            materiaPrimaId: a.v.materiaPrimaId,
-            existenciaInicial: a.v.existenciaInicial,
-            costoUnitario: a.v.costoUnitario,
+            materiaPrimaId: v.materiaPrimaId,
+            existenciaInicial: v.existenciaInicial,
+            costoUnitario: v.costoUnitario,
             movimientos: [],
           },
         ],
       };
-    case "addInventarioMovimiento":
+    }
+    case "addInventarioMovimiento": {
+      const row = buscar(e.inventarioMateriaPrima, a.rowId);
+      const movimiento = exigir(validarMovimientoInventario(a.movimiento, row, e));
       return {
         ...e,
         inventarioMateriaPrima: e.inventarioMateriaPrima.map((r) =>
-          r.id === a.rowId ? { ...r, movimientos: [...r.movimientos, { ...a.movimiento, id: nextId(r.movimientos) }] } : r
+          r.id === row.id ? { ...r, movimientos: [...r.movimientos, { ...movimiento, id: nextId(r.movimientos) }] } : r
         ),
       };
-    case "updateInventarioMateriaPrima":
-      return { ...e, inventarioMateriaPrima: e.inventarioMateriaPrima.map((r) => (r.id === a.rowId ? { ...r, ...a.v } : r)) };
+    }
+    case "updateInventarioMateriaPrima": {
+      const row = buscar(e.inventarioMateriaPrima, a.rowId);
+      const v = exigir(validarEncabezadoInventario(a.v, row, e));
+      return { ...e, inventarioMateriaPrima: e.inventarioMateriaPrima.map((r) => (r.id === row.id ? { ...r, ...v } : r)) };
+    }
     case "deleteInventarioMateriaPrima": {
-      const row = e.inventarioMateriaPrima.find((r) => r.id === a.rowId);
-      if (row && e.compras.some((c) => c.materiaPrimaId === row.materiaPrimaId)) {
+      const row = buscar(e.inventarioMateriaPrima, a.rowId);
+      if (e.compras.some((c) => c.materiaPrimaId === row.materiaPrimaId)) {
         throw new ErrorNegocio(
           "Esta materia prima tiene compras registradas en el Libro de compras (Trazabilidad): sus ingresos salen de ahí y no se pueden quitar del inventario."
         );
       }
-      return { ...e, inventarioMateriaPrima: e.inventarioMateriaPrima.filter((r) => r.id !== a.rowId) };
+      return { ...e, inventarioMateriaPrima: e.inventarioMateriaPrima.filter((r) => r.id !== row.id) };
     }
 
     // ── Operaciones (ventas): descuentan stock del lote que corresponda ──
     case "addOperacion":
     case "updateOperacion": {
-      const id = a.tipo === "addOperacion" ? nextId(e.operaciones) : a.id;
-      const cliente = e.clientes.find((c) => c.id === a.v.clienteId);
-      const producto = e.productos.find((p) => p.id === a.v.productoId);
-      if (!cliente) throw new ErrorNegocio("El cliente elegido ya no existe.");
-      if (!producto) throw new ErrorNegocio("El producto elegido ya no existe.");
+      // Vender más de lo que hay en stock se permite (la pantalla avisa y pide
+      // confirmar): el lote queda en negativo hasta que se embotelle.
+      const id = a.tipo === "addOperacion" ? nextId(e.operaciones) : buscar(e.operaciones, a.id).id;
+      const v = exigir(validarOperacion(a.v, e));
+      const cliente = e.clientes.find((c) => c.id === v.clienteId)!;
+      const producto = e.productos.find((p) => p.id === v.productoId)!;
       const row: OperacionRow = {
         id,
-        ...a.v,
+        ...v,
         cliente: cliente.razonSocial,
         descripcion: productoLabel(producto),
-        subTotal: a.v.cantidad * a.v.pu,
+        subTotal: v.cantidad * v.pu,
       };
       return {
         ...e,
@@ -273,76 +361,54 @@ export function aplicar(e: Estado, a: Accion): Estado {
         productosTerminados: syncSalidaParaOperacion(e.productosTerminados, row),
       };
     }
-    case "deleteOperacion":
+    case "deleteOperacion": {
+      const { id } = buscar(e.operaciones, a.id);
       return {
         ...e,
-        operaciones: e.operaciones.filter((r) => r.id !== a.id),
-        productosTerminados: quitarSalidaDeOperacion(e.productosTerminados, a.id),
+        operaciones: e.operaciones.filter((r) => r.id !== id),
+        productosTerminados: quitarSalidaDeOperacion(e.productosTerminados, id),
       };
+    }
 
     // ── Órdenes de producción ──
     case "saveOrden": {
-      const producto = e.productos.find((p) => p.id === a.v.productoId);
-      if (!producto) throw new ErrorNegocio("El producto elegido ya no existe.");
-      const compraInexistente = a.v.insumos.find((i) => i.compraId !== undefined && !e.compras.some((c) => c.id === i.compraId));
-      if (compraInexistente) throw new ErrorNegocio(`La compra OP N° ${compraInexistente.compraId} ya no existe en el Libro de compras.`);
+      const id = idEdicion(e.ordenesProduccion, a.id);
+      const v = exigir(validarOrden(a.v, e, id));
+      const producto = e.productos.find((p) => p.id === v.productoId)!;
       const orden: OrdenProduccionRow = {
-        id: a.id ?? nextId(e.ordenesProduccion),
-        productoId: a.v.productoId,
+        id: id ?? nextId(e.ordenesProduccion),
+        productoId: v.productoId,
         producto: producto.nombre,
         formato: producto.formato,
-        fechaMaceracion: a.v.fechaMaceracion,
-        fechaEmbotellado: a.v.fechaEmbotellado,
-        responsable: a.v.responsable,
-        cantidadProducida: a.v.cantidadProducida,
-        insumos: a.v.insumos,
-        costoTotal: calcularCostoTotal(a.v.insumos),
+        fechaMaceracion: v.fechaMaceracion,
+        fechaEmbotellado: v.fechaEmbotellado,
+        responsable: v.responsable,
+        cantidadProducida: v.cantidadProducida,
+        insumos: v.insumos,
+        costoTotal: calcularCostoTotal(v.insumos),
       };
       return {
         ...e,
-        ordenesProduccion: a.id === null ? [...e.ordenesProduccion, orden] : e.ordenesProduccion.map((r) => (r.id === a.id ? orden : r)),
+        ordenesProduccion: id === null ? [...e.ordenesProduccion, orden] : e.ordenesProduccion.map((r) => (r.id === id ? orden : r)),
         productosTerminados: syncLoteParaOrden(e.productosTerminados, orden),
         inventarioMateriaPrima: syncConsumosParaOrden(e.inventarioMateriaPrima, orden, e.materiaPrima),
       };
     }
-    case "deleteOrden":
+    case "deleteOrden": {
+      const { id } = buscar(e.ordenesProduccion, a.id);
       return {
         ...e,
-        ordenesProduccion: e.ordenesProduccion.filter((r) => r.id !== a.id),
-        productosTerminados: e.productosTerminados.filter((l) => !(l.origenOrdenId === a.id && l.movimientos.length === 0)),
-        inventarioMateriaPrima: quitarConsumosDeOrden(e.inventarioMateriaPrima, a.id),
+        ordenesProduccion: e.ordenesProduccion.filter((r) => r.id !== id),
+        productosTerminados: e.productosTerminados.filter((l) => !(l.origenOrdenId === id && l.movimientos.length === 0)),
+        inventarioMateriaPrima: quitarConsumosDeOrden(e.inventarioMateriaPrima, id),
       };
+    }
 
     // ── Libro de compras (Trazabilidad) ──
     case "saveCompra": {
-      const { id, v } = a;
-      if (!e.proveedores.some((p) => p.id === v.proveedorId)) throw new ErrorNegocio("El proveedor elegido ya no existe.");
-      if (!e.materiaPrima.some((m) => m.id === v.materiaPrimaId)) throw new ErrorNegocio("La materia prima elegida ya no existe.");
-      if (id !== null) {
-        const anterior = e.compras.find((c) => c.id === id);
-        const usado = usadoDeCompra(e.ordenesProduccion, id);
-        const ordenesQueUsan = e.ordenesProduccion.filter((o) => o.insumos.some((i) => i.compraId === id)).map((o) => o.id);
-        if (anterior && usado > 0 && anterior.materiaPrimaId !== v.materiaPrimaId) {
-          throw new ErrorNegocio(`No se puede cambiar la materia prima: esta compra ya se usó en las órdenes N° ${listaIds(ordenesQueUsan)}.`);
-        }
-        if (v.cantidad + 1e-9 < usado) {
-          throw new ErrorNegocio(`Las órdenes N° ${listaIds(ordenesQueUsan)} ya usan ${usado} de esta compra: la cantidad no puede ser menor.`);
-        }
-      }
-
-      if (v.comprobanteNumero) {
-        const duplicada = e.compras.find(
-          (c) =>
-            c.id !== id &&
-            c.proveedorId === v.proveedorId &&
-            c.materiaPrimaId === v.materiaPrimaId &&
-            formatComprobante(c) === formatComprobante(v)
-        );
-        if (duplicada) {
-          throw new ErrorNegocio(`Esta compra ya está cargada: la OP N° ${duplicada.id} tiene el mismo proveedor, comprobante y materia prima.`);
-        }
-      }
-
+      // Datos, duplicados y coherencia con las órdenes que ya la usan: validarCompra.
+      const id = idEdicion(e.compras, a.id);
+      const v = exigir(validarCompra(a.v, e, id));
       const compra: CompraRow = { id: id ?? nextId(e.compras), ...v };
       return {
         ...e,
@@ -351,7 +417,8 @@ export function aplicar(e: Estado, a: Accion): Estado {
       };
     }
     case "deleteCompra": {
-      const ordenesQueUsan = e.ordenesProduccion.filter((o) => o.insumos.some((i) => i.compraId === a.id)).map((o) => o.id);
+      const { id } = buscar(e.compras, a.id);
+      const ordenesQueUsan = e.ordenesProduccion.filter((o) => o.insumos.some((i) => i.compraId === id)).map((o) => o.id);
       if (ordenesQueUsan.length > 0) {
         throw new ErrorNegocio(
           `Esta compra se usó en las órdenes de producción N° ${listaIds(ordenesQueUsan)}. Quitala de esas órdenes antes de eliminarla, para no cortar la trazabilidad.`
@@ -359,8 +426,8 @@ export function aplicar(e: Estado, a: Accion): Estado {
       }
       return {
         ...e,
-        compras: e.compras.filter((c) => c.id !== a.id),
-        inventarioMateriaPrima: quitarEntradaDeCompra(e.inventarioMateriaPrima, a.id),
+        compras: e.compras.filter((c) => c.id !== id),
+        inventarioMateriaPrima: quitarEntradaDeCompra(e.inventarioMateriaPrima, id),
       };
     }
     default:

@@ -47,6 +47,8 @@ Arquitectura clave:
   usuarios/login**; el `schema.prisma` actual está desactualizado respecto del modelo real.
 - Login (Fase 3): cuenta única con sesión guardada en la base, código de recuperación y
   cierre por inactividad (`lib/auth/`, `app/(acceso)/`, `proxy.ts`).
+- Validación (Fase 4): reglas compartidas pantalla/servidor en `_dominio/reglas.ts` sobre los
+  validadores de `app/components/data-table/validacion.ts`; tests con `npm test` (Vitest).
 - Dependencia `xlsx` (SheetJS) ya instalada → para la migración desde Excel.
 
 Particularidades del entorno de pruebas:
@@ -219,7 +221,7 @@ proteger los datos en la computadora. Sin registro público, sin roles ni pantal
   tabla de usuarios vacía (después se restauraron los usuarios). La contraseña y el código
   de `claude_qa` cambiaron: están en `.claude/qa-usuario.local`.
 
-### Fase 4 — Validación de datos en los formularios ☐
+### Fase 4 — Validación de datos en los formularios ☑ (aprobada por el usuario)
 Va antes del importador de Excel (que reusa los mismos validadores) y completa la seguridad
 de la Fase 3: las server actions son públicas, así que el servidor tiene que revalidar todo.
 - Inventario de todos los formularios: genéricos `RecordFormModal` / `EditRecordModal`
@@ -251,6 +253,51 @@ de la Fase 3: las server actions son públicas, así que el servidor tiene que r
 - Test: por formulario, una lista de entradas inválidas (negativos, letras, fechas
   imposibles, campos vacíos, valores fuera de la lógica): cada una muestra su mensaje y no
   guarda nada; las mismas, mandadas directo a la server action, se rechazan.
+
+**Decisiones del usuario (13/10/2026):** venta mayor al stock → aviso y "Guardar igual" (el
+servidor la acepta); salida manual mayor al saldo → se bloquea; Proveedores: obligatorios
+razón social, contacto y producto (CUIT, email, teléfono, CBU y alias opcionales, validados si
+se cargan); Clientes: CUIT obligatorio salvo Consumidor Final; CUIT se guarda como
+`30-71234567-8`; fechas reales entre el 01/01/2020 y hoy (vencimiento: posterior al
+embotellado y hasta el 31/12 del año actual + 15); compra usada en una orden ≤ su maceración;
+movimiento de un lote ≥ su embotellado; Vitest para los tests.
+
+**Cómo quedó** (para retomar):
+- `app/components/data-table/validacion.ts`: validadores puros por tipo de dato (texto, número
+  con coma o punto, fecha, CUIT con dígito verificador, email, teléfono, CBU, alias, CODE39) y
+  los topes (`MONTO_MAX` 100 M, `CANTIDAD_MAX` 1 M, 2 decimales, largos máximos). Tipos
+  `Resultado` / `Errores`.
+- `app/(dashboard)/_dominio/reglas.ts`: una función por formulario (`validarCliente`,
+  `validarOrden`, `validarCompra`, `validarMovimientoLote`, …) que recibe los valores tal
+  como llegan y devuelve el objeto limpio (solo las claves permitidas) o los errores por campo
+  (líneas de una orden: `insumos.<n°>.<campo>`). También `stockDisponible` (aviso de venta).
+  Duplicados que se rechazan: CUIT en Clientes y en Proveedores, nombre de materia prima,
+  producto + formato y código de barras.
+- `aplicar()` valida cada acción con esas reglas, busca todo id antes de usarlo y tira
+  `ErrorNegocio(mensaje, campo)`; `ejecutar(accion: unknown)` devuelve `campo` y el store lo
+  propaga en `ErrorGuardado`.
+- Pantalla: hook `useErroresFormulario` (error al salir del campo, revalida mientras se
+  escribe, al guardar foco en el primer error; errores sin campo visible → cartel `.rf-error`),
+  `ErrorCampo`, `CampoNumero` (input de texto que solo deja dígitos y una coma/punto; reemplaza
+  a `type="number"`), `CampoFecha` (ver abajo). Todos los formularios con
+  `noValidate`. CSS `.rf-field-error` / `.rf-input-error` / `.li-errores`.
+- Los formularios genéricos reciben `validar` (la misma regla del servidor) y mandan el valor
+  limpio; se sacaron `pattern`, `findMissingRequiredField` y `parseFormValues` (el vacío ya no
+  se convierte en 0: Precio Premium vacío = sin precio). Las ediciones de los 4 catálogos
+  ahora esperan la promesa (antes el modal se cerraba aunque el servidor rechazara).
+  `CompraFormModal` ahora tiene "Guardando…".
+- Datos de prueba: CUIT y CBU con dígito verificador corregido, CUIT normalizados, contactos
+  ficticios en los proveedores del Excel. Base re-sembrada.
+- Tests: `npm test` (Vitest 4; el 5 pide @types/node ≥ 22). `validacion.test.ts`,
+  `_dominio/acciones.test.ts` (entradas inválidas por formulario, incluidas claves extra, id
+  pisado, ids inexistentes y tipos raros) y `_dominio/demo.test.ts` (el demo pasa todas las
+  reglas). 259 tests.
+- Fechas: `CampoFecha` (en `FormFields.tsx`) reemplaza a `<input type="date">` en todos los
+  formularios y en el filtro "Personalizado" de Estadísticas. Siempre se ve y se escribe
+  dd/mm/aaaa (el nativo muestra mm/dd/yyyy si el navegador está en inglés); las barras se
+  ponen solas, y el botón de calendario abre el selector del navegador. Se sigue guardando
+  "YYYY-MM-DD"; una fecha incompleta o que no existe se marca como inválida (también en los
+  campos opcionales).
 
 ### Fase 5 — Migración de datos desde Excel ☐
 Requiere el archivo Excel del cliente (pedírselo al usuario). Su contenido actual también
@@ -313,6 +360,9 @@ Lista conocida (ampliar durante las fases anteriores):
 - Error de lint preexistente en `app/(dashboard)/nav-tree.tsx` (setState en effect).
 - ~~Renombrar cliente/producto no actualiza el texto guardado en Operaciones/Órdenes.~~
   Resuelto en la Fase 2 (los nombres salen del catálogo).
+- Guardas de borrado (detectadas en la Fase 4): `deleteLote` borra un lote aunque tenga ventas
+  o venga de una orden, y `deleteOrden` deja huérfano el lote si ya tiene movimientos.
+- Las páginas de sección no tienen `<title>` propio (muestran solo "Licores Alquimia").
 - Detalles visuales detectados en el recorrido general (alineaciones, textos, vacíos).
 
 ### Fase 9 — Features nuevas ☐
