@@ -115,6 +115,12 @@ model Producto {
   lotes       LoteTerminado[]
 }
 
+/// Vendedores de las ventas (Operacion.vendedor guarda el nombre como texto).
+model Vendedor {
+  id     Int    @id @default(autoincrement())
+  nombre String
+}
+
 // ── Ventas ───────────────────────────────────────────────────
 model Operacion {
   id         Int      @id @default(autoincrement())
@@ -266,4 +272,31 @@ model MovimientoInventario {
   @@id([inventarioId, id])
   @@index([origenCompraId])
   @@index([origenOrdenId])
+}
+
+// ── Historial de subidas de planillas (Importar planilla) ────
+// Una fila por cada planilla (o grupo de .csv) que se subió: se crea al
+// analizarla (o al fallar la lectura) y se actualiza si se importa. No es
+// dato del negocio: la importación no la toca.
+model SubidaPlanilla {
+  id          Int      @id @default(autoincrement())
+  fecha       DateTime @default(now())
+  actualizada DateTime @updatedAt
+  usuario     String
+  /// Nombre del archivo (o de los .csv, separados por coma).
+  archivo     String
+  /// revision | importada | sinNovedades | fallo | noLeida
+  estado      String
+  agregados   Int      @default(0)
+  existentes  Int      @default(0)
+  conError    Int      @default(0)
+  avisos      Int      @default(0)
+  /// Copia de seguridad hecha antes de importar (carpeta respaldos/).
+  respaldo    String?
+  /// Por qué no se pudo leer o importar.
+  error       String?
+  /// JSON con el detalle (DetalleSubida en _importar/historial.ts).
+  detalle     String   @default("{}")
+
+  @@index([fecha])
 }

@@ -15,16 +15,20 @@ export type OperacionRow = {
   subTotal: number;
 };
 
-// Vendedores habituales (hoy no hay un módulo de Usuarios/vendedores propio en
-// la UI — Prisma ya tiene `Usuario`, pero la conexión a la base de datos se
-// deja para más adelante). Lista fija para que el campo sea un select y no
-// texto libre con riesgo de typos.
-export const VENDEDORES = [
-  "ALQUIMIA",
-  "MONEY, LEANDRO",
-  "VIOLINO, CLAUDIO",
-  "VICENTE, RODRIGO",
-  "FERRARO, DOMINGO",
+// Vendedores: catálogo en la base (tabla Vendedor) para que el campo sea un
+// select y no texto libre con riesgo de typos. Los trae la importación de la
+// planilla; una base nueva arranca con "ALQUIMIA" (la venta directa).
+export type VendedorRow = {
+  id: number;
+  nombre: string;
+};
+
+export const vendedoresDemo: VendedorRow[] = [
+  { id: 1, nombre: "ALQUIMIA" },
+  { id: 2, nombre: "MONEY, LEANDRO" },
+  { id: 3, nombre: "VIOLINO, CLAUDIO" },
+  { id: 4, nombre: "VICENTE, RODRIGO" },
+  { id: 5, nombre: "FERRARO, DOMINGO" },
 ];
 
 export const CANALES = ["Menor", "Mayor"];

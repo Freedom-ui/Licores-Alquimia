@@ -58,6 +58,20 @@ export type CompraRow = {
 
 export type CompraInput = Omit<CompraRow, "id">;
 
+/**
+ * Lo que una compra suma al inventario y lo que pueden usar las órdenes: si es
+ * un cítrico con kilos de cáscara, la cáscara (igual que la planilla del
+ * cliente, que lleva ese stock en kilos de cáscara); si no, lo comprado.
+ */
+export function stockDeCompra(c: Pick<CompraRow, "cantidad" | "cantidadCascara">): number {
+  return c.cantidadCascara ? c.cantidadCascara : c.cantidad;
+}
+
+/** Costo por unidad de stock: con cáscara, el total de la compra repartido en los kilos de cáscara. */
+export function costoStockDeCompra(c: Pick<CompraRow, "cantidad" | "costoUnitario" | "cantidadCascara">): number {
+  return c.cantidadCascara ? Math.round(((c.cantidad * c.costoUnitario) / c.cantidadCascara) * 100) / 100 : c.costoUnitario;
+}
+
 export function formatComprobante(c: Pick<CompraRow, "comprobanteForm" | "comprobanteTipo" | "comprobanteNumero">): string {
   return [c.comprobanteForm, c.comprobanteTipo, c.comprobanteNumero].filter(Boolean).join(" ");
 }

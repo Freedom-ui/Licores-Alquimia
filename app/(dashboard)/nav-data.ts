@@ -22,4 +22,5 @@ export const navSections: NavNode[] = [
   { label: "Proveedores", href: "/proveedores", icon: "truck" },
   { label: "Clientes", href: "/clientes", icon: "users" },
   { label: "Estadísticas", href: "/estadisticas", icon: "chart" },
+  { label: "Importar planilla", href: "/importar", icon: "upload" },
 ];

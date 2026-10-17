@@ -8,7 +8,7 @@ import { fmtNumero, parsearNumero } from "@/app/components/data-table/validacion
 import { useErroresFormulario } from "@/app/components/data-table/useErroresFormulario";
 import type { ClienteRow } from "../clientes/data";
 import { productoLabel, type ProductoRow } from "../productos/data";
-import { CANALES, CONDICIONES, VENDEDORES, type OperacionRow } from "./data";
+import { CANALES, CONDICIONES, type OperacionRow } from "./data";
 import { useStore, type OperacionInput } from "../store";
 import { stockDisponible, validarOperacion } from "../_dominio/reglas";
 
@@ -182,9 +182,9 @@ export default function OperacionFormModal({
             </label>
             <select {...campo("vendedor")} value={values.vendedor} onChange={(e) => update("vendedor", e.target.value)}>
               <option value="">Seleccionar…</option>
-              {VENDEDORES.map((v) => (
-                <option key={v} value={v}>
-                  {v}
+              {estado.vendedores.map((v) => (
+                <option key={v.id} value={v.nombre}>
+                  {v.nombre}
                 </option>
               ))}
             </select>

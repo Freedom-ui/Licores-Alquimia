@@ -50,3 +50,5 @@ next-env.d.ts
 .claude/
 .windsurf/
 skills-lock.json
+# respaldos automáticos de la base (importación de la planilla)
+/respaldos/

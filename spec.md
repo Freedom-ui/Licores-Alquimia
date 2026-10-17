@@ -23,33 +23,40 @@
   PDF (razón social, CUIT, domicilio, N° PUPAA, N° REBA → `app/empresa.ts`); si el
   proveedor debe ser obligatorio en el Libro de compras.
 
-## 2. Estado actual (al 06/10/2026, rama `main`)
+## 2. Estado actual (al 17/10/2026, rama `main`)
 App local para un elaborador artesanal de licores (Prov. de Buenos Aires, registro PUPAA
-+ REBA). Next.js 16.3 + React 19 + TypeScript. Secciones terminadas y mergeadas:
-Clientes, Proveedores, Materia prima, Productos, Operaciones (ventas), Órdenes de
-producción, Productos terminados (kardex por lote), Inventario de materia prima (kardex),
-Trazabilidad (Libro de compras + rastreo de lotes + ficha PUPAA), Estadísticas (6
-pantallas con ECharts + PDF).
++ REBA). Next.js 16.3 + React 19 + TypeScript. Secciones: Panel principal, Clientes,
+Proveedores, Materia prima, Productos, Operaciones (ventas), Órdenes de producción, Productos
+terminados (kardex por lote), Inventario de materia prima (kardex), Trazabilidad (Libro de
+compras + rastreo de lotes + ficha PUPAA), Estadísticas (6 pantallas con ECharts + PDF) e
+Importar planilla.
+
+**Dónde estamos:** Fases 1 a 4 aprobadas. **Fase 5 (importación de Excel) terminada y probada,
+falta que el usuario la apruebe** (ver "Para retomar" en la Fase 5). Lo último commiteado es la
+Fase 4 (`e8a338c`); todo lo de la Fase 5 está sin commitear (el usuario commitea a mano). La
+siguiente es la Fase 6, solo cuando el usuario lo indique.
 
 Arquitectura clave:
-- **Todos los datos viven en memoria** en `app/(dashboard)/store.tsx` (`useStore()`), con
-  datos de demo en cada `*/data.ts`. Se pierden al recargar.
-- Las automatizaciones entre secciones son **funciones puras** en `store.tsx`
-  (`syncEntradaParaCompra`, `syncConsumosParaOrden`, `syncLoteParaOrden`,
-  `syncSalidaParaOperacion` FIFO entre lotes, `usadoDeCompra`) + guardas al borrar.
-  Cadena: Compra → Inventario MP ← consumo ← Orden (insumo con `compraId`) → Lote →
-  ← Venta (salida tageada `origenOperacionId`).
+- Datos en SQLite con Prisma 7 (`dev.db` en la raíz, `lib/prisma.ts`, config en
+  `prisma7.config.ts`). Lógica pura en `app/(dashboard)/_dominio/` (`acciones.ts` con
+  `aplicar(estado, accion)`, `reglas.ts` con las validaciones, `sync.ts` con las automatizaciones:
+  compra → inventario, orden → consumos y lote, venta → salida FIFO). Servidor en
+  `app/(dashboard)/_datos/` (`repositorio.ts`: `cargarEstado` / `guardarCambios`; `acciones.ts`:
+  server action `ejecutar` en transacción; `importar.ts`: importación e historial).
+  `store.tsx` (`useStore()`) recibe el estado del layout y manda cada cambio al servidor.
 - Componentes genéricos: `app/components/data-table/*` (DataTable con columnas
   agrupadas y `rowActions`, modales, `LineItemsField`, `kardex.ts`, `exportPdf.ts`).
 - Estadísticas: `app/(dashboard)/estadisticas/*` (cálculos puros en `calculos.ts`,
   pantallas como bloques en `secciones.ts`, PDF en `exportEstadisticasPdf.ts`).
-- Prisma 7 + SQLite (`dev.db`, `lib/prisma.ts`) existe pero **solo se usa para
-  usuarios/login**; el `schema.prisma` actual está desactualizado respecto del modelo real.
 - Login (Fase 3): cuenta única con sesión guardada en la base, código de recuperación y
   cierre por inactividad (`lib/auth/`, `app/(acceso)/`, `proxy.ts`).
 - Validación (Fase 4): reglas compartidas pantalla/servidor en `_dominio/reglas.ts` sobre los
-  validadores de `app/components/data-table/validacion.ts`; tests con `npm test` (Vitest).
-- Dependencia `xlsx` (SheetJS) ya instalada → para la migración desde Excel.
+  validadores de `app/components/data-table/validacion.ts`; tests con `npm test` (Vitest, 311).
+- Importación (Fase 5): `app/(dashboard)/_importar/` (puro) + `app/(dashboard)/importar/`
+  (pantalla) + `_datos/importar.ts` (servidor). Detalle en la Fase 5.
+- Migraciones: `npm run db:migrate` (o `npx prisma migrate deploy --config prisma7.config.ts`) y
+  `npx prisma generate --config prisma7.config.ts`. Última: `20261015120000_historial_subidas`
+  (ya aplicada a `dev.db`).
 
 Particularidades del entorno de pruebas:
 - Usuarios en la base de desarrollo (12/10/2026 se borraron los demás): `tadeoqa` (el del
@@ -299,7 +306,31 @@ movimiento de un lote ≥ su embotellado; Vitest para los tests.
   "YYYY-MM-DD"; una fecha incompleta o que no existe se marca como inválida (también en los
   campos opcionales).
 
-### Fase 5 — Migración de datos desde Excel ☐
+### Fase 5 — Migración de datos desde Excel ◐ (falta la aprobación del usuario)
+
+**Para retomar (17/10/2026):** todo lo pedido está hecho y probado en el navegador (ver "Prueba
+completa de la importación" más abajo). Falta:
+1. Que el usuario apruebe la fase (después commitea él; el texto del commit ya se le dio).
+2. Respuesta del usuario a la **pregunta abierta**: ¿se permite una orden de producción sin
+   cantidad de botellas mientras sigue macerando? (hoy la regla la exige y esas órdenes de la
+   planilla salen como error en cada subida). Si dice que sí: cambiar `validarOrden`
+   (`_dominio/reglas.ts`) para que la cantidad solo sea obligatoria con fecha de embotellado, y
+   revisar `syncLoteParaOrden`, el formulario de órdenes y los tests.
+3. **Copias de seguridad: postergadas por el usuario (17/10/2026)** → se hacen en la Fase 10
+   (ahí está la propuesta). No empezarlas antes.
+
+Resumen de cómo funciona hoy (el detalle de cada cambio está abajo, en orden cronológico):
+- Se sube un Excel (.xlsx/.xls) o uno o más .csv; se lee en el navegador. Se detecta cada tabla
+  (planilla Alquimia o plantilla limpia), se extraen los registros y `planificar()` los aplica
+  con las reglas de la app sobre lo que ya hay en la base.
+- Incremental: lo que ya está no se duplica (catálogos por CUIT o nombre; compras, órdenes y
+  ventas por fecha + producto/materia + cantidad). Lo que ya está se compara dato por dato: vacío
+  en la app → se completa solo; distinto → el usuario elige cuál dejar (la importación queda
+  bloqueada hasta elegir); vacío en la planilla → no borra nada.
+- Errores por fila con corrección en pantalla, avisos, unidades deducidas, comparación con los
+  totales de la planilla por estado (verde = bien, ámbar = mirar), copia de seguridad en
+  `respaldos/` antes de guardar, historial de subidas (tabla `SubidaPlanilla`).
+- La lista de vendedores de la planilla no se importa (salen de las ventas).
 Requiere el archivo Excel del cliente (pedírselo al usuario). Su contenido actual también
 es de prueba: se usa para validar la estructura de hojas/columnas y el importador; al
 entregar, el cliente lo usará con su planilla real.
@@ -310,6 +341,239 @@ entregar, el cliente lo usará con su planilla real.
 - Orden de importación por dependencias: catálogos → compras → órdenes → lotes → ventas.
 - Reporte final de lo importado y lo rechazado. Idempotente (no duplica si se reimporta).
 - Test: con el Excel del cliente; cotejar totales contra la planilla.
+
+**Decisiones del usuario (13/10/2026):** migración **única** (se importa una vez al instalar;
+si sale mal se rehace: la importación reemplaza todos los datos del negocio — **cambiado el
+15/10/2026: ahora es incremental, ver más abajo**) y detección
+**híbrida** (reconoce el formato de la planilla Alquimia por títulos, encabezados, sinónimos y
+tipo de datos + plantilla limpia descargable como plan B; lo dudoso se elige de un desplegable).
+
+**Cómo es la planilla** (`Planilla-Muestra.xlsx`, 14 MB): varios bloques lado a lado por hoja,
+cada uno con la celda "Pagina Principal" + título en la fila 2, encabezado en 2 filas, columna
+de navegación a la izquierda y cientos de filas pre-armadas con fórmulas. Compras y ventas en dos
+bloques (operaciones + trazabilidad) unidos por el N° de OP; órdenes maestro-detalle; inventarios
+(uno por materia prima/producto) de donde se toma solo la fila EI. Hojas ".", "..", "...", "....",
+"-" son cálculos auxiliares. Contabilidad, bancos, consignación, transportes, gastos, etc. no se
+importan (la app no los maneja: insumo para la Fase 9).
+
+**Cómo quedó** (para retomar):
+- `app/(dashboard)/_importar/` (puro, corre en el navegador y en el servidor):
+  `leer.ts` (SheetJS, solo en el navegador: el archivo no se sube; fechas por el formato de la
+  celda sin pasar por Date; un 0 se lee vacío; sin leer fórmulas porque tarda el doble),
+  `detectar.ts` (bloques por la marca o la hoja entera; prueba 3 formas de encabezado; puntaje
+  por sinónimos pesados + tipo de dato + bonus de título; alto = asignado, medio = revisar,
+  bajo = no se importa; un bloque por sección salvo inventarios; duplicados sin título → se
+  ignoran), `secciones.ts` (campos y sinónimos), `extraer.ts` (registros con nombres de la app:
+  formato arrastrado, CBU/alias, medio de pago por la "x", cáscara desde el inventario, insumos
+  sin sub-encabezados, EI), `planificar.ts` (aplica cada registro con `aplicar()`: mismas reglas
+  y sincronizaciones; errores con su hoja/fila y **todos** los campos que fallan; avisos;
+  completa "Sin dato"/Consumidor Final/proveedor sin identificar; deja vacío lo opcional mal
+  cargado; crea clientes/proveedores/vendedores/materias primas que aparecen y no están en su
+  lista; nombres parecidos con aviso; insumos de órdenes asignados a compras por FIFO y el resto
+  sin compra; redondeo a 2 decimales con aviso; cotejo con la planilla), `plantilla.ts`.
+- Server action `_datos/importar.ts` (`importarPlanilla`): sesión, revalida la forma de lo que
+  llega, vuelve a planificar en el servidor, copia la base con `VACUUM INTO` a `respaldos/` si
+  tenía datos, y en una transacción `borrarDatosNegocio` + `guardarCambios(ESTADO_VACIO, plan)`.
+  Usuarios intactos. `next.config.ts`: `serverActions.bodySizeLimit` 20 MB.
+- Pantalla `/importar` (`importar/ImportarView.tsx`, CSS `.im-*`): subir (arrastrar o elegir) →
+  revisar (tarjetas por sección, dudosas, "no se importa", resumen, errores agrupados por fila
+  con campo/desplegable para corregir, avisos, unidades deducidas, comparación de totales,
+  confirmación de reemplazo) → listo (resumen, copia de seguridad, accesos, descargar filas no
+  importadas). Ítem "Importar planilla" en la sidebar; el botón "Importar Excel" de cada tabla
+  lleva ahí; el Panel muestra un aviso para importar mientras la base esté vacía.
+- **Vendedores**: dejaron de ser una lista fija; tabla `Vendedor` (migración
+  `20261013120000_vendedores`, arranca con "ALQUIMIA" + los de las ventas cargadas), en `Estado`,
+  acción `addVendedor`, el formulario de ventas y la regla leen de ahí. Sin pantalla de ABM.
+- Acción `addLote` (`validarAltaLote`): lote con stock previo al sistema (solo la usa la
+  importación). FIFO de ventas: primero los lotes previos (sin orden), después por N° de lote.
+- `store.reemplazarEstado` para cargar el estado que devuelve la importación.
+- Tests: `_importar/importar.test.ts` (libro sintético que imita la planilla + plantilla limpia;
+  con `PLANILLA_REAL=<ruta>` prueba también la planilla real). 288 tests.
+- Probado con la planilla de muestra en el navegador: todo se reconoce sin preguntar (~3 s),
+  6 filas con error (CUIT inválido, 2 compras sin costo ni medio de pago, 3 órdenes macerando
+  sin cantidad), correcciones en pantalla, importación de 134 registros, reimportar sin
+  duplicar, ventas y total vendido iguales a la planilla, lote 8 (EI 53) queda en 19 como en la
+  planilla, stock de alcohol igual. Después se re-sembró el demo.
+- Diferencias conocidas (avisos en pantalla): el costo de "EI - TOTAL $" de una orden no es un
+  insumo; las cantidades con 3 decimales (0,625 kg) se redondean a 2.
+
+**Decisiones del usuario (15/10/2026):**
+- Cítricos: manda el saldo de la planilla. Una compra con kilos de cáscara suma la cáscara al
+  inventario (valorizada con el total de la compra) y es lo que pueden usar las órdenes
+  (`stockDeCompra` / `costoStockDeCompra` en `trazabilidad/data.ts`; los usan sync, reglas,
+  el formulario de órdenes, el rastreo y el importador). Demo ajustado (las órdenes consumen
+  cáscara, mismo costo total). Con la planilla de muestra los stocks de limón, naranja,
+  pomelo, menta y alcohol coinciden con la planilla.
+- Cantidades: siguen con 2 decimales (se redondea con aviso).
+- FIFO de ventas por fecha: en la Fase 8.
+- Port forwarding de VS Code: el login fallaba con "Invalid Server Actions request". El túnel
+  manda su host en `x-forwarded-host` pero reescribe el `Origin` a `localhost:3000`, y Next
+  rechaza si no coinciden. Con `ORIGENES_PERMITIDOS` en `.env` (la URL del túnel, con o sin
+  https:// y barra) `next.config.ts` permite ese host y los orígenes `localhost:3000-3009`
+  (`serverActions.allowedOrigins`, `allowedDevOrigins`). Probado con un build de producción y
+  las cabeceras del túnel: pasa, y un origen ajeno se sigue rechazando. Vacío = sin excepciones.
+  Hay que reiniciar `npm run dev` después de cambiar `.env` o `next.config.ts`.
+
+**Cambios pedidos por el usuario (15/10/2026):**
+- **Importación incremental** (antes reemplazaba todo): el cliente puede usar la app y su Excel
+  en paralelo los primeros meses y volver a subir la planilla. `planificar(ext, { base })` parte
+  del estado actual y saltea lo que ya está: catálogos por CUIT o nombre (productos también por
+  código de barras), compras por fecha + materia prima + cantidad, órdenes por producto + fecha
+  de maceración, ventas por fecha + cliente + producto + cantidad (contando repeticiones),
+  existencias iniciales si la materia prima ya está en el inventario o el lote previo ya existe.
+  Lo que ya estaba no se toca (si una orden figura embotellada en la planilla y no en la app,
+  solo se avisa). El servidor arma el plan contra la base dentro de la transacción y escribe
+  solo las diferencias (`guardarCambios(antes, plan.estado)`); copia de seguridad antes, salvo
+  que no haya nada nuevo. Pantalla: columnas "Ya estaban / Nuevos", lista "Lo nuevo que se va a
+  agregar" por sección, botón "Agregar N registros nuevos" (o "No hay nada nuevo para agregar").
+  Se sacó la casilla de "se reemplaza todo" (`borrarDatosNegocio` queda solo para el seed).
+  Limitación: dos ventas distintas pero iguales en fecha, cliente, producto y cantidad (ej. dos
+  ventas de 1 botella a PARTICULAR el mismo día) se cuentan por cantidad de repeticiones.
+- **Correcciones**: una fila corregida no desaparece; queda a la vista con todos sus campos
+  editables ("✓ Corregido (era: …)" o el error que sigue) y pasa a "✓ Corregida: se va a
+  importar" cuando no le queda ninguno.
+- **Aviso al salir**: con una planilla en revisión, un clic en cualquier link (sidebar,
+  accesos), el botón Atrás o recargar/cerrar la pestaña pide confirmar que se cancela la
+  importación (`AvisoAlSalir` en `ImportarView.tsx`).
+- Probado (build de producción sobre una copia de la base, la de tu `dev.db` no se tocó): subir
+  la misma planilla otra vez → 731 "ya estaban", 0 nuevos, botón deshabilitado; subir la planilla
+  de muestra encima → 91 ya estaban, 40 nuevos, se agregaron sin duplicar (compras 116 → 135,
+  órdenes 38 → 43, ventas 443 → 457); correcciones de una fila con dos errores; aviso al salir
+  por la sidebar, por Atrás (quedarse y salir) y "Salir y cancelar". 294 tests.
+- Arreglado: claves de registro repetidas ("Encountered two children with the same key
+  existenciaMP:CUENTAS DE ACTIVO!5"). Los inventarios están lado a lado en la misma hoja y la
+  clave era hoja + fila; ahora es sección + bloque + fila (\`claveRegistro\` en \`extraer.ts\`). Las
+  correcciones también usan esa clave. Test de claves únicas (también contra la planilla real con
+  \`PLANILLA_REAL\`). 295 tests.
+
+**Planilla de prueba con volumen** (15/10/2026): \`C:\Users\patan\Downloads\planilla-claude.xlsx\` =
+la planilla de muestra con datos ficticios del 02/01 al 14/10/2026 (53 clientes, 19 proveedores, 8
+vendedores, 116 compras, 38 órdenes con 2 macerando, 443 ventas) y también las secciones que la app
+no usa. Se generó editando el XML de las hojas (conserva formatos, fórmulas y tablas) con
+scripts que estaban en el scratchpad de esa sesión (no están en el repo). Al importarla: todo se
+reconoce, 2 errores esperables (las órdenes macerando sin cantidad) y, con eso corregido, los 30
+valores de la comparación coinciden con la planilla.
+
+**Pendientes de la Fase 5** (pedidos del usuario el 15/10/2026) — **hechos el 15/10/2026**:
+1. **Admitir .csv**: `leerCsv` (`_importar/leer.ts`) decodifica UTF-8 (con o sin BOM) o, si no lo es,
+   Windows-1252; SheetJS detecta el separador (";" o ","); los valores quedan como texto
+   (`raw: true`) para que "10.000,50" y "02/08/2026" los lea `normalizar.ts` al estilo argentino
+   (SheetJS los tomaría como EE. UU.); un 0 se lee vacío, como en el Excel. La hoja se llama como
+   el archivo sin la extensión ("Clientes.csv" → Clientes). En la pantalla se puede subir una
+   planilla de Excel **o uno o más CSV juntos** (cada uno es una hoja del mismo libro; no se
+   mezclan Excel y CSV, ni dos CSV con el mismo nombre). Tests: Windows-1252 y UTF-8 con ";",
+   un CSV por sección de la plantilla limpia con fechas dd/mm/aaaa y montos con miles, y una
+   tabla suelta con otro nombre de archivo (se reconoce por las columnas).
+2. **Sección Vendedores de la planilla** → el usuario eligió **(b)**: se sacó la sección
+   `vendedores` del importador (`SECCIONES`, `SeccionId`, `SeccionRegistro`, extracción, server
+   action y la hoja "Vendedores" de la plantilla limpia). El bloque "VENDEDORES / ACTIVADORES /
+   PRE-VENTISTAS" queda en "No se importa" (el texto lo explica) y los vendedores salen solo de
+   las ventas: los que no están en la app se agregan con un aviso en Ventas. La tabla `Vendedor`
+   sigue (la usa el desplegable de Operaciones). Probado también con la planilla con volumen:
+   nada queda "para revisar".
+3. **Colores e íconos**: marcas con ícono SVG (`icons.tsx`: `plus`, `equal`, `check`,
+   `notEqual`, `alert`) y color (`.im-marca` + variables `--im-*` en `.im-wrapper`): nuevo (+
+   verde), ya estaba (= gris azulado), coincide (✓ verde), no coincide (≠ ámbar, con la fila
+   resaltada) y error (⚠ rojo). Leyenda arriba de "Qué se va a importar"; chips en "Lo nuevo"
+   (y un + en cada ítem), en "Comparación con la planilla" (columna "Resultado"), en las filas
+   con error / corregidas y en el resumen final. Se sacaron `.im-rojo` / `.im-verde`.
+4. **Confirmar "Cerrar sesión"**: el botón de la sidebar abre "¿Cerrar sesión?" (`ModalShell`).
+   Con una planilla en revisión el mensaje avisa que se pierde la importación y el botón dice
+   "Cerrar sesión y cancelar" (`importar/enCurso.ts`: `AvisoAlSalir` marca la importación en
+   curso y la sidebar lo lee con `useImportacionEnCurso`). `irAlLogin` marca que se va al login
+   (`seVaAlLogin`) y el aviso de "salir de la página" ya no frena el cierre de sesión ni el
+   cierre por inactividad.
+- 299 tests. Sin prueba en el navegador (el usuario prefirió probarlo él).
+
+**Más cambios pedidos por el usuario (15/10/2026):**
+- **CBU y alias escritos a mano** (ej. "Bco Macro CBU 2859… / alias:la colmena.mp"):
+  `separarCbuAlias` (`extraer.ts`) toma como CBU/CVU una tira de 22 números (puede tener
+  espacios, puntos o guiones en el medio; si hay una tira de 18+ que no llega a 22 se toma igual
+  y la regla la deja vacía con aviso del motivo) y como alias lo que sigue a "alias" hasta la
+  próxima barra / punto y coma / coma / "CBU" (sin espacios: "la colmena.mp" → "lacolmena.mp",
+  con aviso para revisarlo) o, sin la palabra, una palabra con puntos que parezca alias (no
+  CUIT, teléfonos, abreviaturas ni emails). El resto de la celda (banco, "CBU", "alias:",
+  barras, dos puntos) se ignora. Se aplica a las columnas "CBU ó ALIAS", "CBU" y "Alias". Con la
+  planilla con volumen, los 17 proveedores con datos bancarios quedan bien.
+- **Comparación con la planilla**: ahora compara la planilla con lo que de ella quedó en la app
+  (lo reconocido como ya cargado + lo nuevo), sin mezclar lo cargado aparte en la app
+  (`planificar` guarda qué compras/órdenes/ventas de la app se reconocieron). Cada fila tiene un
+  estado y una explicación (`FilaCotejo.estado` / `detalle`): Coincide (✓ verde), Ya está en la
+  app (= verde), Incluye datos de la app (= verde: el stock difiere por compras u órdenes
+  cargadas en la app; no hay que corregir nada), Faltan filas con error (⚠ ámbar, con cuántas;
+  para el stock solo cuentan las filas de esa materia prima) y No coincide (≠ ámbar). Si la app
+  tiene datos aparte, el detalle lo dice ("además tiene 7 ventas cargadas… en total: 450").
+  Las marcas pasaron a `importar/Marca.tsx` (las usan la pantalla y el historial).
+- **Historial de subidas** (tabla `SubidaPlanilla`, migración `20261015120000_historial_subidas`,
+  ya aplicada a `dev.db`): cada subida se anota al terminar de analizarla ("No se importó" si
+  después no se confirma), si no se pudo leer (con el motivo) y se actualiza al importar
+  (Importada / Ya estaba todo / Falló al guardar). Guarda fecha y hora, usuario, archivos y
+  tamaño, hojas, tablas reconocidas (sección ← hoja «título»), tablas que no se importan,
+  resumen por sección, filas con error (hasta 1000, descargables en .xlsx), avisos (hasta 300),
+  la comparación y la copia de seguridad. `_importar/historial.ts` arma y valida el detalle
+  (JSON); server actions `registrarSubida` / `listarSubidas` y `importarPlanilla` recibe
+  `subidaId` (`_datos/importar.ts`). En la pantalla (`importar/Historial.tsx`) se ve al subir y
+  al terminar: una fila por subida con fecha, archivo y marcas (estado, + agregados, = ya
+  estaban, ⚠ con error), que se abre con el detalle. La importación no lo toca.
+- 305 tests (CBU/alias, estados de la comparación, historial). Sin prueba en el navegador.
+- **Lo que ya estaba también se actualiza** (pedido del usuario: al subir la planilla base no se
+  cargaban CBU/alias de proveedores que ya existían, porque la fila se salteaba entera). Ahora
+  cada registro reconocido se compara dato por dato (`modificar` en `planificar.ts`):
+  proveedores (contacto, producto, CUIT, email, teléfono, CBU, alias), clientes (apellido y
+  nombre, IVA, CUIT, teléfono, email, domicilio, precios), productos (código de barras, precio),
+  compras (costo, lote, proveedor, comprobante, medio de pago, cáscara), órdenes (embotellado,
+  botellas, responsable; los insumos no) y ventas (vendedor, canal, condición, precio). Los
+  nombres no se cambian (identifican el registro). Textos sin distinguir mayúsculas, tildes ni
+  signos; CUIT, CBU y teléfono por los dígitos; email sin mayúsculas.
+  - Vacío en la app → **se completa solo**. Vacío en la planilla → no borra nada.
+  - La app ya tenía otro dato → **no se pisa: se pregunta cuál dejar** (bloque "Datos que
+    cambiaron en la planilla", arriba de errores y avisos: por cada dato "Dejar el de la app" /
+    "Usar el de la planilla", y botones para elegir todos de una). Hasta que se elija, queda el de
+    la app y el botón de importar está bloqueado. `OpcionesPlan.elecciones`
+    (`claveEleccion(clave, campo)`), `conflictosSinElegir`, `hayCambios`.
+  - Si la regla rechaza el dato nuevo (ej. teléfono inválido), ese no se cambia y queda un aviso.
+  - Antes, una orden embotellada en la planilla y macerando en la app solo se avisaba; ahora se
+    completa el embotellado.
+  - Resumen con columnas "Sin cambios" / "Se actualizan" (marca ✎ azul), botón "Agregar N
+    registros nuevos y actualizar M", resultado final y servidor (`importarPlanilla` recibe
+    `elecciones`; "sin novedades" solo si no hay nuevos ni cambios). Historial: qué datos
+    cambiaron en cada registro, cuáles se completaron, cuáles se cambiaron y cuáles se dejaron.
+  - Probado contra la base actual (copia, con los datos de demo) y la planilla con volumen: 36
+    registros con datos distintos, 35 datos que se completan solos (CBU, emails, teléfonos) y 121
+    para elegir (los datos de demo no coinciden con la planilla de prueba).
+- 307 tests.
+
+**Prueba completa de la importación** (17/10/2026, build de producción en el puerto 3005 sobre una
+base de prueba descartable en el scratchpad, con una cuenta de prueba creada ahí; `dev.db` no se
+tocó). Archivos subidos (generados con SheetJS, datos ficticios): un archivo que no es Excel,
+libro vacío, una planilla de otra cosa, la plantilla limpia sin filas, 3 CSV juntos (Windows-1252,
+";", miles y dd/mm/aaaa), una planilla parcial, la misma planilla con datos cambiados, la planilla
+Alquimia completa (11 MB) y re-subidas de cada una. Resultado: todo se detecta bien; la completa
+se analiza en ~3 s y se importa en 1 s (720 registros); re-subir no duplica; los conflictos se
+eligen y se respetan; el CBU/alias escrito a mano se completa solo en un proveedor que ya estaba;
+el historial anota cada caso; los avisos al salir y al cerrar sesión funcionan.
+Arreglado a partir de la prueba:
+- Mensajes de lectura: "no es una planilla de Excel" (se mira la firma del archivo: ZIP u OLE),
+  "la planilla está vacía", "se reconocieron las columnas de … pero no hay ninguna fila con
+  datos" (`motivoSinTablas` en `detectar.ts`).
+- La comparación muestra solo las secciones que trae la planilla (antes salía "Compras 0 / 0 – Ya
+  está en la app" aunque no hubiera compras).
+- Producto que no existe: el error dice cuál es ("«Licor de Mandarina 500 cc» no está entre los
+  productos de la app…") y en el desplegable aparece marcado "(no está en la app)" y no elegible.
+- Una subida sin nada nuevo ni datos distintos queda en el historial como "Ya estaba todo" (antes
+  "No se importó", que parecía un problema).
+- Textos: el encabezado ya no dice "lo que ya está se saltea"; sin "0 registros" / "se agregan
+  0 nuevos"; "1 aviso", "1 fila con error", "se actualizaron N registros", "Hay 1 dato en el
+  que…"; aviso de elección pendiente en ámbar (no rojo); si no hay nada nuevo pero hay filas con
+  error, lo dice. Tabla del resultado final con encabezados (Agregados / Actualizados / Sin
+  cambios / Con error).
+- 311 tests.
+
+**Pregunta abierta para el usuario:** las órdenes que en la planilla siguen macerando no tienen
+cantidad de botellas y la regla de la app la exige (también al cargarlas a mano), así que cada vez
+que se sube la planilla vuelven a salir como filas con error. ¿Se permite una orden sin cantidad
+mientras no esté embotellada?
+
 
 ### Fase 6 — Inyección de datos falsos + testeo general ☐
 - Script que genera datos falsos pero coherentes y realistas (varios meses de operación:
@@ -363,6 +627,9 @@ Lista conocida (ampliar durante las fases anteriores):
 - Guardas de borrado (detectadas en la Fase 4): `deleteLote` borra un lote aunque tenga ventas
   o venga de una orden, y `deleteOrden` deja huérfano el lote si ya tiene movimientos.
 - Las páginas de sección no tienen `<title>` propio (muestran solo "Licores Alquimia").
+- Detectados en la Fase 5: el FIFO de ventas no mira fechas (una venta puede descontar de un
+  lote embotellado después) → corregir acá (decisión del usuario); no hay pantalla para agregar
+  o editar vendedores (pendiente de respuesta).
 - Detalles visuales detectados en el recorrido general (alineaciones, textos, vacíos).
 
 ### Fase 9 — Features nuevas ☐
@@ -378,6 +645,14 @@ Para Windows y Mac (Intel y Apple Silicon).
   (evaluar empaquetado tipo Electron solo si hace falta).
 - Backups automáticos del archivo SQLite (diario, con rotación) y restauración simple, con
   rutas que funcionen en ambos sistemas (sin barras ni carpetas propias de Windows).
+  **Propuesta (17/10/2026; el usuario decidió dejarla para esta fase, no hacerla antes):** copia automática con
+  `VACUUM INTO` al entrar a la app (una por día, o al importar), con rotación (últimas 30 diarias +
+  1 por mes), guardada en una carpeta que se elige una vez y que conviene que sea la de OneDrive /
+  Google Drive / iCloud Drive de la PC, así el programa de sincronización la sube sola a la nube.
+  Pantalla "Copias de seguridad": última copia (fecha y tamaño), "Hacer una copia ahora",
+  "Guardar una copia en…" (pendrive), "Restaurar" (con confirmación y copia previa de lo actual) y
+  verificación de cada copia (`PRAGMA integrity_check`). Aviso en el Panel si la última copia tiene
+  más de 3 días o si la carpeta no está disponible.
 - Instalación guiada (Node incluido o instalador) para cada sistema, `.env` generado en el
   primer arranque. Las dependencias se instalan en la máquina destino (`npm ci`): la
   librería nativa de SQLite es distinta en Windows y en Mac, no se copia `node_modules`.

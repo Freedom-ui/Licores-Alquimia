@@ -6,7 +6,7 @@ import { clientesDemo } from "../clientes/data";
 import { proveedoresDemo } from "../proveedores/data";
 import { materiaPrimaDemo } from "../materia-prima/data";
 import { productosDemo } from "../productos/data";
-import { operacionesDemo } from "../operaciones/data";
+import { operacionesDemo, vendedoresDemo } from "../operaciones/data";
 import { ordenesProduccionDemo } from "../ordenes-produccion/data";
 import { productosTerminadosDemo } from "../productos-terminados/data";
 import { inventarioMateriaPrimaDemo } from "../inventario-materia-prima/data";
@@ -28,6 +28,7 @@ export function estadoDemo(): Estado {
     proveedores: proveedoresDemo,
     materiaPrima: materiaPrimaDemo,
     productos: productosDemo,
+    vendedores: vendedoresDemo,
     operaciones: operacionesDemo,
     ordenesProduccion: ordenesProduccionDemo,
     productosTerminados: lotes,

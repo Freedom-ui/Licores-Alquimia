@@ -97,6 +97,9 @@ type Store = Estado & {
   /** Alta (id null) o edición. */
   saveCompra: (id: number | null, v: CompraInput) => Promise<void>;
   deleteCompra: (id: number) => Promise<void>;
+
+  /** Reemplaza todo el estado por uno que ya guardó el servidor (después de importar la planilla). */
+  reemplazarEstado: (estado: Estado) => void;
 };
 
 const StoreContext = createContext<Store | null>(null);
@@ -141,6 +144,7 @@ export function StoreProvider({ inicial, children }: { inicial: Estado; children
     deleteInventarioMateriaPrima: (rowId) => run({ tipo: "deleteInventarioMateriaPrima", rowId }),
     saveCompra: (id, v) => run({ tipo: "saveCompra", id, v }),
     deleteCompra: (id) => run({ tipo: "deleteCompra", id }),
+    reemplazarEstado: setEstado,
   };
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

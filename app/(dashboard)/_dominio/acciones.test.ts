@@ -299,6 +299,24 @@ describe("compras", () => {
     rechaza({ tipo: "saveCompra", id: compra.id, v: { ...compra, cantidad: 0.01 } }, "cantidad");
   });
 
+  it("un cítrico con cáscara suma la cáscara al inventario (con el costo total de la compra) y es lo que pueden usar las órdenes", () => {
+    const limon = base.materiaPrima.find((m) => m.nombre === "Limón")!;
+    const v = { ...ok, materiaPrimaId: limon.id, cantidad: "30", costoUnitario: "850", cantidadCascara: "7,5", comprobanteNumero: "" };
+    const e = aplicarCualquiera(base, { tipo: "saveCompra", id: null, v });
+    const compra = e.compras.at(-1)!;
+    const fila = e.inventarioMateriaPrima.find((r) => r.materiaPrimaId === limon.id)!;
+    const entrada = fila.movimientos.find((m) => m.origenCompraId === compra.id)!;
+    expect(entrada).toMatchObject({ cantidad: 7.5, puEntrada: 3400, cantidadSecundaria: 7.5 });
+    expect(saldoInventario(fila) - saldoInventario(base.inventarioMateriaPrima.find((r) => r.materiaPrimaId === limon.id)!)).toBeCloseTo(7.5);
+
+    // Una orden no puede usar de esa compra más cáscara que la que trajo.
+    const orden = { ...base.ordenesProduccion[0], fechaEmbotellado: null };
+    const insumos = [{ materiaPrima: "Limón", cantidad: 8, costoUnitario: 3400, compraId: compra.id }];
+    expect(() => aplicarCualquiera(e, { tipo: "saveOrden", id: null, v: { ...orden, fechaMaceracion: "2026-09-02", insumos } })).toThrow(ErrorNegocio);
+    const conCascara = aplicarCualquiera(e, { tipo: "saveOrden", id: null, v: { ...orden, fechaMaceracion: "2026-09-02", insumos: [{ ...insumos[0], cantidad: 7.5 }] } });
+    expect(usadoDeCompra(conCascara.ordenesProduccion, compra.id)).toBe(7.5);
+  });
+
   it("comprobante duplicado", () => {
     const c = base.compras.find((x) => x.comprobanteNumero)!;
     rechaza({ tipo: "saveCompra", id: null, v: { ...c } }, "comprobanteNumero");

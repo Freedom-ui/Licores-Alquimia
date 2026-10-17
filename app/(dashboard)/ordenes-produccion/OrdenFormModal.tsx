@@ -11,7 +11,7 @@ import { useErroresFormulario } from "@/app/components/data-table/useErroresForm
 import type { OrdenProduccionRow } from "./data";
 import { productoLabel } from "../productos/data";
 import type { CompraRow } from "../trazabilidad/data";
-import { formatCantidad } from "../trazabilidad/data";
+import { formatCantidad, stockDeCompra } from "../trazabilidad/data";
 import { usadoDeCompra, useStore, type OrdenInput } from "../store";
 import { validarOrden } from "../_dominio/reglas";
 
@@ -98,7 +98,7 @@ export default function OrdenFormModal({
       (sum, r, j) => (j !== exceptIndex && r.compraId === String(compra.id) ? sum + num(r.cantidad) : sum),
       0
     );
-    return compra.cantidad - usadoDeCompra(ordenes, compra.id, ordenId) - enEstaOrden;
+    return stockDeCompra(compra) - usadoDeCompra(ordenes, compra.id, ordenId) - enEstaOrden;
   }
 
   /** Compras de la materia prima de la línea, anteriores a la maceración, de la más vieja a la más nueva. */

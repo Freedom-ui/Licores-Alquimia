@@ -51,7 +51,7 @@ const ordenesSinCosto: OrdenSinCosto[] = [
     cantidadProducida: 53,
     insumos: [
       { materiaPrima: "Alcohol", cantidad: 25, costoUnitario: 2785.55, compraId: 1 },
-      { materiaPrima: "Limón", cantidad: 18, costoUnitario: 850, compraId: 5 },
+      { materiaPrima: "Limón", cantidad: 4.32, costoUnitario: 3541.67, compraId: 5 },
       { materiaPrima: "Azúcar", cantidad: 12, costoUnitario: 980, compraId: 2 },
       { materiaPrima: "Env. 500 ml Transparente", cantidad: 53, costoUnitario: 145, compraId: 4 },
       { materiaPrima: "Tapa gris", cantidad: 53, costoUnitario: 120 },
@@ -70,7 +70,7 @@ const ordenesSinCosto: OrdenSinCosto[] = [
     cantidadProducida: 30,
     insumos: [
       { materiaPrima: "Alcohol", cantidad: 14, costoUnitario: 2785.55, compraId: 1 },
-      { materiaPrima: "Limón", cantidad: 10, costoUnitario: 850, compraId: 5 },
+      { materiaPrima: "Limón", cantidad: 2.4, costoUnitario: 3541.67, compraId: 5 },
       { materiaPrima: "Naranja", cantidad: 6, costoUnitario: 700 },
       { materiaPrima: "Pomelo", cantidad: 6, costoUnitario: 750 },
       { materiaPrima: "Hibiscus", cantidad: 2, costoUnitario: 1600, compraId: 6 },
@@ -108,7 +108,7 @@ const ordenesSinCosto: OrdenSinCosto[] = [
       // El alcohol sale de dos compras del mismo lote de proveedor: una línea por compra.
       { materiaPrima: "Alcohol", cantidad: 10.8, costoUnitario: 2785.55, compraId: 8 },
       { materiaPrima: "Alcohol", cantidad: 4.2, costoUnitario: 2785.55, compraId: 11 },
-      { materiaPrima: "Limón", cantidad: 11, costoUnitario: 850, compraId: 10 },
+      { materiaPrima: "Limón", cantidad: 2.64, costoUnitario: 3541.67, compraId: 10 },
       { materiaPrima: "Env. 750 ml Transp. c/tapón", cantidad: 24, costoUnitario: 1450, compraId: 9 },
       { materiaPrima: "Etiq. LIM Prem. x 750 cc", cantidad: 24, costoUnitario: 260 },
       { materiaPrima: "Precintos env. 750 ml", cantidad: 24, costoUnitario: 60 },
@@ -126,7 +126,7 @@ const ordenesSinCosto: OrdenSinCosto[] = [
     cantidadProducida: 55,
     insumos: [
       { materiaPrima: "Alcohol", cantidad: 25, costoUnitario: 2950, compraId: 12 },
-      { materiaPrima: "Limón", cantidad: 18, costoUnitario: 900, compraId: 13 },
+      { materiaPrima: "Limón", cantidad: 4.32, costoUnitario: 3750, compraId: 13 },
       { materiaPrima: "Azúcar", cantidad: 12, costoUnitario: 980, compraId: 7 },
     ],
   },

@@ -8,10 +8,14 @@ import NavTree from "./nav-tree";
 import Icon from "./icons";
 import { irAlLogin } from "./ControlInactividad";
 import { cerrarSesion } from "../(acceso)/acciones";
+import ModalShell from "@/app/components/data-table/ModalShell";
+import { useImportacionEnCurso } from "./importar/enCurso";
 
 export default function Sidebar({ usuario }: { usuario: string }) {
   const pathname = usePathname();
   const [saliendo, setSaliendo] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
+  const importando = useImportacionEnCurso();
 
   async function handleLogout() {
     setSaliendo(true);
@@ -75,10 +79,28 @@ export default function Sidebar({ usuario }: { usuario: string }) {
             {usuario}
           </span>
         </div>
-        <button className="logout-btn" onClick={handleLogout} disabled={saliendo}>
+        <button className="logout-btn" onClick={() => setConfirmando(true)} disabled={saliendo}>
           {saliendo ? "Cerrando…" : "Cerrar sesión"}
         </button>
       </div>
+
+      <ModalShell open={confirmando} title="¿Cerrar sesión?" width={440} onClose={() => !saliendo && setConfirmando(false)}>
+        <div className="cf-body">
+          <p className="cf-message">
+            {importando
+              ? "Tenés una planilla en revisión. Si cerrás la sesión, la importación se cancela y se pierde lo que hiciste (el archivo, las correcciones y las unidades elegidas). No se guardó nada en la app."
+              : "Vas a tener que volver a ingresar con tu usuario y contraseña."}
+          </p>
+          <div className="rf-actions-row">
+            <button type="button" className="rf-cancel-btn" onClick={() => setConfirmando(false)} disabled={saliendo}>
+              Cancelar
+            </button>
+            <button type="button" className="cf-danger-btn" onClick={handleLogout} disabled={saliendo}>
+              {saliendo ? "Cerrando…" : importando ? "Cerrar sesión y cancelar" : "Cerrar sesión"}
+            </button>
+          </div>
+        </div>
+      </ModalShell>
     </aside>
   );
 }

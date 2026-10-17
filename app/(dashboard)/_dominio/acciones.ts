@@ -15,7 +15,7 @@ import type { ClienteRow } from "../clientes/data";
 import type { ProveedorRow } from "../proveedores/data";
 import type { MateriaPrimaRow } from "../materia-prima/data";
 import { productoLabel, type ProductoRow } from "../productos/data";
-import type { OperacionRow } from "../operaciones/data";
+import type { OperacionRow, VendedorRow } from "../operaciones/data";
 import { calcularCostoTotal, type OrdenInsumo, type OrdenProduccionRow } from "../ordenes-produccion/data";
 import type { LoteTerminado } from "../productos-terminados/data";
 import type { InventarioMateriaPrimaRow } from "../inventario-materia-prima/data";
@@ -24,6 +24,7 @@ import type { KardexMovimiento } from "@/app/components/data-table/kardex";
 import {
   leerId,
   validarAltaInventario,
+  validarAltaLote,
   validarCliente,
   validarCompra,
   validarEncabezadoInventario,
@@ -35,6 +36,7 @@ import {
   validarOrden,
   validarProducto,
   validarProveedor,
+  validarVendedor,
   type Resultado,
 } from "./reglas";
 import {
@@ -53,6 +55,7 @@ export type Estado = {
   proveedores: ProveedorRow[];
   materiaPrima: MateriaPrimaRow[];
   productos: ProductoRow[];
+  vendedores: VendedorRow[];
   operaciones: OperacionRow[];
   ordenesProduccion: OrdenProduccionRow[];
   productosTerminados: LoteTerminado[];
@@ -65,6 +68,7 @@ export const ESTADO_VACIO: Estado = {
   proveedores: [],
   materiaPrima: [],
   productos: [],
+  vendedores: [],
   operaciones: [],
   ordenesProduccion: [],
   productosTerminados: [],
@@ -81,6 +85,15 @@ export type OrdenInput = {
   responsable: string;
   cantidadProducida: number;
   insumos: OrdenInsumo[];
+};
+
+/** Lote con stock previo al sistema (no viene de una orden): lo usa la importación de la planilla. */
+export type NuevoLoteInput = {
+  productoId: number;
+  lote: number;
+  existenciaInicial: number;
+  costoUnitario: number;
+  fechaVencimiento: string | null;
 };
 
 export type LoteHeaderInput = {
@@ -115,11 +128,13 @@ export type Accion =
   | { tipo: "addProducto"; v: Valores }
   | { tipo: "updateProducto"; id: number; v: Valores }
   | { tipo: "deleteProducto"; id: number }
+  | { tipo: "addVendedor"; v: Valores }
   | { tipo: "addOperacion"; v: OperacionInput }
   | { tipo: "updateOperacion"; id: number; v: OperacionInput }
   | { tipo: "deleteOperacion"; id: number }
   | { tipo: "saveOrden"; id: number | null; v: OrdenInput }
   | { tipo: "deleteOrden"; id: number }
+  | { tipo: "addLote"; v: Valores }
   | { tipo: "addMovimiento"; loteId: number; movimiento: Movimiento }
   | { tipo: "updateLote"; loteId: number; v: LoteHeaderInput }
   | { tipo: "deleteLote"; loteId: number }
@@ -274,7 +289,28 @@ export function aplicar(e: Estado, a: Accion): Estado {
       return { ...e, productos: e.productos.filter((r) => r.id !== id) };
     }
 
-    // ── Productos terminados: movimientos manuales + edición/baja de lote ──
+    case "addVendedor": {
+      const v = exigir(validarVendedor(a.v, e, null));
+      return { ...e, vendedores: [...e.vendedores, { id: nextId(e.vendedores), ...v }] };
+    }
+
+    // ── Productos terminados: lotes previos al sistema, movimientos manuales + edición/baja de lote ──
+    case "addLote": {
+      const v = exigir(validarAltaLote(a.v, e));
+      const producto = e.productos.find((p) => p.id === v.productoId)!;
+      const lote: LoteTerminado = {
+        id: nextId(e.productosTerminados),
+        lote: v.lote,
+        productoId: v.productoId,
+        producto: producto.nombre,
+        formato: producto.formato,
+        existenciaInicial: v.existenciaInicial,
+        costoUnitario: v.costoUnitario,
+        fechaVencimiento: v.fechaVencimiento,
+        movimientos: [],
+      };
+      return { ...e, productosTerminados: [...e.productosTerminados, lote] };
+    }
     case "addMovimiento": {
       const lote = buscar(e.productosTerminados, a.loteId);
       const movimiento = exigir(validarMovimientoLote(a.movimiento, lote, e));

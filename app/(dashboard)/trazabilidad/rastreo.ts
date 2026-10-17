@@ -16,7 +16,7 @@ import type { MateriaPrimaRow } from "../materia-prima/data";
 import type { OrdenProduccionRow } from "../ordenes-produccion/data";
 import type { LoteTerminado } from "../productos-terminados/data";
 import type { OperacionRow } from "../operaciones/data";
-import type { CompraRow } from "./data";
+import { stockDeCompra, type CompraRow } from "./data";
 
 export type TrazaContexto = {
   compras: CompraRow[];
@@ -116,7 +116,7 @@ export function rastrearLoteProveedor(compra: CompraRow, ctx: TrazaContexto): Ra
   }
   ordenes.sort((a, b) => (a.orden.fechaMaceracion < b.orden.fechaMaceracion ? -1 : 1));
 
-  const totalComprado = round2(compras.reduce((s, c) => s + c.cantidad, 0));
+  const totalComprado = round2(compras.reduce((s, c) => s + stockDeCompra(c), 0));
   const totalUsado = round2(ordenes.reduce((s, o) => s + o.cantidadUsada, 0));
 
   return {

@@ -222,6 +222,7 @@ export default function CompraFormModal({
               <CampoNumero
                 {...campo("cantidadCascara")}
                 placeholder="Solo cítricos"
+                title="Si la cargás, el inventario suma los kilos de cáscara (no los de fruta) y es lo que pueden usar las órdenes."
                 valor={values.cantidadCascara}
                 onCambio={(v) => update("cantidadCascara", v)}
               />

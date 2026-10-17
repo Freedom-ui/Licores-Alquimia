@@ -6,7 +6,7 @@ import type { OrdenProduccionRow } from "../ordenes-produccion/data";
 import type { LoteTerminado } from "../productos-terminados/data";
 import type { InventarioMateriaPrimaRow } from "../inventario-materia-prima/data";
 import type { MateriaPrimaRow } from "../materia-prima/data";
-import type { CompraRow } from "../trazabilidad/data";
+import { costoStockDeCompra, stockDeCompra, type CompraRow } from "../trazabilidad/data";
 import type { KardexMovimiento } from "@/app/components/data-table/kardex";
 
 export function nextId<T extends { id: number }>(rows: T[]): number {
@@ -35,7 +35,8 @@ export function usadoDeCompra(ordenes: OrdenProduccionRow[], compraId: number, e
 }
 
 // Libro de compras → Inventario de materia prima: cada compra es un ingreso.
-// Si la materia prima todavía no estaba en el inventario, se agrega sola.
+// Si la materia prima todavía no estaba en el inventario, se agrega sola. Un
+// cítrico con kilos de cáscara ingresa la cáscara (ver stockDeCompra).
 export function quitarEntradaDeCompra(rows: InventarioMateriaPrimaRow[], compraId: number): InventarioMateriaPrimaRow[] {
   return rows.map((r) =>
     r.movimientos.some((m) => m.origenCompraId === compraId)
@@ -49,8 +50,8 @@ export function syncEntradaParaCompra(rows: InventarioMateriaPrimaRow[], compra:
   const movimiento: Omit<KardexMovimiento, "id"> = {
     fecha: compra.fecha,
     tipo: "entrada",
-    cantidad: compra.cantidad,
-    puEntrada: compra.costoUnitario,
+    cantidad: stockDeCompra(compra),
+    puEntrada: costoStockDeCompra(compra),
     cantidadSecundaria: compra.cantidadCascara || undefined,
     origenCompraId: compra.id,
   };
@@ -62,7 +63,7 @@ export function syncEntradaParaCompra(rows: InventarioMateriaPrimaRow[], compra:
         id: nextId(limpias),
         materiaPrimaId: compra.materiaPrimaId,
         existenciaInicial: 0,
-        costoUnitario: compra.costoUnitario,
+        costoUnitario: costoStockDeCompra(compra),
         movimientos: [{ id: 1, ...movimiento }],
       },
     ];
@@ -181,9 +182,11 @@ export function syncSalidaParaOperacion(
   operacion: { id: number; productoId: number; fecha: string; cantidad: number }
 ): LoteTerminado[] {
   const limpios = quitarSalidaDeOperacion(lotes, operacion.id);
+  // Primero los lotes con stock previo al sistema (no vienen de una orden: son
+  // los más viejos), después por número de lote.
   const candidatos = limpios
     .filter((l) => l.productoId === operacion.productoId)
-    .sort((a, b) => a.lote - b.lote || a.id - b.id);
+    .sort((a, b) => Number(a.origenOrdenId !== undefined) - Number(b.origenOrdenId !== undefined) || a.lote - b.lote || a.id - b.id);
   if (candidatos.length === 0) return limpios;
 
   const asignado = new Map<number, number>();

@@ -52,6 +52,18 @@ export default function PanelView({ usuario }: { usuario: string }) {
         </div>
       </header>
 
+      {store.clientes.length + store.compras.length + store.operaciones.length === 0 && (
+        <section className="pp-importar">
+          <div>
+            <h2>¿Venís de la planilla de Excel?</h2>
+            <p>Cargá de una vez tus clientes, proveedores, productos, compras, órdenes y ventas: la app reconoce sola cada tabla.</p>
+          </div>
+          <Link href="/importar" className="rf-trigger-btn pp-accion">
+            Importar planilla
+          </Link>
+        </section>
+      )}
+
       <div className="es-grid">
         <section className="es-bloque es-bloque-kpis" style={{ gridColumn: "span 12" }}>
           <Kpis items={panel.kpis} onIr={irA} />

@@ -13,7 +13,7 @@ import type { ClienteRow } from "../clientes/data";
 import type { ProveedorRow } from "../proveedores/data";
 import type { MateriaPrimaRow, UnidadMedida } from "../materia-prima/data";
 import { productoLabel, type ProductoRow } from "../productos/data";
-import type { OperacionRow } from "../operaciones/data";
+import type { OperacionRow, VendedorRow } from "../operaciones/data";
 import type { OrdenProduccionRow } from "../ordenes-produccion/data";
 import type { LoteTerminado } from "../productos-terminados/data";
 import type { InventarioMateriaPrimaRow } from "../inventario-materia-prima/data";
@@ -63,11 +63,12 @@ function aMovimiento(m: FilaMovimiento): KardexMovimiento {
 const porId = { orderBy: { id: "asc" as const } };
 
 export async function cargarEstado(db: Db): Promise<Estado> {
-  const [clientes, proveedores, materiaPrima, productos, operaciones, ordenes, lotes, inventario, compras] = await Promise.all([
+  const [clientes, proveedores, materiaPrima, productos, vendedores, operaciones, ordenes, lotes, inventario, compras] = await Promise.all([
     db.cliente.findMany(porId),
     db.proveedor.findMany(porId),
     db.materiaPrima.findMany(porId),
     db.producto.findMany(porId),
+    db.vendedor.findMany(porId),
     db.operacion.findMany({ ...porId, include: { cliente: true, producto: true } }),
     db.ordenProduccion.findMany({ ...porId, include: { producto: true, insumos: { orderBy: { posicion: "asc" } } } }),
     db.loteTerminado.findMany({ ...porId, include: { productoRef: true, movimientos: porId } }),
@@ -107,6 +108,7 @@ export async function cargarEstado(db: Db): Promise<Estado> {
       codigoBarras: p.codigoBarras,
       precioUnitario: p.precioUnitario,
     })),
+    vendedores: vendedores.map((v): VendedorRow => ({ id: v.id, nombre: v.nombre })),
     operaciones: operaciones.map((o): OperacionRow => ({
       id: o.id,
       fecha: o.fecha,
@@ -205,6 +207,8 @@ const filaProveedor = (p: ProveedorRow) => ({
 });
 
 const filaMateriaPrima = (m: MateriaPrimaRow) => ({ id: m.id, nombre: txt(m.nombre), unidad: txt(m.unidad) });
+
+const filaVendedor = (v: VendedorRow) => ({ id: v.id, nombre: txt(v.nombre) });
 
 const filaProducto = (p: ProductoRow) => ({
   id: p.id,
@@ -315,11 +319,30 @@ function compararMovimientos<T extends { id: number; movimientos: KardexMovimien
     .filter((d) => d.nuevos.length || d.cambiados.length || d.borrados.length);
 }
 
+/**
+ * Borra todos los datos del negocio (no los usuarios ni las sesiones), en
+ * orden para respetar las FK. Lo usan el seed y la importación de la planilla
+ * antes de cargar un estado completo con guardarCambios(tx, ESTADO_VACIO, …).
+ */
+export async function borrarDatosNegocio(tx: Prisma.TransactionClient): Promise<void> {
+  await tx.operacion.deleteMany();
+  await tx.loteTerminado.deleteMany();
+  await tx.inventarioMateriaPrima.deleteMany();
+  await tx.ordenProduccion.deleteMany();
+  await tx.compra.deleteMany();
+  await tx.producto.deleteMany();
+  await tx.materiaPrima.deleteMany();
+  await tx.proveedor.deleteMany();
+  await tx.cliente.deleteMany();
+  await tx.vendedor.deleteMany();
+}
+
 export async function guardarCambios(tx: Prisma.TransactionClient, antes: Estado, despues: Estado): Promise<void> {
   const clientes = comparar(antes.clientes, despues.clientes, filaCliente);
   const proveedores = comparar(antes.proveedores, despues.proveedores, filaProveedor);
   const materias = comparar(antes.materiaPrima, despues.materiaPrima, filaMateriaPrima);
   const productos = comparar(antes.productos, despues.productos, filaProducto);
+  const vendedores = comparar(antes.vendedores, despues.vendedores, filaVendedor);
   const operaciones = comparar(antes.operaciones, despues.operaciones, filaOperacion);
   const compras = comparar(antes.compras, despues.compras, filaCompra);
   const ordenes = comparar(antes.ordenesProduccion, despues.ordenesProduccion, (o) => [filaOrden(o), filasInsumos(o)]);
@@ -342,6 +365,7 @@ export async function guardarCambios(tx: Prisma.TransactionClient, antes: Estado
   if (materias.borrados.length) await tx.materiaPrima.deleteMany(enIds(materias.borrados));
   if (proveedores.borrados.length) await tx.proveedor.deleteMany(enIds(proveedores.borrados));
   if (clientes.borrados.length) await tx.cliente.deleteMany(enIds(clientes.borrados));
+  if (vendedores.borrados.length) await tx.vendedor.deleteMany(enIds(vendedores.borrados));
 
   // 2. Altas y cambios: primero los catálogos, después lo que los referencia.
   for (const r of clientes.nuevos) await tx.cliente.create({ data: filaCliente(r) });
@@ -352,6 +376,8 @@ export async function guardarCambios(tx: Prisma.TransactionClient, antes: Estado
   for (const r of materias.cambiados) await tx.materiaPrima.update({ where: { id: r.id }, data: filaMateriaPrima(r) });
   for (const r of productos.nuevos) await tx.producto.create({ data: filaProducto(r) });
   for (const r of productos.cambiados) await tx.producto.update({ where: { id: r.id }, data: filaProducto(r) });
+  for (const r of vendedores.nuevos) await tx.vendedor.create({ data: filaVendedor(r) });
+  for (const r of vendedores.cambiados) await tx.vendedor.update({ where: { id: r.id }, data: filaVendedor(r) });
 
   for (const r of compras.nuevos) await tx.compra.create({ data: filaCompra(r) });
   for (const r of compras.cambiados) await tx.compra.update({ where: { id: r.id }, data: filaCompra(r) });

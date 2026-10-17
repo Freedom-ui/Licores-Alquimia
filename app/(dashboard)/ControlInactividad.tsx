@@ -33,7 +33,13 @@ function guardarCompartida(ms: number) {
 }
 
 /** Navegación completa (no del router): descarta todo lo que había en memoria. */
+let yendoAlLogin = false;
+
+/** La sesión se cerró y se va al login: los avisos de "¿salir de la página?" no tienen que frenarlo. */
+export const seVaAlLogin = () => yendoAlLogin;
+
 export function irAlLogin(motivo: "inactividad" | "salida" | "expirada") {
+  yendoAlLogin = true;
   window.location.replace(`/login?motivo=${motivo}`);
 }
 

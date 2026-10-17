@@ -13,7 +13,7 @@ import { CONDICIONES_IVA, type ClienteRow } from "../clientes/data";
 import type { ProveedorRow } from "../proveedores/data";
 import { UNIDADES_MEDIDA, type MateriaPrimaRow, type UnidadMedida } from "../materia-prima/data";
 import { productoLabel, type ProductoRow } from "../productos/data";
-import { CANALES, CONDICIONES, VENDEDORES } from "../operaciones/data";
+import { CANALES, CONDICIONES, type VendedorRow } from "../operaciones/data";
 import type { LoteTerminado } from "../productos-terminados/data";
 import type { InventarioMateriaPrimaRow } from "../inventario-materia-prima/data";
 import {
@@ -22,6 +22,7 @@ import {
   MEDIOS_PAGO,
   formatComprobante,
   normalizarNumeroComprobante,
+  stockDeCompra,
   unidadCorta,
   type CompraInput,
   type MedioPago,
@@ -64,6 +65,7 @@ import type {
   InventarioMateriaPrimaHeaderInput,
   LoteHeaderInput,
   NuevaMateriaPrimaInventarioInput,
+  NuevoLoteInput,
   OperacionInput,
   OrdenInput,
 } from "./acciones";
@@ -237,6 +239,20 @@ export function validarProducto(v: unknown, e: Estado, id: number | null): Resul
   return resultado(errores, () => ({ nombre, formato, codigoBarras, precioUnitario: precioUnitario as number }));
 }
 
+export function validarVendedor(v: unknown, e: Estado, id: number | null): Resultado<Omit<VendedorRow, "id">> {
+  const o = objeto(v);
+  const { errores, poner, tiene } = recolector();
+
+  const nombre = texto(o.nombre);
+  poner("nombre", validarTexto(nombre, { que: "el nombre del vendedor", requerido: true, max: LARGO_NOMBRE }));
+  if (nombre && !tiene("nombre")) {
+    const otro = e.vendedores.find((x) => x.id !== id && claveTexto(x.nombre) === claveTexto(nombre));
+    if (otro) poner("nombre", `Ya existe el vendedor "${otro.nombre}".`);
+  }
+
+  return resultado(errores, () => ({ nombre }));
+}
+
 // ── Operaciones (ventas) ────────────────────────────────────────────────────
 
 /** Botellas disponibles de un producto (suma de sus lotes). Al editar una venta, cuenta como disponible lo que ya tomó esa venta. */
@@ -264,7 +280,7 @@ export function validarOperacion(v: unknown, e: Estado): Resultado<OperacionInpu
   else if (!e.clientes.some((c) => c.id === clienteId)) poner("clienteId", "El cliente elegido ya no existe.");
 
   const vendedor = texto(o.vendedor);
-  poner("vendedor", validarOpcion(vendedor, VENDEDORES, "el vendedor"));
+  poner("vendedor", validarOpcion(vendedor, e.vendedores.map((x) => x.nombre), "el vendedor"));
 
   const productoId = leerId(o.productoId);
   if (productoId === null) poner("productoId", "Elegí el producto.");
@@ -376,7 +392,7 @@ export function validarOrden(v: unknown, e: Estado, id: number | null): Resultad
   // No se puede usar de una compra más de lo que queda (lo comprado menos lo que usan las demás órdenes).
   for (const [compraId, { uso, primeraLinea }] of usoPorCompra) {
     const compra = e.compras.find((c) => c.id === compraId)!;
-    const disponible = round2(compra.cantidad - usadoDeCompra(e.ordenesProduccion, compraId, id ?? undefined));
+    const disponible = round2(stockDeCompra(compra) - usadoDeCompra(e.ordenesProduccion, compraId, id ?? undefined));
     if (uso > disponible + EPSILON) {
       const unidad = unidadCorta(e.materiaPrima.find((m) => m.id === compra.materiaPrimaId)?.unidad ?? "");
       poner(
@@ -457,8 +473,11 @@ export function validarCompra(v: unknown, e: Estado, id: number | null): Resulta
     if (anterior && usado > 0 && materiaPrimaId !== null && anterior.materiaPrimaId !== materiaPrimaId) {
       poner("materiaPrimaId", `No se puede cambiar la materia prima: esta compra ya se usó en las órdenes N° ${lista}.`);
     }
-    if (cantidad !== null && !tiene("cantidad") && cantidad + EPSILON < usado) {
-      poner("cantidad", `Las órdenes N° ${lista} ya usan ${fmtNumero(usado)} de esta compra: la cantidad no puede ser menor.`);
+    // Con cáscara, las órdenes usan kilos de cáscara (ver stockDeCompra).
+    const enStock = cantidadCascara ?? cantidad;
+    const campoStock = cantidadCascara !== null ? "cantidadCascara" : "cantidad";
+    if (enStock !== null && !tiene(campoStock) && enStock + EPSILON < usado) {
+      poner(campoStock, `Las órdenes N° ${lista} ya usan ${fmtNumero(usado)} de esta compra: la ${campoStock === "cantidad" ? "cantidad" : "cáscara"} no puede ser menor.`);
     }
     if (queUsan.length > 0 && !tiene("fecha")) {
       const primera = queUsan.reduce((min, ord) => (ord.fechaMaceracion < min ? ord.fechaMaceracion : min), queUsan[0].fechaMaceracion);
@@ -577,6 +596,33 @@ function chequearSaldo(
       `Con las salidas ya registradas el saldo quedaría negativo: la existencia inicial tiene que ser de al menos ${fmtNumero(minimo)} ${unidad}.`
     );
   }
+}
+
+/** Lote con stock previo al sistema: producto del catálogo, N° de lote, existencia y costo. */
+export function validarAltaLote(v: unknown, e: Estado): Resultado<NuevoLoteInput> {
+  const o = objeto(v);
+  const { errores, poner } = recolector();
+
+  const productoId = leerId(o.productoId);
+  if (productoId === null) poner("productoId", "Elegí el producto.");
+  else if (!e.productos.some((p) => p.id === productoId)) poner("productoId", "El producto elegido ya no existe.");
+
+  const lote = parsearNumero(o.lote);
+  poner("lote", validarNumero(lote, { que: "el número de lote", ejemplo: "8", requerido: true, positivo: true, entero: true, max: CANTIDAD_MAX }));
+
+  const { existenciaInicial, costoUnitario } = validarExistenciaYCosto(o, poner, true, "120");
+  if (existenciaInicial === 0) poner("existenciaInicial", "Ingresá la existencia inicial mayor a 0, por ejemplo 120.");
+
+  const fechaVencimiento = texto(o.fechaVencimiento);
+  poner("fechaVencimiento", validarFecha(fechaVencimiento, { que: "la fecha de vencimiento", max: fechaMaximaVencimiento() }));
+
+  return resultado(errores, () => ({
+    productoId: productoId as number,
+    lote: lote as number,
+    existenciaInicial: existenciaInicial as number,
+    costoUnitario: costoUnitario as number,
+    fechaVencimiento: fechaVencimiento || null,
+  }));
 }
 
 export function validarEncabezadoLote(v: unknown, lote: LoteTerminado, e: Estado): Resultado<LoteHeaderInput> {

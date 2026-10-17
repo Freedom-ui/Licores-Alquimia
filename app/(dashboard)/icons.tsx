@@ -26,7 +26,14 @@ export type IconName =
   | "trend"
   | "flask"
   | "cart"
-  | "coin";
+  | "coin"
+  | "upload"
+  | "plus"
+  | "equal"
+  | "check"
+  | "notEqual"
+  | "alert"
+  | "edit";
 
 const paths: Record<IconName, React.ReactNode> = {
   home: (
@@ -141,6 +148,31 @@ const paths: Record<IconName, React.ReactNode> = {
       <circle cx="12" cy="12" r="8.2" />
       <path d="M14.6 9.2c-.5-.9-1.5-1.4-2.6-1.4-1.5 0-2.6.8-2.6 2s1.1 1.7 2.6 2.1 2.6.9 2.6 2.1-1.1 2-2.6 2c-1.2 0-2.2-.5-2.7-1.4" />
       <path d="M12 6.2v1.6M12 16.2v1.6" />
+    </>
+  ),
+  upload: (
+    <>
+      <path d="M12 15.5V4.5" />
+      <path d="M7.8 8.5 12 4.3l4.2 4.2" />
+      <path d="M4.5 14.5v4a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-4" />
+    </>
+  ),
+  // Marcas de estado (importación): nuevo, ya estaba, coincide, no coincide, error.
+  plus: <path d="M12 5v14M5 12h14" />,
+  equal: <path d="M5 9.5h14M5 14.5h14" />,
+  check: <path d="m4.5 12.5 4.5 4.5L19.5 7" />,
+  notEqual: <path d="M5 9.5h14M5 14.5h14M15.5 5l-7 14" />,
+  edit: (
+    <>
+      <path d="M14.5 5.5 18.5 9.5" />
+      <path d="M4.5 19.5 5.3 15.7 15.8 5.2a2 2 0 0 1 2.9 0l.1.1a2 2 0 0 1 0 2.9L8.3 18.7Z" />
+    </>
+  ),
+  alert: (
+    <>
+      <path d="M10.3 4.6 2.9 17.5a2 2 0 0 0 1.7 3h14.8a2 2 0 0 0 1.7-3L13.7 4.6a2 2 0 0 0-3.4 0Z" />
+      <path d="M12 9.5v4.2" />
+      <path d="M12 17.2h.01" />
     </>
   ),
 };

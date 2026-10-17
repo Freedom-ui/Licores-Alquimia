@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { Column, DataTableProps } from "./types";
 import { formatCellValue, searchableText } from "./format";
 import ConfirmDeleteDialog from "./ConfirmDeleteDialog";
@@ -247,14 +248,9 @@ export default function DataTable<T extends Record<string, unknown>>({
             </button>
           )}
           {!hideImport && (
-            <button
-              type="button"
-              className="dt-excel-btn"
-              disabled
-              title="Disponible próximamente"
-            >
+            <Link href="/importar" className="dt-excel-btn" title="Cargar los datos desde la planilla de Excel">
               Importar Excel
-            </button>
+            </Link>
           )}
           {actions}
         </div>
