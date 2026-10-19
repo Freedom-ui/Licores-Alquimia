@@ -176,7 +176,8 @@ model OrdenProduccion {
   /// null = todavía macerando.
   fechaEmbotellado  String?
   responsable       String
-  cantidadProducida Float
+  /// null = todavía sin estimar (solo mientras macera: al embotellar es obligatoria).
+  cantidadProducida Float?
   costoTotal        Float
 
   insumos OrdenInsumo[]

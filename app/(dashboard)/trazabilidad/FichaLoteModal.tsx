@@ -70,7 +70,7 @@ export default function FichaLoteModal({ ctx, onClose }: { ctx: TrazaContexto; o
                   </div>
                   <div className="tz-stat">
                     <span className="tz-stat-label">Unidades elaboradas</span>
-                    <span className="tz-stat-value">{ficha.orden.cantidadProducida}</span>
+                    <span className="tz-stat-value">{ficha.orden.cantidadProducida ?? "—"}</span>
                   </div>
                   <div className="tz-stat">
                     <span className="tz-stat-label">Responsable</span>

@@ -206,7 +206,7 @@ export type ResumenProduccion = {
 
 export function resumenProduccion(d: Datos, r: Rango): ResumenProduccion {
   const embotelladas = d.ordenes.filter((o) => enRango(o.fechaEmbotellado, r));
-  const unidades = embotelladas.reduce((s, o) => s + o.cantidadProducida, 0);
+  const unidades = embotelladas.reduce((s, o) => s + (o.cantidadProducida ?? 0), 0);
   const costoTotal = round2(embotelladas.reduce((s, o) => s + o.costoTotal, 0));
   const dias = embotelladas.map((o) => diasEntre(o.fechaMaceracion, o.fechaEmbotellado!));
   return {

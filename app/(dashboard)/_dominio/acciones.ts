@@ -83,7 +83,8 @@ export type OrdenInput = {
   fechaMaceracion: string;
   fechaEmbotellado: string | null;
   responsable: string;
-  cantidadProducida: number;
+  /** null = todavía sin estimar: solo mientras macera (al embotellar es obligatoria). */
+  cantidadProducida: number | null;
   insumos: OrdenInsumo[];
 };
 

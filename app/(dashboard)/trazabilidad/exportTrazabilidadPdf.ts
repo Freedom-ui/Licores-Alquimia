@@ -110,7 +110,7 @@ export async function exportFichaLotePdf(ficha: FichaLote) {
     ["Orden de producción", orden ? `N° ${orden.id}` : "Sin orden registrada (lote anterior al sistema)"],
     ["Fecha de elaboración (maceración)", orden ? fecha(orden.fechaMaceracion) : "—"],
     ["Fecha de embotellado", orden ? fecha(orden.fechaEmbotellado) : "—"],
-    ["Unidades elaboradas", orden ? String(orden.cantidadProducida) : String(lote.existenciaInicial)],
+    ["Unidades elaboradas", String(orden?.cantidadProducida ?? lote.existenciaInicial)],
     ["Responsable de la producción", orden?.responsable || "—"],
     ["Vencimiento", fecha(lote.fechaVencimiento)],
   ]);

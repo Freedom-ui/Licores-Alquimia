@@ -61,7 +61,7 @@ export function construirPanel(d: Datos): Panel {
   const porProducto = sumarPor(conStock, (l) => nombreCorto(l.producto), (l) => l.saldo);
 
   const macerando = enMaceracion(d).sort((a, b) => (a.fechaMaceracion < b.fechaMaceracion ? -1 : 1));
-  const estimadas = macerando.reduce((s, o) => s + o.cantidadProducida, 0);
+  const estimadas = macerando.reduce((s, o) => s + (o.cantidadProducida ?? 0), 0);
 
   const comprasMes = comprasEn(d, mes);
   const gasto = comprasMes.reduce((s, c) => s + c.total, 0);
@@ -102,7 +102,7 @@ export function construirPanel(d: Datos): Panel {
       etiqueta: "Órdenes macerando",
       nota: estimadas ? `≈ ${fmtNumero(estimadas)} botellas` : undefined,
       valor: fmtNumero(macerando.length),
-      composicion: macerando.map((o, i) => ({ nombre: `N° ${o.id} · ${nombreCorto(`${o.producto} — ${o.formato}`)}`, valor: o.cantidadProducida, color: PALETA[i % PALETA.length] })),
+      composicion: macerando.map((o, i) => ({ nombre: `N° ${o.id} · ${nombreCorto(`${o.producto} — ${o.formato}`)}`, valor: o.cantidadProducida ?? 0, color: PALETA[i % PALETA.length] })),
       destino: { href: "/ordenes-produccion" },
     },
     {
@@ -176,7 +176,7 @@ export function construirPanel(d: Datos): Panel {
       id: `o-${o.id}`,
       fecha: ddmm(o.fechaMaceracion),
       titulo: `N° ${o.id} · ${nombreCorto(`${o.producto} — ${o.formato}`)}`,
-      detalle: `${o.responsable} · ≈ ${fmtNumero(o.cantidadProducida)} botellas`,
+      detalle: o.cantidadProducida === null ? `${o.responsable} · sin cantidad estimada` : `${o.responsable} · ≈ ${fmtNumero(o.cantidadProducida)} botellas`,
       valor: `Día ${fmtNumero(diasEntre(o.fechaMaceracion, d.hoy) + 1)}`,
       estado: { texto: "Macerando", tono: "activo" as const },
       href: "/ordenes-produccion",
@@ -188,7 +188,7 @@ export function construirPanel(d: Datos): Panel {
         fecha: ddmm(o.fechaEmbotellado!),
         titulo: `N° ${o.id} · ${nombreCorto(`${o.producto} — ${o.formato}`)}`,
         detalle: `${o.responsable} · ${fmtNumero(diasEntre(o.fechaMaceracion, o.fechaEmbotellado!))} días de maceración`,
-        valor: `${fmtNumero(o.cantidadProducida)} u.`,
+        valor: `${fmtNumero(o.cantidadProducida ?? 0)} u.`,
         estado: { texto: "Embotellada", tono: "neutro" as const },
         href: lote ? `/productos-terminados?foco=${lote.id}` : "/ordenes-produccion",
       };

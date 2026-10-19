@@ -222,7 +222,7 @@ function seccionResumen(ctx: Contexto): Seccion {
           },
           { id: "k-unid", etiqueta: "Unidades vendidas", valor: fmtNumero(rv.unidades), delta: delta(rv.unidades, rvp?.unidades, "sube", ctx), tendencia: porBucket(v, (o) => o.fecha, (o) => o.cantidad, bs), destino: { seccion: "ventas", foco: "ventas-productos" } },
           { id: "k-ticket", etiqueta: "Ticket promedio", valor: fmtMoneda(rv.ticket), delta: delta(rv.ticket, rvp?.ticket, "sube", ctx), tendencia: serieCociente(factB, opsB), destino: { seccion: "ventas", foco: "ventas-clientes" } },
-          { id: "k-prod", etiqueta: "Unidades elaboradas", valor: fmtNumero(prod.unidades), delta: delta(prod.unidades, prodP?.unidades, "neutro", ctx), tendencia: porBucket(prod.embotelladas, (o) => o.fechaEmbotellado, (o) => o.cantidadProducida, bs), destino: { seccion: "produccion", foco: "prod-vs-ventas" } },
+          { id: "k-prod", etiqueta: "Unidades elaboradas", valor: fmtNumero(prod.unidades), delta: delta(prod.unidades, prodP?.unidades, "neutro", ctx), tendencia: porBucket(prod.embotelladas, (o) => o.fechaEmbotellado, (o) => o.cantidadProducida ?? 0, bs), destino: { seccion: "produccion", foco: "prod-vs-ventas" } },
           { id: "k-compras", etiqueta: "Gasto en compras", valor: fmtMoneda(gasto), delta: delta(gasto, gastoP, "baja", ctx), tendencia: porBucket(cs, (c) => c.fecha, (c) => c.total, bs), destino: { seccion: "compras", foco: "compras-evolucion" } },
           {
             id: "k-stock",
@@ -317,6 +317,9 @@ function seccionVentas(ctx: Contexto): Seccion {
   const clientes = rankingClientes(v);
   const sinVentas = v.length ? undefined : "Sin ventas en el período";
   const productos = sumarPor(v, (o) => nombreCorto(o.descripcion), (o) => o.subTotal);
+  const vendedores = sumarPor(v, (o) => o.vendedor || "Sin vendedor", (o) => o.subTotal);
+  // Productos, vendedores y condición van en la misma fila: mismo alto, el que pida la lista más larga.
+  const altoFila = Math.max(220, Math.max(productos.length, vendedores.length) * 38 + 40);
   const factB = porBucket(v, (o) => o.fecha, (o) => o.subTotal, bs);
   const unidB = porBucket(v, (o) => o.fecha, (o) => o.cantidad, bs);
   const opsB = porBucket(v, (o) => o.fecha, () => 1, bs);
@@ -369,7 +372,7 @@ function seccionVentas(ctx: Contexto): Seccion {
         titulo: "Facturación por producto",
         span: 5,
         tipo: "grafico",
-        alto: Math.max(220, productos.length * 38 + 40),
+        alto: altoFila,
         vacio: sinVentas,
         option: barras(productos.map((p) => p.nombre), productos.map((p) => p.valor), "moneda", { horizontal: true }),
       },
@@ -378,12 +381,10 @@ function seccionVentas(ctx: Contexto): Seccion {
         titulo: "Por vendedor",
         span: 4,
         tipo: "grafico",
-        alto: Math.max(220, productos.length * 38 + 40),
+        alto: altoFila,
         vacio: sinVentas,
-        option: (() => {
-          const p = sumarPor(v, (o) => o.vendedor || "Sin vendedor", (o) => o.subTotal);
-          return barras(p.map((x) => x.nombre), p.map((x) => x.valor), "moneda");
-        })(),
+        // Horizontal: con varios vendedores los nombres no entran debajo de cada barra.
+        option: barras(vendedores.map((x) => x.nombre), vendedores.map((x) => x.valor), "moneda", { horizontal: true }),
       },
       {
         id: "ventas-condicion",
@@ -391,7 +392,7 @@ function seccionVentas(ctx: Contexto): Seccion {
         subtitulo: "Contado vs. crédito",
         span: 3,
         tipo: "grafico",
-        alto: Math.max(220, productos.length * 38 + 40),
+        alto: altoFila,
         vacio: sinVentas,
         option: dona(sumarPor(v, (o) => o.condicion || "Sin dato", (o) => o.subTotal), "moneda", [COLOR.naranja, COLOR.gris, "#2F6F8F"]),
       },
@@ -451,11 +452,11 @@ function seccionProduccion(ctx: Contexto): Seccion {
   ).map((x) => {
     const unidades = p.embotelladas
       .filter((o) => nombreCorto(`${o.producto} — ${o.formato}`) === x.nombre)
-      .reduce((s, o) => s + o.cantidadProducida, 0);
+      .reduce((s, o) => s + (o.cantidadProducida ?? 0), 0);
     return { nombre: x.nombre, valor: unidades ? Math.round(x.valor / unidades) : 0 };
   });
   const ordenesTabla = [...p.embotelladas, ...macerando].sort((a, b) => (a.fechaMaceracion < b.fechaMaceracion ? 1 : -1));
-  const unidB = porBucket(p.embotelladas, (o) => o.fechaEmbotellado, (o) => o.cantidadProducida, bs);
+  const unidB = porBucket(p.embotelladas, (o) => o.fechaEmbotellado, (o) => o.cantidadProducida ?? 0, bs);
   const costoB = porBucket(p.embotelladas, (o) => o.fechaEmbotellado, (o) => o.costoTotal, bs);
   const totalInsumos = d.ordenes.reduce((s, o) => s + o.insumos.length, 0);
   const sinCompra = insumosSinCompra(d);
@@ -500,7 +501,7 @@ function seccionProduccion(ctx: Contexto): Seccion {
         option: barrasAgrupadas(
           etiquetas(bs),
           [
-            { nombre: "Producido", datos: porBucket(p.embotelladas, (o) => o.fechaEmbotellado, (o) => o.cantidadProducida, bs), color: COLOR.naranja },
+            { nombre: "Producido", datos: porBucket(p.embotelladas, (o) => o.fechaEmbotellado, (o) => o.cantidadProducida ?? 0, bs), color: COLOR.naranja },
             { nombre: "Vendido", datos: porBucket(v, (o) => o.fecha, (o) => o.cantidad, bs), color: COLOR.gris },
           ],
           "numero"
@@ -514,7 +515,7 @@ function seccionProduccion(ctx: Contexto): Seccion {
         tipo: "grafico",
         alto: 300,
         vacio: sinProd,
-        option: dona(sumarPor(p.embotelladas, (o) => nombreCorto(`${o.producto} — ${o.formato}`), (o) => o.cantidadProducida), "numero"),
+        option: dona(sumarPor(p.embotelladas, (o) => nombreCorto(`${o.producto} — ${o.formato}`), (o) => o.cantidadProducida ?? 0), "numero"),
       },
       {
         id: "prod-costo",
@@ -559,7 +560,7 @@ function seccionProduccion(ctx: Contexto): Seccion {
           o.fechaMaceracion.split("-").reverse().join("/"),
           o.fechaEmbotellado ? o.fechaEmbotellado.split("-").reverse().join("/") : "—",
           fmtNumero(diasEntre(o.fechaMaceracion, o.fechaEmbotellado ?? d.hoy)),
-          fmtNumero(o.cantidadProducida),
+          fmtNumero(o.cantidadProducida ?? 0),
           fmtMoneda(o.costoTotal),
           o.cantidadProducida ? fmtMoneda(o.costoTotal / o.cantidadProducida) : "—",
           o.responsable,

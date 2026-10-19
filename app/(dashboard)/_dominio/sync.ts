@@ -121,7 +121,9 @@ export function syncLoteParaOrden(lotes: LoteTerminado[], orden: OrdenProduccion
   if (!orden.fechaEmbotellado) {
     return lotes.filter((l) => !(l.origenOrdenId === orden.id && l.movimientos.length === 0));
   }
-  const costoUnitario = orden.cantidadProducida > 0 ? round2(orden.costoTotal / orden.cantidadProducida) : 0;
+  // Embotellada siempre tiene cantidad (la regla la exige); el ?? es solo para los tipos.
+  const cantidad = orden.cantidadProducida ?? 0;
+  const costoUnitario = cantidad > 0 ? round2(orden.costoTotal / cantidad) : 0;
   const existente = lotes.find((l) => l.origenOrdenId === orden.id);
   if (existente) {
     return lotes.map((l) =>
@@ -131,7 +133,7 @@ export function syncLoteParaOrden(lotes: LoteTerminado[], orden: OrdenProduccion
             productoId: orden.productoId,
             producto: orden.producto,
             formato: orden.formato,
-            existenciaInicial: orden.cantidadProducida,
+            existenciaInicial: cantidad,
             costoUnitario,
           }
         : l
@@ -146,7 +148,7 @@ export function syncLoteParaOrden(lotes: LoteTerminado[], orden: OrdenProduccion
       origenOrdenId: orden.id,
       producto: orden.producto,
       formato: orden.formato,
-      existenciaInicial: orden.cantidadProducida,
+      existenciaInicial: cantidad,
       costoUnitario,
       fechaVencimiento: null,
       movimientos: [],

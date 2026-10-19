@@ -252,7 +252,7 @@ const filaOrden = (o: OrdenProduccionRow) => ({
   fechaMaceracion: o.fechaMaceracion,
   fechaEmbotellado: txtOpt(o.fechaEmbotellado),
   responsable: txt(o.responsable),
-  cantidadProducida: num(o.cantidadProducida),
+  cantidadProducida: numOpt(o.cantidadProducida),
   costoTotal: num(o.costoTotal),
 });
 

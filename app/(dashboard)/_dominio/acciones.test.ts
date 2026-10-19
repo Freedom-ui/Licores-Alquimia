@@ -220,6 +220,15 @@ describe("órdenes de producción", () => {
     expect(e.ordenesProduccion.length).toBe(base.ordenesProduccion.length + 1);
   });
 
+  it("mientras macera puede no tener cantidad; al embotellar es obligatoria", () => {
+    for (const vacia of [null, "", undefined]) {
+      const e = aplicarCualquiera(base, { tipo: "saveOrden", id: null, v: { ...ok, cantidadProducida: vacia } });
+      expect(e.ordenesProduccion.at(-1)!.cantidadProducida).toBeNull();
+    }
+    rechaza({ tipo: "saveOrden", id: null, v: { ...ok, fechaEmbotellado: hoyLocal(), cantidadProducida: null } }, "cantidadProducida");
+    rechaza({ tipo: "saveOrden", id: null, v: { ...ok, cantidadProducida: 0 } }, "cantidadProducida");
+  });
+
   it.each([
     [{ productoId: 9999 }, "productoId"],
     [{ fechaMaceracion: "" }, "fechaMaceracion"],

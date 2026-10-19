@@ -183,7 +183,7 @@ export default function OrdenFormModal({
         fechaMaceracion: target.fechaMaceracion,
         fechaEmbotellado: target.fechaEmbotellado ?? "",
         responsable: target.responsable,
-        cantidadProducida: String(target.cantidadProducida),
+        cantidadProducida: target.cantidadProducida === null ? "" : String(target.cantidadProducida),
       });
       setInsumos(
         withTotales(
@@ -290,12 +290,14 @@ export default function OrdenFormModal({
 
           <div className="rf-field">
             <label htmlFor="orden-cantidadProducida">
-              Cantidad producida (botellas)<span className="rf-required">*</span>
+              Cantidad producida (botellas)
+              {/* Mientras macera puede no saberse: es obligatoria al embotellar. */}
+              {values.fechaEmbotellado && <span className="rf-required">*</span>}
             </label>
             <CampoNumero
               {...campo("cantidadProducida")}
               decimales={false}
-              placeholder="Ej: 120"
+              placeholder={values.fechaEmbotellado ? "Ej: 120" : "Opcional mientras macera"}
               valor={values.cantidadProducida}
               onCambio={(v) => update("cantidadProducida", v)}
             />

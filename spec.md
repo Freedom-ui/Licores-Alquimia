@@ -31,10 +31,9 @@ terminados (kardex por lote), Inventario de materia prima (kardex), Trazabilidad
 compras + rastreo de lotes + ficha PUPAA), Estadísticas (6 pantallas con ECharts + PDF) e
 Importar planilla.
 
-**Dónde estamos:** Fases 1 a 4 aprobadas. **Fase 5 (importación de Excel) terminada y probada,
-falta que el usuario la apruebe** (ver "Para retomar" en la Fase 5). Lo último commiteado es la
-Fase 4 (`e8a338c`); todo lo de la Fase 5 está sin commitear (el usuario commitea a mano). La
-siguiente es la Fase 6, solo cuando el usuario lo indique.
+**Dónde estamos:** Fases 1 a 5 aprobadas (la 5 commiteada en `47ac38a`). **Fase 6 (datos falsos +
+testeo general) terminada y probada, falta que el usuario la apruebe**; está sin commitear (el
+usuario commitea a mano). La siguiente es la Fase 7, solo cuando el usuario lo indique.
 
 Arquitectura clave:
 - Datos en SQLite con Prisma 7 (`dev.db` en la raíz, `lib/prisma.ts`, config en
@@ -51,11 +50,14 @@ Arquitectura clave:
 - Login (Fase 3): cuenta única con sesión guardada en la base, código de recuperación y
   cierre por inactividad (`lib/auth/`, `app/(acceso)/`, `proxy.ts`).
 - Validación (Fase 4): reglas compartidas pantalla/servidor en `_dominio/reglas.ts` sobre los
-  validadores de `app/components/data-table/validacion.ts`; tests con `npm test` (Vitest, 311).
+  validadores de `app/components/data-table/validacion.ts`; tests con `npm test` (Vitest, 326).
 - Importación (Fase 5): `app/(dashboard)/_importar/` (puro) + `app/(dashboard)/importar/`
   (pantalla) + `_datos/importar.ts` (servidor). Detalle en la Fase 5.
+- Datos de prueba (Fase 6): `_dominio/generador.ts` (`generarDatos`) + `_dominio/revisar.ts`
+  (`revisarEstado`); `npm run db:seed -- --reemplazar` carga ~2 años y 10 meses de operación
+  generada hasta hoy. Detalle en la Fase 6.
 - Migraciones: `npm run db:migrate` (o `npx prisma migrate deploy --config prisma7.config.ts`) y
-  `npx prisma generate --config prisma7.config.ts`. Última: `20261015120000_historial_subidas`
+  `npx prisma generate --config prisma7.config.ts`. Última: `20261017120000_cantidad_opcional`
   (ya aplicada a `dev.db`).
 
 Particularidades del entorno de pruebas:
@@ -306,18 +308,11 @@ movimiento de un lote ≥ su embotellado; Vitest para los tests.
   "YYYY-MM-DD"; una fecha incompleta o que no existe se marca como inválida (también en los
   campos opcionales).
 
-### Fase 5 — Migración de datos desde Excel ◐ (falta la aprobación del usuario)
+### Fase 5 — Migración de datos desde Excel ☑ (aprobada y commiteada, `47ac38a`)
 
-**Para retomar (17/10/2026):** todo lo pedido está hecho y probado en el navegador (ver "Prueba
-completa de la importación" más abajo). Falta:
-1. Que el usuario apruebe la fase (después commitea él; el texto del commit ya se le dio).
-2. Respuesta del usuario a la **pregunta abierta**: ¿se permite una orden de producción sin
-   cantidad de botellas mientras sigue macerando? (hoy la regla la exige y esas órdenes de la
-   planilla salen como error en cada subida). Si dice que sí: cambiar `validarOrden`
-   (`_dominio/reglas.ts`) para que la cantidad solo sea obligatoria con fecha de embotellado, y
-   revisar `syncLoteParaOrden`, el formulario de órdenes y los tests.
-3. **Copias de seguridad: postergadas por el usuario (17/10/2026)** → se hacen en la Fase 10
-   (ahí está la propuesta). No empezarlas antes.
+**Cierre (17/10/2026):** la pregunta abierta (orden sin cantidad mientras macera) se respondió que
+**sí** y se implementó en la Fase 6. **Copias de seguridad: postergadas por el usuario** → se hacen
+en la Fase 10 (ahí está la propuesta). No empezarlas antes.
 
 Resumen de cómo funciona hoy (el detalle de cada cambio está abajo, en orden cronológico):
 - Se sube un Excel (.xlsx/.xls) o uno o más .csv; se lee en el navegador. Se detecta cada tabla
@@ -569,13 +564,11 @@ Arreglado a partir de la prueba:
   cambios / Con error).
 - 311 tests.
 
-**Pregunta abierta para el usuario:** las órdenes que en la planilla siguen macerando no tienen
-cantidad de botellas y la regla de la app la exige (también al cargarlas a mano), así que cada vez
-que se sube la planilla vuelven a salir como filas con error. ¿Se permite una orden sin cantidad
-mientras no esté embotellada?
+**Pregunta (respondida el 17/10/2026: sí):** ¿se permite una orden sin cantidad mientras no esté
+embotellada? → hecho en la Fase 6 (las órdenes macerando de la planilla ya no salen con error).
 
 
-### Fase 6 — Inyección de datos falsos + testeo general ☐
+### Fase 6 — Inyección de datos falsos + testeo general ◐ (falta la aprobación del usuario)
 - Script que genera datos falsos pero coherentes y realistas (varios meses de operación:
   clientes y proveedores con nombres/CUIT/contactos verosímiles, compras con comprobantes,
   órdenes, lotes, ventas con estacionalidad), respetando la cadena de trazabilidad, FIFO
@@ -584,6 +577,68 @@ mientras no esté embotellada?
   generado tiene que pasar los validadores de la Fase 4.
 - Testeo de punta a punta de todas las secciones, PDFs, estadísticas con comparaciones,
   rendimiento con volumen.
+
+**Decisiones del usuario (17/10/2026):** orden sin cantidad mientras macera: **sí**; historial
+**desde 01/01/2024 hasta hoy** (permite comparar 2025 vs 2024); **catálogo real** (los 7 productos y
+las 27 materias primas no cambian, el resto se inventa); sin modo de volumen alto.
+
+**Cómo quedó** (para retomar):
+- **Cantidad opcional mientras macera**: `cantidadProducida: number | null` (migración
+  `20261017120000_cantidad_opcional`, columna nullable). `validarOrden` la exige solo con fecha de
+  embotellado ("Ingresá cuántas botellas salieron al embotellar…"). Formulario: asterisco y
+  placeholder según haya embotellado ("Opcional mientras macera"); tabla y ficha muestran "—";
+  Panel: "sin cantidad estimada". La importación ya no marca error en las órdenes macerando sin
+  cantidad, y si después la planilla trae embotellado + cantidad se completan solos.
+- **Generador** `app/(dashboard)/_dominio/generador.ts`: `generarDatos({ semilla = 1, desde =
+  "2024-01-01", hasta = hoy })`, puro y determinístico (PRNG mulberry32). Arma todo con
+  `aplicar()` día por día (mismas reglas y sincronizaciones). La producción arranca 45 días antes
+  de la primera venta. Contenido:
+  - 39 clientes (PARTICULAR, 32 comercios/distribuidoras de Mar del Plata y la Provincia con su
+    frecuencia, descuento, Premium/bidón y período activo, 6 consumidores finales; 2 con nombre y
+    domicilio largos para la Fase 7), 17 proveedores por rubro (CUIT válidos, la mitad con
+    CBU/alias), 8 vendedores. Precios con inflación (lista cada 3 meses = `updateProducto` y
+    `updateCliente`; la de hoy es la del catálogo).
+  - Recetas por botella por línea y envase; una orden cada vez que un producto queda con < 42
+    días de stock (máx. 4 macerando, 36–120 botellas); maceración 14–21 días; N° de lote y
+    embotellado crecen juntos (el FIFO actual sigue el orden de embotellado); vencimiento = 2 años.
+  - Compras: lo fresco (cítricos con cáscara, menta, jengibre) se compra para cada orden y lo que
+    sobra de más de 7 días se descarta como merma (los lunes); lo demás por lotes típicos con
+    punto de reposición. Misma factura por proveedor y día (mismo medio de pago), numeración
+    creciente, lote del proveedor en alcohol/azúcar/envases.
+  - Ventas: público (Poisson con estacionalidad mensual y por día de la semana) + mayoristas;
+    crecimiento 15 % anual; solo se vende lo embotellado a esa fecha (si no alcanza, se vende lo
+    que hay o se pierde la venta).
+  - Movimientos manuales: roturas/degustaciones en lotes, consumo mensual de cajas y bolsas,
+    recuento anual de tapas, mermas de frescos.
+  - Volumen (semilla 1, hasta el 17/10/2026): 534 compras, 111 órdenes, 109 lotes, 1655 ventas;
+    se genera en ~0,3 s.
+- `_dominio/revisar.ts` (`revisarEstado`): todos los registros contra sus reglas + costo de cada
+  orden, lote de cada orden embotellada, saldos ≥ 0, movimientos posteriores al embotellado y
+  cada venta descontada entera de los lotes. Lo usan los tests y el seed (no carga si hay
+  problemas).
+- Seed (`prisma/seed.ts`): carga los datos generados; `--semilla=N`, `--hasta=AAAA-MM-DD`,
+  `--demo` (el demo chico, que sigue siendo el fixture de los tests). Tarda ~2 s.
+- Tests: `generador.test.ts` (reglas, determinismo, volumen, lotes embotellados antes de cada
+  venta, N° de lote y embotellado crecientes, trazabilidad, frescos ≤ 7 días, misma factura =
+  mismo medio de pago, macerando sin cantidad, estacionalidad, inflación) + casos nuevos de la
+  orden sin cantidad. 326 tests.
+- `dev.db` re-sembrada con los datos generados (usuarios intactos).
+
+**Testeo general** (17/10/2026, build de producción en :3005 sobre una copia de la base):
+- Ida y vuelta a la base idéntica en las 10 tablas. `cargarEstado` ~45 ms (estado de ~1 MB);
+  una acción completa de `ejecutar` ~100 ms.
+- Panel, Operaciones (aviso "Guardar igual" al superar el stock), Órdenes (alta macerando sin
+  cantidad → embotellar sin cantidad pide el dato con foco → con cantidad crea el lote),
+  Productos terminados, Trazabilidad (ficha del lote de punta a punta), Estadísticas ("Año
+  anterior" vs. 2024: +14 % unidades, +63 % facturación).
+- PDF: Estadísticas completo (19 páginas), Operaciones (1655 filas, 103 páginas), ficha de lote.
+- Importar `planilla-claude.xlsx` sobre los datos generados: todo se reconoce (~3,7 s), 0 errores,
+  36 datos para elegir. El estado resultante muestra el problema conocido del FIFO sin fechas
+  (ventas de la planilla en lotes generados embotellados después) → Fase 8.
+- Arreglado: "Por vendedor" en Estadísticas (Ventas) se superponían las etiquetas con 8
+  vendedores → barras horizontales; los 3 gráficos de esa fila comparten el alto (antes usaba la
+  cantidad de productos).
+- Pendientes que van a la Fase 8 (ver ahí).
 
 ### Fase 7 — Pantallas horizontales y navegadores ☐
 Va después de tener datos falsos con volumen, nombres largos y montos grandes (lo que más
@@ -630,6 +685,15 @@ Lista conocida (ampliar durante las fases anteriores):
 - Detectados en la Fase 5: el FIFO de ventas no mira fechas (una venta puede descontar de un
   lote embotellado después) → corregir acá (decisión del usuario); no hay pantalla para agregar
   o editar vendedores (pendiente de respuesta).
+- Detectados en la Fase 6 (con datos de volumen):
+  - **Rendimiento**: Operaciones dibuja todas las ventas juntas (1655 filas ≈ 0,8 s al entrar,
+    crece con los años); Trazabilidad ≈ 0,26 s. Proponer paginación o "mostrar más" en
+    `DataTable` (filtros, orden y PDF sobre todas las filas).
+  - Alertas: "no alcanza para otra orden" sale siempre para cítricos y hierbas, que se compran
+    frescos para cada orden → ruido. Decidir con el usuario si se excluyen (o se marcan como
+    "se compra para cada orden").
+  - Los PDF de las tablas (`exportPdf.ts`) no tienen número de página (Estadísticas sí).
+  - El FIFO sin fechas se ve al importar una planilla sobre datos que ya tienen lotes (Fase 6).
 - Detalles visuales detectados en el recorrido general (alineaciones, textos, vacíos).
 
 ### Fase 9 — Features nuevas ☐

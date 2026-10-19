@@ -442,8 +442,8 @@ describe("plan de importación", () => {
   it("marca los errores con su fila y todos los campos que fallan", () => {
     const azucar = errores.filter((p) => p.origen?.fila === 8 && p.seccion === "compras");
     expect(azucar.map((p) => p.campo).sort()).toEqual(["costoUnitario"]);
-    const op2 = errores.filter((p) => p.seccion === "ordenes");
-    expect(op2.map((p) => p.campo)).toEqual(["cantidadProducida"]);
+    // La orden 2 sigue macerando y no tiene cantidad: se admite (es obligatoria al embotellar).
+    expect(errores.filter((p) => p.seccion === "ordenes")).toEqual([]);
     const frambuesa = errores.find((p) => p.seccion === "ventas");
     expect(frambuesa).toMatchObject({ campo: "producto", origen: { hoja: "CUENTAS DE RESULTADO", fila: 8 } });
   });
@@ -469,11 +469,23 @@ describe("plan de importación", () => {
     expect(previo.movimientos.reduce((s, m) => s + m.cantidad, 0)).toBe(4);
   });
 
-  it("una corrección del usuario resuelve el error", () => {
+  it("una orden macerando sin cantidad se importa sin cantidad, y una corrección la completa", () => {
+    expect(e.ordenesProduccion).toHaveLength(2);
+    expect(e.ordenesProduccion[1]).toMatchObject({ fechaEmbotellado: null, cantidadProducida: null });
     const op2 = regs("ordenes")[1];
     const corregido = planificar({ ...extraccion, registros: aplicarCorrecciones(extraccion.registros, { [op2.clave]: { cantidadProducida: "18" } }) });
     expect(corregido.problemas.some((p) => p.clave === op2.clave && p.tipo === "error")).toBe(false);
-    expect(corregido.estado.ordenesProduccion).toHaveLength(2);
+    expect(corregido.estado.ordenesProduccion[1].cantidadProducida).toBe(18);
+  });
+
+  it("una corrección del usuario resuelve el error", () => {
+    const venta = regs("ventas").find((r) => errores.some((p) => p.clave === r.clave))!;
+    const corregido = planificar({
+      ...extraccion,
+      registros: aplicarCorrecciones(extraccion.registros, { [venta.clave]: { producto: "Licor Fino de Limón — 500 cc" } }),
+    });
+    expect(corregido.problemas.some((p) => p.clave === venta.clave && p.tipo === "error")).toBe(false);
+    expect(corregido.estado.operaciones).toHaveLength(4);
   });
 
   it("reimportar da exactamente el mismo resultado", () => {
@@ -608,6 +620,17 @@ describe("importación incremental", () => {
     expect(otra.estado.ordenesProduccion[1].fechaEmbotellado).toBe("2026-09-25");
     expect(otra.resumen.find((r) => r.seccion === "ordenes")).toMatchObject({ existentes: 1, modificados: 1, importados: 0 });
     expect(conflictosSinElegir(otra)).toBe(0);
+  });
+
+  it("al embotellar en la planilla completa la fecha y la cantidad que la app no tenía", () => {
+    const sinCantidad = planificar(extraccion).estado;
+    const embotellada = extraccion.registros.map((r) =>
+      r.clave === op2.clave ? { ...r, v: { ...r.v, fechaEmbotellado: "2026-09-25", cantidadProducida: 21 } } : r
+    );
+    const otra = planificar({ ...extraccion, registros: embotellada }, { base: sinCantidad });
+    expect(otra.estado.ordenesProduccion[1]).toMatchObject({ fechaEmbotellado: "2026-09-25", cantidadProducida: 21 });
+    expect(conflictosSinElegir(otra)).toBe(0);
+    expect(otra.estado.productosTerminados.find((l) => l.origenOrdenId === otra.estado.ordenesProduccion[1].id)?.existenciaInicial).toBe(21);
   });
 
   it("si la app ya tenía otro dato no lo pisa: pregunta cuál dejar", () => {

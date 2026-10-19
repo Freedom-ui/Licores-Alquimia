@@ -21,7 +21,8 @@ export type OrdenProduccionRow = {
   /** null = todavía no se embotelló. */
   fechaEmbotellado: string | null;
   responsable: string;
-  cantidadProducida: number;
+  /** null = todavía sin estimar: solo mientras macera (al embotellar es obligatoria). */
+  cantidadProducida: number | null;
   insumos: OrdenInsumo[];
   /** Suma de cantidad × costoUnitario de los insumos. Se recalcula al guardar. */
   costoTotal: number;

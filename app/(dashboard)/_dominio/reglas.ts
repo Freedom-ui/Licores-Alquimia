@@ -330,8 +330,15 @@ export function validarOrden(v: unknown, e: Estado, id: number | null): Resultad
   const responsable = texto(o.responsable);
   poner("responsable", validarTexto(responsable, { que: "el responsable", requerido: true, max: LARGO_RESPONSABLE }));
 
+  // Mientras macera la cantidad puede no saberse todavía: es obligatoria al embotellar.
   const cantidadProducida = parsearNumero(o.cantidadProducida);
-  poner("cantidadProducida", validarNumero(cantidadProducida, reglaCantidad("la cantidad de botellas producidas", true)));
+  if (cantidadProducida === null && fechaEmbotellado) {
+    poner("cantidadProducida", "Ingresá cuántas botellas salieron al embotellar, por ejemplo 120.");
+  }
+  poner(
+    "cantidadProducida",
+    validarNumero(cantidadProducida, { ...reglaCantidad("la cantidad de botellas producidas", true), requerido: false })
+  );
   // Si el lote de esta orden ya tuvo ventas, no se puede producir menos de lo que ya salió.
   const lote = id !== null ? e.productosTerminados.find((l) => l.origenOrdenId === id) : undefined;
   if (lote && fechaEmbotellado && cantidadProducida !== null && !tiene("cantidadProducida")) {
@@ -407,7 +414,7 @@ export function validarOrden(v: unknown, e: Estado, id: number | null): Resultad
     fechaMaceracion,
     fechaEmbotellado: fechaEmbotellado || null,
     responsable,
-    cantidadProducida: cantidadProducida as number,
+    cantidadProducida,
     insumos,
   }));
 }

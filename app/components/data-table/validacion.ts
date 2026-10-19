@@ -278,7 +278,8 @@ export function normalizarCbu(v: unknown): string {
   return /^\d+$/.test(d) ? d : t;
 }
 
-function verificadorCbu(digitos: string, pesos: number[]): number {
+/** Dígito verificador de un bloque del CBU (lo usa también el generador de datos de prueba). */
+export function verificadorCbu(digitos: string, pesos: number[]): number {
   const suma = pesos.reduce((s, p, i) => s + p * Number(digitos[i]), 0);
   return (10 - (suma % 10)) % 10;
 }
