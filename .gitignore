@@ -52,3 +52,9 @@ next-env.d.ts
 skills-lock.json
 # respaldos automáticos de la base (importación de la planilla)
 /respaldos/
+
+# pruebas en el navegador (Playwright)
+/test-results
+/playwright-report
+/e2e/.auth
+/e2e/.datos

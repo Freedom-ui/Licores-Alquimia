@@ -166,8 +166,8 @@ function Lista({ titulo, subtitulo, href, filas, vacio }: { titulo: string; subt
               <Link href={f.href} className="pp-fila">
                 <span className="pp-fila-fecha">{f.fecha}</span>
                 <span className="pp-fila-texto">
-                  <span className="pp-fila-titulo">{f.titulo}</span>
-                  <span className="pp-fila-detalle">{f.detalle}</span>
+                  <span className="pp-fila-titulo" title={f.titulo}>{f.titulo}</span>
+                  <span className="pp-fila-detalle" title={f.detalle}>{f.detalle}</span>
                 </span>
                 <span className="pp-fila-fin">
                   <span className="pp-fila-valor">{f.valor}</span>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { NavNode } from "./nav-data";
 import Icon from "./icons";
 
@@ -25,10 +25,13 @@ export default function NavTree({
 
   const [open, setOpen] = useState(containsActive);
 
-  // si la ruta activa cambia y ahora cae dentro de este nodo, autoexpandir
-  useEffect(() => {
+  // Si la ruta activa cambia y ahora cae dentro de este nodo, autoexpandir
+  // (ajuste durante el render, sin efecto: ver "You Might Not Need an Effect").
+  const [contenia, setContenia] = useState(containsActive);
+  if (containsActive !== contenia) {
+    setContenia(containsActive);
     if (containsActive) setOpen(true);
-  }, [containsActive]);
+  }
 
   const hasChildren = !!node.children?.length;
 
@@ -39,7 +42,7 @@ export default function NavTree({
         style={{ paddingLeft: 18 + depth * 14 }}
       >
         {node.href ? (
-          <Link href={node.href} className="nav-item-label">
+          <Link href={node.href} className="nav-item-label" title={node.label}>
             {node.icon && (
               <span className="icon">
                 <Icon name={node.icon} />

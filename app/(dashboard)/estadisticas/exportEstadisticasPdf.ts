@@ -101,6 +101,23 @@ function tituloBloque(doc: JsPDF, b: Bloque, x: number, y: number, ancho: number
   return yy;
 }
 
+// La fuente estándar del PDF no tiene ▲ / ▼ (salían como "%'"): en las
+// tablas pasan a "+" / "-" y en los indicadores se dibuja el triángulo.
+const sinFlechas = (texto: string) => texto.replace(/▲ ?/g, "+").replace(/▼ ?/g, "-");
+
+/** Texto alineado a la derecha en `xDer`; si empieza con ▲ o ▼, con un triángulo dibujado delante. */
+function textoConFlecha(doc: JsPDF, texto: string, xDer: number, y: number) {
+  const flecha = texto[0] === "▲" ? "sube" : texto[0] === "▼" ? "baja" : null;
+  const resto = flecha ? texto.slice(1).trimStart() : texto;
+  doc.text(resto, xDer, y, { align: "right" });
+  if (!flecha) return;
+  const lado = 1.6;
+  const x = xDer - doc.getTextWidth(resto) - 0.9 - lado;
+  const base = y - 0.25;
+  if (flecha === "sube") doc.triangle(x, base, x + lado, base, x + lado / 2, base - lado * 0.9, "F");
+  else doc.triangle(x, base - lado * 0.9, x + lado, base - lado * 0.9, x + lado / 2, base, "F");
+}
+
 function hexRgb(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -152,7 +169,8 @@ function dibujarKpis(doc: JsPDF, b: Extract<Bloque, { tipo: "kpis" }>, x: number
         doc.setFont("helvetica", "bold");
         doc.setFontSize(6.5);
         doc.setTextColor(r, g, bl);
-        doc.text(k.delta.texto, bx + w - 3, by + 10.4, { align: "right" });
+        doc.setFillColor(r, g, bl);
+        textoConFlecha(doc, k.delta.texto, bx + w - 3, by + 10.4);
       }
       // Sparkline o barrita de composición, a lo ancho de la celda
       const sy = by + 12.8;
@@ -192,7 +210,7 @@ function dibujarTabla(autoTable: AutoTable, doc: JsPDF, b: Extract<Bloque, { tip
   autoTable(doc, {
     startY: y,
     head: [b.columnas.map((c) => c.titulo)],
-    body: b.filas.length ? b.filas : [[b.vacio, ...b.columnas.slice(1).map(() => "")]],
+    body: b.filas.length ? b.filas.map((f) => f.map(sinFlechas)) : [[b.vacio, ...b.columnas.slice(1).map(() => "")]],
     margin: { left: x, right: anchoPagina - x - ancho, top: MARGEN },
     tableWidth: ancho,
     styles: { font: "helvetica", fontSize: 7.5, cellPadding: 1.8, lineWidth: 0.2, lineColor: [200, 195, 188], valign: "middle" },

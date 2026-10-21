@@ -226,7 +226,12 @@ function BloqueView({ bloque: b, resaltado, onIr }: { bloque: Bloque; resaltado:
                 b.filas.map((f, i) => (
                   <tr key={i}>
                     {f.map((celda, j) => (
-                      <td key={j} className={`es-${b.columnas[j]?.alinear ?? "izq"}`}>
+                      <td
+                        key={j}
+                        className={`es-${b.columnas[j]?.alinear ?? "izq"}`}
+                        // Los textos largos (nombres de clientes) se cortan: el tooltip los muestra enteros.
+                        title={(b.columnas[j]?.alinear ?? "izq") === "izq" ? celda : undefined}
+                      >
                         {celda}
                       </td>
                     ))}

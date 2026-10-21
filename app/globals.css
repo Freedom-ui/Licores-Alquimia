@@ -8,8 +8,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: Arial, Helvetica, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -35,7 +34,9 @@ body {
   --text-muted:  #555555;
   --naranja:     #D4772A;
   --naranja-dark:#B85F1A;
-  --font:        'Inter', sans-serif;
+  /* Arial en Windows, Helvetica en Mac: vienen con el sistema (nada se baja de
+     internet) y miden casi igual, así el diseño se ve igual en las dos. */
+  --font:        Arial, Helvetica, sans-serif;
   --radius:      6px;
   --shadow:      0 1px 4px rgba(0,0,0,.14);
 }
@@ -250,7 +251,7 @@ body {
 .cr-check input { width: 16px; height: 16px; accent-color: var(--naranja); }
 
 /* ── Layout shell del dashboard ── */
-.app-shell { display: flex; height: 100vh; font-family: var(--font); }
+.app-shell { display: flex; height: 100vh; height: 100dvh; font-family: var(--font); }
 
 /* ── Sidebar ──── */
 .sidebar {
@@ -425,6 +426,73 @@ body {
   color: #fff;
 }
 .logout-btn:disabled { opacity: .6; cursor: default; }
+.logout-btn { display: flex; align-items: center; justify-content: center; gap: 7px; }
+.logout-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+/* ── Sidebar en pantallas bajas (notebooks con escalado: 1280×590, 1366×640) ──
+   Que entren todas las secciones sin scrollear la barra: logo en una línea,
+   renglones más finos y el pie más compacto. */
+@media (max-height: 720px) {
+  .brand-eyebrow, .sidebar-brand .brand-sub { display: none; }
+  .sidebar-brand { padding: 12px 18px; }
+  .nav-item { padding-top: 6px; padding-bottom: 6px; }
+  .sidebar-nav { padding: 6px 0; }
+  .sidebar-footer { padding: 10px 18px; }
+  .sidebar-user { margin-bottom: 6px; }
+  .sidebar-user .su-nombre { font-size: 15px; }
+  .logout-btn { padding: 6px 10px; }
+}
+
+/* ── Sidebar compacta (pantallas angostas: 1366 al 125/150 %, 1024) ──
+   Debajo de 1100 px queda en solo íconos (64 px). El botón de menú la
+   despliega encima del contenido: sigue ocupando 64 px en el flujo (el margen
+   negativo compensa el ancho extra), así la página no se mueve. */
+.sidebar-toggle { display: none; }
+.sidebar-fondo { display: none; }
+@media (max-width: 1099px) {
+  .sidebar { width: 64px; transition: width .15s, margin-right .15s; }
+  .sidebar-toggle {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; margin: 12px auto 0; flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,.15); border-radius: var(--radius);
+    background: transparent; color: rgba(255,255,255,.75); cursor: pointer;
+  }
+  .sidebar-toggle:hover { background: rgba(255,255,255,.08); color: #fff; }
+  .sidebar-toggle svg { width: 18px; height: 18px; }
+
+  .sidebar:not(.sidebar-desplegada) .sidebar-brand { padding: 12px 0; display: flex; justify-content: center; }
+  .sidebar:not(.sidebar-desplegada) .brand-eyebrow,
+  .sidebar:not(.sidebar-desplegada) .brand-name,
+  .sidebar:not(.sidebar-desplegada) .brand-sub,
+  .sidebar:not(.sidebar-desplegada) .sidebar-user,
+  .sidebar:not(.sidebar-desplegada) .nav-item-label > span:not(.icon),
+  .sidebar:not(.sidebar-desplegada) .logout-btn span { display: none; }
+  .sidebar:not(.sidebar-desplegada) .nav-item { padding-left: 0 !important; padding-right: 0; justify-content: center; }
+  .sidebar:not(.sidebar-desplegada) .nav-item-label { flex: 0 0 auto; }
+  .sidebar:not(.sidebar-desplegada) .nav-item .icon { width: 18px; height: 18px; }
+  .sidebar:not(.sidebar-desplegada) .sidebar-footer { padding: 12px 10px; }
+  .sidebar:not(.sidebar-desplegada) .logout-btn { padding: 8px 0; }
+
+  .sidebar.sidebar-desplegada {
+    width: 240px;
+    margin-right: -176px;
+    position: relative;
+    z-index: 41;
+    box-shadow: 8px 0 28px rgba(0,0,0,.35);
+  }
+  .sidebar-desplegada .sidebar-toggle { margin: 12px 12px 0 auto; }
+  .sidebar-fondo {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(15,13,10,.35);
+  }
+}
+@media (max-width: 1099px) and (max-height: 720px) {
+  /* En íconos y con poca altura, el botón de menú ya identifica la barra. */
+  .sidebar:not(.sidebar-desplegada) .sidebar-brand { display: none; }
+}
 
 /* ── Main area ─── */
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
@@ -493,6 +561,9 @@ body {
   color: var(--text);
   background: #fff;
   cursor: pointer;
+  /* Un desplegable de clientes no puede medir lo que el nombre más largo. */
+  max-width: 240px;
+  text-overflow: ellipsis;
 }
 
 .dt-clear-btn {
@@ -832,6 +903,7 @@ body {
   position: fixed;
   inset: 0;
   background: rgba(15,13,10,.55);
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
@@ -849,6 +921,7 @@ body {
 .rf-modal {
   width: 100%;
   max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
   background: #F9F7F3;
   border: 1px solid var(--border);
@@ -869,6 +942,11 @@ body {
   gap: 12px;
   padding: 18px 20px;
   border-bottom: 1px solid var(--border);
+  /* En pantallas bajas el modal scrollea: título y botones quedan a la vista. */
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #F9F7F3;
 }
 .rf-modal-eyebrow {
   font-size: 10px;
@@ -1010,6 +1088,18 @@ body {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 4px;
+}
+.rf-modal .rf-form > .rf-actions-row,
+.rf-modal .tz-body > .rf-actions-row,
+.rf-modal .cf-body > .rf-actions-row {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  margin: 0 -20px -20px;
+  padding: 14px 20px 20px;
+  background: #F9F7F3;
+  /* Separa los botones del contenido que sigue por debajo cuando el modal scrollea. */
+  border-top: 1px solid var(--border);
 }
 
 .rf-cancel-btn {
@@ -1248,6 +1338,14 @@ body {
 /* ── Estadísticas ─────────────────────────────────────────── */
 .es-wrapper { display: flex; flex-direction: column; gap: 14px; }
 
+/* Pantallas grandes (2560, ultrawide): el Panel y Estadísticas no pasan de
+   1800 px y quedan centrados; el título de la barra se alinea con ellos. Las
+   tablas sí usan todo el ancho. */
+.es-wrapper, .pp-wrapper { width: 100%; max-width: 1800px; margin-inline: auto; }
+.main:has(> .content > .es-wrapper, > .content > .pp-wrapper) > .topbar {
+  padding-inline: max(24px, calc((100% - 1800px) / 2));
+}
+
 .es-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
 .es-tab {
   display: inline-flex;
@@ -1285,7 +1383,10 @@ body {
 .es-descripcion { font-size: 12.5px; color: var(--text-muted); margin-top: -4px; }
 
 .es-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }
-@media (max-width: 1100px) { .es-grid > .es-bloque { grid-column: span 12 !important; } }
+/* Debajo de 1100 px la sidebar queda en íconos (64 px) y al contenido le sigue
+   alcanzando el ancho para las columnas: recién se apila por debajo de lo
+   soportado (~900 px). */
+@media (max-width: 899px) { .es-grid > .es-bloque { grid-column: span 12 !important; } }
 
 .es-bloque {
   min-width: 0;
@@ -1328,7 +1429,7 @@ body {
 @container (min-width: 632px) { .es-tira { --cols: 3; } }
 @container (min-width: 843px) { .es-tira[data-n="7"], .es-tira[data-n="8"] { --cols: 4; } }
 @container (min-width: 1054px) { .es-tira[data-n="5"] { --cols: 5; } }
-@container (min-width: 1265px) { .es-tira[data-n="6"] { --cols: 6; } }
+@container (min-width: 1400px) { .es-tira[data-n="6"] { --cols: 6; } }
 @container (min-width: 1476px) { .es-tira[data-n="7"] { --cols: 7; } }
 @container (min-width: 1687px) { .es-tira[data-n="8"] { --cols: 8; } }
 .es-llenar { flex: 1 1 auto; }
@@ -1417,7 +1518,11 @@ body {
 }
 .es-vacio-ok { color: #2E7D42; }
 
-.es-tabla-wrap { overflow-x: auto; }
+/* Tablas largas (todas las órdenes o compras de años): alto máximo con scroll
+   y el encabezado fijo; el PDF las sigue mostrando enteras. */
+.es-tabla-wrap { overflow: auto; max-height: 460px; }
+/* Un nombre muy largo no puede empujar los números fuera de la tarjeta. */
+.es-tabla td.es-izq { max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
 .es-tabla th.es-centro, .es-tabla td.es-centro { text-align: center; }
 .es-tabla th.es-der, .es-tabla td.es-der { text-align: right; }
 

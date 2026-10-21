@@ -27,7 +27,7 @@ const fmtEje = (f: Formato) => (v: number) => (f === "moneda" ? fmtMonedaCorta(v
 
 const base = (): EChartsOption => ({
   animationDuration: 500,
-  textStyle: { fontFamily: "Inter, Arial, sans-serif", color: COLOR.grisTexto },
+  textStyle: { fontFamily: "Arial, Helvetica, sans-serif", color: COLOR.grisTexto },
   grid: { left: 8, right: 16, top: 34, bottom: 8 },
   tooltip: { trigger: "axis", confine: true, backgroundColor: "#fff", borderColor: "#C8C3BC", textStyle: { color: "#1C1C1C", fontSize: 12 } },
 });
@@ -50,7 +50,8 @@ const fmtEtiqueta = (f: Formato) => (v: number) => (f === "moneda" && Math.abs(v
 
 const ejeValores = (f: Formato) => ({
   type: "value" as const,
-  axisLabel: { color: COLOR.grisTexto, fontSize: 11, formatter: fmtEje(f) },
+  // En barras horizontales angostas los valores del eje se pisaban: se ocultan los que no entran.
+  axisLabel: { color: COLOR.grisTexto, fontSize: 11, formatter: fmtEje(f), hideOverlap: true },
   splitLine: { lineStyle: { color: "#ECE8E1" } },
 });
 
@@ -114,7 +115,8 @@ export function barras(
     ...base(),
     grid: { left: 8, right: opciones.horizontal ? 84 : 16, top: 20, bottom: 8 },
     tooltip: { ...base().tooltip, axisPointer: { type: "shadow" }, valueFormatter: (v) => fmt(f)(Number(v)) },
-    xAxis: opciones.horizontal ? val : cat,
+    // Horizontal: el eje de valores suele quedar angosto (los nombres ocupan la izquierda).
+    xAxis: opciones.horizontal ? { ...val, splitNumber: 3 } : cat,
     yAxis: opciones.horizontal ? { ...cat, axisLabel: { ...cat.axisLabel, width: 140, overflow: "break" as const } } : val,
     series: [
       {
@@ -123,6 +125,8 @@ export function barras(
         data: datos,
         barMaxWidth: 34,
         itemStyle: { color: COLOR.naranja, borderRadius: opciones.horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0] },
+        // En tarjetas angostas los montos de barras vecinas se pisan: se ocultan (queda el tooltip).
+        labelLayout: { hideOverlap: true },
         label: {
           show: true,
           position: opciones.horizontal ? "right" : "top",
@@ -268,7 +272,110 @@ export function lineaEscalonada(categorias: string[], valores: number[], nombre:
         lineStyle: { width: 2.5, color: COLOR.naranja },
         itemStyle: { color: COLOR.naranja },
         label: { show: true, position: "top", fontSize: 11, color: COLOR.grisTexto, formatter: (p) => fmtEtiqueta(f)(Number((p as { value: number }).value)) },
+        labelLayout: { hideOverlap: true },
       },
     ],
   };
+}
+
+// ── Ajuste al ancho real ─────────────────────────────────────────────────
+// Las fábricas de arriba no saben cuánto va a medir la tarjeta. Esto adapta
+// la opción al tamaño en px (en pantalla, cada vez que cambia; en el PDF, con
+// el de la imagen) para que nada se pise en tarjetas angostas.
+
+type Eje = { type?: string; data?: unknown[]; axisLabel?: Record<string, unknown> };
+const comoLista = <T,>(x: T | T[] | undefined): T[] => (x === undefined ? [] : Array.isArray(x) ? x : [x]);
+
+/** Ancho que se lleva el eje de valores de la izquierda (y el margen derecho). */
+const MARGEN_EJES = 72;
+/** Ancho aproximado de una letra de las etiquetas (11 px). */
+const PX_POR_LETRA = 6.2;
+/** Grosor mínimo del anillo (px) para que entre el porcentaje adentro ("44,6%"). */
+const ANILLO_MIN = 44;
+/** Debajo de esto la leyenda de una dona deja de ir a la derecha. */
+const DONA_LEYENDA_AL_LADO = 500;
+
+export function ajustarAlAncho(option: EChartsOption, ancho: number, alto = 0): EChartsOption {
+  if (!ancho) return option;
+  const o: EChartsOption = { ...option };
+
+  // Categorías abajo con todas las etiquetas visibles (productos): el ancho de
+  // cada etiqueta es el de su lugar en el eje; si el texto no entra ni en
+  // varias líneas (lugar muy chico), van inclinadas.
+  if (option.xAxis && !Array.isArray(option.xAxis)) {
+    const x = option.xAxis as Eje;
+    if (x.type === "category" && x.axisLabel?.interval === 0 && x.data?.length) {
+      const lugar = (ancho - MARGEN_EJES) / x.data.length;
+      const masLargo = Math.max(...x.data.map((d) => String(d).length)) * PX_POR_LETRA;
+      const palabraMasLarga = Math.max(...x.data.flatMap((d) => String(d).split(" ").map((w) => w.length))) * PX_POR_LETRA;
+      o.xAxis = {
+        ...x,
+        axisLabel:
+          lugar >= 64 || masLargo <= lugar - 8
+            ? // Nunca más angosto que la palabra más corta entera ("Sáb" se partía en "Sá / b").
+              { ...x.axisLabel, width: Math.floor(Math.max(lugar - 8, palabraMasLarga + 8)), overflow: "break" }
+            : // Inclinadas y con lugar para lo que distingue un producto de otro (el envase, al final).
+              { ...x.axisLabel, width: 170, overflow: "truncate", rotate: 35, fontSize: 10 },
+      } as EChartsOption["xAxis"];
+      // Los montos sobre barras demasiado angostas no entran: quedan en el tooltip.
+      if (lugar < 44) {
+        const lista = comoLista(o.series ?? option.series) as { type?: string; label?: Record<string, unknown> }[];
+        o.series = lista.map((se) => (se.type === "bar" && se.label?.show ? { ...se, label: { ...se.label, show: false } } : se)) as EChartsOption["series"];
+      }
+    }
+  }
+
+  // Categorías a la izquierda (barras horizontales): en tarjetas angostas los
+  // nombres no pueden comerse más de un tercio del ancho.
+  if (option.yAxis && !Array.isArray(option.yAxis)) {
+    const y = option.yAxis as Eje;
+    const actual = Number(y.axisLabel?.width ?? 0);
+    if (y.type === "category" && actual && actual > ancho / 3) {
+      o.yAxis = { ...y, axisLabel: { ...y.axisLabel, width: Math.max(70, Math.floor(ancho / 3)) } } as EChartsOption["yAxis"];
+    }
+  }
+
+  // Dona con la leyenda a la derecha: si no entra al lado, pasa abajo y la
+  // dona se acomoda en lo que queda arriba (con el alto, en px exactos).
+  const series = comoLista(option.series) as { type?: string; center?: unknown; radius?: unknown; data?: unknown[] }[];
+  const leyendas = comoLista(option.legend) as Record<string, unknown>[];
+  if (ancho < DONA_LEYENDA_AL_LADO && series.length === 1 && series[0].type === "pie" && leyendas[0]?.orient === "vertical") {
+    // Los nombres largos se cortan: el tooltip de la leyenda los muestra enteros.
+    o.legend = { ...leyendas[0], orient: "horizontal", right: undefined, top: undefined, bottom: 0, left: "center", tooltip: { show: true } } as EChartsOption["legend"];
+    // Renglones de la leyenda, acomodando los ítems como ECharts: cuadradito +
+    // separación (25 px) + "Nombre  44,6%" (hasta 150 px) + 10 px entre ítems.
+    let renglones = 1;
+    let ocupado = 0;
+    for (const d of series[0].data ?? []) {
+      const nombre = String((d as { name?: unknown }).name ?? "");
+      const item = 25 + Math.min(150, (nombre.length + 7) * PX_POR_LETRA) + 10;
+      if (ocupado > 0 && ocupado + item > ancho) {
+        renglones++;
+        ocupado = 0;
+      }
+      ocupado += item;
+    }
+    const arriba = alto - renglones * 20 - 12;
+    // El radio lo limita el lado más corto del espacio libre (si la tarjeta se
+    // estira por la de al lado, el alto sobra y la dona no puede pasarse del ancho).
+    const exterior = Math.round(Math.min(arriba * 0.46, ancho * 0.4));
+    o.series = [
+      alto && arriba > 120
+        ? { ...series[0], center: ["50%", Math.round(arriba / 2)], radius: [Math.round(exterior * 0.55), exterior] }
+        : { ...series[0], center: ["50%", "38%"], radius: ["30%", "54%"] },
+    ] as EChartsOption["series"];
+  }
+  // Porcentajes dentro del anillo: si el anillo es más angosto que el texto
+  // se ven cortados; se ocultan (la leyenda ya muestra el porcentaje).
+  if (alto) {
+    const lado = Math.min(ancho, alto) / 2;
+    const px = (r: unknown) => (typeof r === "number" ? r : typeof r === "string" && r.endsWith("%") ? (lado * parseFloat(r)) / 100 : 0);
+    const lista = comoLista(o.series ?? option.series) as { type?: string; radius?: unknown; label?: Record<string, unknown> }[];
+    o.series = lista.map((se) => {
+      if (se.type !== "pie" || !Array.isArray(se.radius) || se.label?.position !== "inside") return se;
+      const grosor = px(se.radius[1]) - px(se.radius[0]);
+      return grosor < ANILLO_MIN ? { ...se, label: { ...se.label, show: false } } : se;
+    }) as EChartsOption["series"];
+  }
+  return o;
 }

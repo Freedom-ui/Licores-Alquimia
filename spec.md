@@ -31,9 +31,9 @@ terminados (kardex por lote), Inventario de materia prima (kardex), Trazabilidad
 compras + rastreo de lotes + ficha PUPAA), Estadísticas (6 pantallas con ECharts + PDF) e
 Importar planilla.
 
-**Dónde estamos:** Fases 1 a 5 aprobadas (la 5 commiteada en `47ac38a`). **Fase 6 (datos falsos +
-testeo general) terminada y probada, falta que el usuario la apruebe**; está sin commitear (el
-usuario commitea a mano). La siguiente es la Fase 7, solo cuando el usuario lo indique.
+**Dónde estamos:** Fases 1 a 7 aprobadas (la 6 commiteada en `c5b6c38`; la 7, aprobada el
+20/10/2026, la commitea el usuario a mano). La siguiente es la Fase 8, solo cuando el usuario lo
+indique.
 
 Arquitectura clave:
 - Datos en SQLite con Prisma 7 (`dev.db` en la raíz, `lib/prisma.ts`, config en
@@ -50,7 +50,9 @@ Arquitectura clave:
 - Login (Fase 3): cuenta única con sesión guardada en la base, código de recuperación y
   cierre por inactividad (`lib/auth/`, `app/(acceso)/`, `proxy.ts`).
 - Validación (Fase 4): reglas compartidas pantalla/servidor en `_dominio/reglas.ts` sobre los
-  validadores de `app/components/data-table/validacion.ts`; tests con `npm test` (Vitest, 326).
+  validadores de `app/components/data-table/validacion.ts`; tests con `npm test` (Vitest, 339).
+- Pruebas en el navegador (Fase 7): Playwright en `e2e/` (`npm run e2e`, `npm run e2e:tamanos`),
+  sobre un build de producción en :3005 y una copia de `dev.db`. Detalle en la Fase 7.
 - Importación (Fase 5): `app/(dashboard)/_importar/` (puro) + `app/(dashboard)/importar/`
   (pantalla) + `_datos/importar.ts` (servidor). Detalle en la Fase 5.
 - Datos de prueba (Fase 6): `_dominio/generador.ts` (`generarDatos`) + `_dominio/revisar.ts`
@@ -568,7 +570,7 @@ Arreglado a partir de la prueba:
 embotellada? → hecho en la Fase 6 (las órdenes macerando de la planilla ya no salen con error).
 
 
-### Fase 6 — Inyección de datos falsos + testeo general ◐ (falta la aprobación del usuario)
+### Fase 6 — Inyección de datos falsos + testeo general ☑ (aprobada y commiteada, `c5b6c38`)
 - Script que genera datos falsos pero coherentes y realistas (varios meses de operación:
   clientes y proveedores con nombres/CUIT/contactos verosímiles, compras con comprobantes,
   órdenes, lotes, ventas con estacionalidad), respetando la cadena de trazabilidad, FIFO
@@ -640,7 +642,12 @@ las 27 materias primas no cambian, el resto se inventa); sin modo de volumen alt
   cantidad de productos).
 - Pendientes que van a la Fase 8 (ver ahí).
 
-### Fase 7 — Pantallas horizontales y navegadores ☐
+### Fase 7 — Pantallas horizontales y navegadores ☑ (aprobada por el usuario el 20/10/2026)
+**Decisiones del usuario (18/10/2026):** Playwright con Chromium, Firefox y WebKit (dependencia de
+desarrollo); en 2560 y ultrawide el contenido va con **ancho máximo centrado** (~1800 px); se
+soporta **hasta ~900 px de ancho efectivo** (1366×768 al 150 %): debajo de ~1100 px la sidebar
+pasa a solo íconos y se despliega con un botón, y los modales usan scroll interno.
+
 Va después de tener datos falsos con volumen, nombres largos y montos grandes (lo que más
 rompe el layout) y antes de las correcciones estéticas.
 
@@ -674,9 +681,123 @@ rompe el layout) y antes de las correcciones estéticas.
   una Mac real (Claude no puede manejar una Mac: hace falta acceso a una).
 - Definir versiones mínimas soportadas y anotarlas en el README de la entrega.
 
+**Cómo quedó** (para retomar):
+- **Playwright** (`@playwright/test`; los motores quedan en `%LOCALAPPDATA%/ms-playwright`).
+  `playwright.config.ts` levanta `next start -p 3005` con `DATABASE_URL=file:./e2e/.datos/e2e.db`
+  (copia de `dev.db` que hace `e2e/preparar-base.mjs` con el backup de SQLite; `dev.db` no se toca) y
+  `SESION_INACTIVIDAD_MIN=240`. `e2e/auth.setup.ts` entra con `claude_qa` (`e2e/credenciales.ts`:
+  `.claude/qa-usuario.local` o `E2E_USUARIO` / `E2E_CLAVE`) y guarda la cookie en `e2e/.auth/`.
+  Salidas en `test-results/` y `playwright-report/` (ignorados por git y por ESLint; Vitest ignora
+  `e2e/`).
+  - `npm run e2e` (build + humo en Chromium, Firefox y WebKit; con `E2E_MARCAS=1` y
+    `npx playwright test --project=edge --project=chrome`, también Edge y Chrome instalados):
+    recorrer las secciones por la sidebar sin errores de consola **ni pedidos fuera de localhost**,
+    login incorrecto / correcto / cerrar sesión (cookie de sesión sin `Secure` en http://localhost),
+    alta / edición / baja de un cliente, letras en un número y fecha imposible, venta con «Guardar
+    igual», orden macerando sin cantidad, 3 PDF (tabla, Estadísticas completo, ficha de lote: se valida
+    que empiecen con `%PDF-` y quedan en `test-results/pdf/<navegador>/`), canvas de ECharts pintado y,
+    a 1093×485, la sidebar compacta y los botones de un modal a la vista. 11 pruebas por navegador.
+  - `npm run e2e:tamanos`: `e2e/tamanos.spec.ts` recorre 26 vistas (cada sección, las 6 de
+    Estadísticas, alta / edición de cliente, alta de venta, orden y compra, movimiento de lote, alta en
+    inventario, ficha de lote) en 19 tamaños con su DPR en Chromium, y en 1366×640 / 1920×950 en
+    Firefox y WebKit. Capturas en `test-results/tamanos[-motor]/<vista>/<ancho>x<alto>[-completa].png`
+    y chequeos automáticos: sin scroll horizontal de la página, nada que se salga de su tarjeta /
+    barra / modal, texto cortado con "…" sin tooltip, modal dentro de la pantalla con título y botones
+    a la vista, sidebar sin tapar el contenido. Filtros: `E2E_TAMANOS=1366x640,911x380`,
+    `E2E_VISTAS=estadisticas,panel`. Entero tarda ~30 min (~3 s por vista).
+  - Los tamaños son px CSS efectivos (pantalla × escalado o zoom, menos las barras del navegador):
+    911×380 (1366 al 150 %), 1024×470 y 1024×640, 1093×485 (1366 al 125 %), 1152×590, 1280×590 / 670,
+    1366×640, 1440×770, 1470×866, 1512×892, 1536×735, 1600×770, 1728×1027, 1920×950, 2048×1020,
+    2400×1190 (1920 con zoom 80 %), 2560×1310 y 3440×1310.
+- **Sidebar compacta** debajo de 1100 px (`globals.css`, `sidebar.tsx`): 64 px con íconos (cada link
+  con `title`) y un botón ☰ que la despliega encima del contenido (margen negativo: la página no se
+  mueve) con fondo oscuro; se cierra con Esc, con un clic afuera o al elegir sección. "Cerrar sesión"
+  pasa a ícono. Íconos nuevos `menu`, `close` y `logout`.
+- **Modales**: título y fila de botones fijos (`position: sticky`); el contenido scrollea en el medio
+  (`.rf-form`, `.tz-body`, `.cf-body`). `100dvh`, `-webkit-backdrop-filter` para Safari y
+  `ModalShell` con `role="dialog"`, `aria-modal` y `aria-labelledby`.
+- **Grillas**: `.es-grid` recién apila todo en 1 columna debajo de 900 px (antes 1100: con la sidebar
+  compacta, de 1024 a 1099 entran las 3 columnas). Panel y Estadísticas con **máximo 1800 px
+  centrado** y el título de la barra alineado con el contenido (`:has`); las tablas usan todo el ancho.
+- **Gráficos** (`graficos.ts`): `ajustarAlAncho(option, ancho, alto)` adapta la opción al tamaño
+  real (en pantalla al cambiar de tamaño, de a 24 px y sin animación; en el PDF, con el tamaño de la
+  imagen): etiquetas de categorías con el ancho de su lugar (inclinadas solo si no entran), nombres
+  de barras horizontales hasta 1/3 del ancho, y leyenda de donas abajo cuando no entra al lado (la
+  dona se ubica arriba según los renglones que ocupa la leyenda). Eje de valores con `hideOverlap`
+  (3 marcas en las horizontales) y montos sobre barras / puntos que se pisan se ocultan
+  (`labelLayout.hideOverlap`). Tests en `graficos.test.ts`.
+- **Otros**: filtros de las tablas con máximo 240 px (el de clientes medía lo que el nombre más
+  largo y desordenaba la barra), tooltips en las listas del Panel, PDF de Estadísticas con las
+  flechas ▲ / ▼ dibujadas (la fuente del PDF no las tiene: salía "%'") y "+" / "-" en sus tablas,
+  y el lint de `nav-tree.tsx` resuelto (ajuste de estado durante el render en vez de un efecto).
+- `docs/checklist-navegadores.md`: prueba manual de 10 min para Brave, Opera, Vivaldi y Safari en Mac.
+- **Versiones mínimas** (para el README de la Fase 10): Chrome / Edge / Brave / Opera / Vivaldi
+  basados en Chromium ≥ 111, Firefox ≥ 121 y Safari ≥ 16.4 (macOS 13.3). Las fijan Next 16 (111 /
+  111 / 16.4) y `:has` (Firefox 121).
+
+**Resultado** (18/10/2026, build de producción; ✓ = sin problemas, ✎ = corregido en esta fase):
+
+| Vista | 911–1093 (150 / 125 %) | 1152–1366 | 1440–1728 (Mac) | 1920–2400 | 2560–3440 |
+|---|---|---|---|---|---|
+| Sidebar | ✎ íconos + ☰ | ✓ | ✓ | ✓ | ✓ |
+| Panel | ✎ 3 columnas, tooltips | ✎ tooltips | ✓ | ✓ | ✎ 1800 px centrado |
+| Catálogos (4) | ✓ | ✓ | ✓ | ✓ | ✓ (todo el ancho) |
+| Operaciones | ✎ filtros | ✎ filtros | ✓ | ✓ | ✓ |
+| Órdenes / Trazabilidad | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Productos terminados / Inventario | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Estadísticas (6) | ✎ grilla, ejes, donas | ✎ ejes, donas | ✓ | ✓ | ✎ 1800 px centrado |
+| Importar | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Modales (8) | ✎ botones fijos | ✎ botones fijos | ✓ | ✓ | ✓ |
+
+Motores: Chromium, Firefox 157 y WebKit 27 (Playwright) + Edge y Chrome instalados → 11 / 11
+pruebas de humo en cada uno; tamaños 599 / 599. WebKit anota "access control checks" si un
+`page.goto` corta las precargas de Next: es de la prueba (navegando por la sidebar no pasa). Falta el
+checklist manual en Brave / Opera / Vivaldi y en Safari de una Mac real.
+
+**Revisión a ojo en notebook y escritorio** (20/10/2026, pedida por el usuario: son las pantallas
+que va a usar el cliente). Tamaños: 1093×485 (1366 al 125 %), 1280×590 (1920 al 150 % / 1280×720),
+1280×670, 1366×640, 1440×770 (MacBook Air), 1536×735 (1920 al 125 %) y 1920×950; Firefox y WebKit en
+1366 y 1920. Se sumaron al recorrido ~50 vistas: edición de proveedores, materia prima, productos,
+ventas, órdenes (con insumos), compras, lotes e inventario; movimiento de inventario; rastreo de lote;
+confirmar borrado; cerrar sesión; formularios con errores; el aviso de «Guardar igual»; inventario y
+kardex abiertos; Importar con una planilla cargada (paso «Revisar», con `E2E_PLANILLA` o
+`planilla-claude.xlsx` en Descargas); y las 6 pantallas de Estadísticas con «Este año», «Año
+anterior», «Últimos 30 días», todo el historial (01/01/2024 a hoy) y sin comparar (76 vistas en total).
+Chequeos automáticos 848 / 848 (y 51 / 51 de humo en los 5 navegadores) y se revisaron a ojo las
+capturas de modales, Estadísticas, Panel, tablas, kardex e Importar. Lo que se encontró y se arregló:
+- **Donas gigantes** (Compras «Medio de pago», Stock «Dónde está la plata inmovilizada»): cuando la
+  tarjeta se estira por la de al lado, el radio se calculaba con el alto y la dona se salía de la
+  tarjeta. Ahora lo limita el lado más corto.
+- **Porcentajes cortados dentro de donas angostas**: si el anillo mide menos de 44 px se ocultan (la
+  leyenda ya los muestra).
+- **Ejes**: "Sáb" se partía en dos renglones; con productos inclinados, el nombre cortado a 110 px
+  dejaba dos productos iguales (ahora 170 px y letra 10: se ve el envase); los montos sobre barras se
+  ocultan solo si cada barra tiene menos de 44 px (el Panel en 1366 los conserva).
+- **Tablas de Estadísticas**: alto máximo 460 px con scroll y encabezado fijo (todas las órdenes del
+  historial alargaban la página a 4000 px), y los textos de la izquierda cortados a 240 px con
+  tooltip (un cliente con nombre larguísimo empujaba la facturación fuera de la tarjeta).
+- **Sidebar en pantallas bajas** (alto ≤ 720 px, típico de notebook con escalado): «Importar planilla»
+  quedaba fuera de la vista. Ahora el logo va en una línea y los renglones son más finos; con la
+  sidebar en íconos y poca altura se oculta el logo. Chequeo automático nuevo: todas las secciones a
+  la vista sin scrollear la barra (desde 470 px de alto).
+- **Tira de indicadores en 1536** (1920 al 125 %): 6 columnas apretadas (mini gráficos diminutos,
+  etiquetas cortadas) → pasa a 3 + 3 hasta 1400 px de contenedor.
+- **Modales**: línea sobre la fila de botones fija, para que se note que el contenido sigue debajo.
+- Sin problemas: modales de alta / edición / errores / borrado / rastreo / ficha, tablas y kardex,
+  Panel, Importar (revisión completa) y los 3 motores entre sí.
+- Tests: 339 (Vitest), con los casos nuevos de `ajustarAlAncho` en `graficos.test.ts`.
+
+**Fuente (decisión del usuario, 20/10/2026): Arial / Helvetica.** La app decía `'Inter', sans-serif`
+pero Inter nunca se cargaba, así que ya se veía en Arial (Windows) / Helvetica (Mac). Ahora es
+explícito en `--font`, en `--font-sans` de Tailwind y en los gráficos (`graficos.ts`), y se sacaron
+Geist y Geist Mono de `app/layout.tsx` (no se usaban y `next/font/google` las bajaba de internet en el
+build). Verificado: misma vista, humo 31 / 31 en los 3 motores y 1366 / 1920 sin cambios.
+Queda pendiente solo el checklist manual (Brave / Opera / Vivaldi y Safari en una Mac real).
+
 ### Fase 8 — Correcciones menores y estética ☐
 Lista conocida (ampliar durante las fases anteriores):
-- Error de lint preexistente en `app/(dashboard)/nav-tree.tsx` (setState en effect).
+- ~~Error de lint preexistente en `app/(dashboard)/nav-tree.tsx` (setState en effect).~~ Resuelto
+  en la Fase 7.
 - ~~Renombrar cliente/producto no actualiza el texto guardado en Operaciones/Órdenes.~~
   Resuelto en la Fase 2 (los nombres salen del catálogo).
 - Guardas de borrado (detectadas en la Fase 4): `deleteLote` borra un lote aunque tenga ventas
@@ -694,6 +815,13 @@ Lista conocida (ampliar durante las fases anteriores):
     "se compra para cada orden").
   - Los PDF de las tablas (`exportPdf.ts`) no tienen número de página (Estadísticas sí).
   - El FIFO sin fechas se ve al importar una planilla sobre datos que ya tienen lotes (Fase 6).
+- Detectados en la Fase 7:
+  - PDF de Estadísticas: una tabla puede dejar una sola fila sola en la página siguiente (ej. la
+    orden N° 101 en Producción); evitar filas huérfanas.
+  - En 2560 / ultrawide las tablas de catálogos (Clientes, Proveedores) quedan muy aireadas a
+    todo el ancho; ver si conviene un máximo también ahí.
+  - En los formularios de edición los números con decimales aparecen con punto ("1129.81" en el
+    costo unitario de una orden) en vez de coma, como en el resto de la app.
 - Detalles visuales detectados en el recorrido general (alineaciones, textos, vacíos).
 
 ### Fase 9 — Features nuevas ☐

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useId, type ReactNode } from "react";
 
 export default function ModalShell({
   open,
@@ -19,6 +19,7 @@ export default function ModalShell({
   /** Ancho máximo del modal en px. Escala con la cantidad de campos del formulario. */
   width?: number;
 }) {
+  const idTitulo = useId();
   useEffect(() => {
     if (!open) return;
     function onKeyDown(e: KeyboardEvent) {
@@ -32,11 +33,18 @@ export default function ModalShell({
 
   return (
     <div className="rf-overlay" onClick={onClose}>
-      <div className="rf-modal" style={{ maxWidth: width }} onClick={(e) => e.stopPropagation()}>
+      <div
+        className="rf-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={idTitulo}
+        style={{ maxWidth: width }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="rf-modal-header">
           <div className="rf-modal-heading">
             {eyebrow && <div className="rf-modal-eyebrow">{eyebrow}</div>}
-            <h2>{title}</h2>
+            <h2 id={idTitulo}>{title}</h2>
           </div>
           <button type="button" className="rf-close-btn" onClick={onClose} aria-label="Cerrar">
             ✕

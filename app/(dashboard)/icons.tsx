@@ -33,7 +33,10 @@ export type IconName =
   | "check"
   | "notEqual"
   | "alert"
-  | "edit";
+  | "edit"
+  | "menu"
+  | "close"
+  | "logout";
 
 const paths: Record<IconName, React.ReactNode> = {
   home: (
@@ -166,6 +169,16 @@ const paths: Record<IconName, React.ReactNode> = {
     <>
       <path d="M14.5 5.5 18.5 9.5" />
       <path d="M4.5 19.5 5.3 15.7 15.8 5.2a2 2 0 0 1 2.9 0l.1.1a2 2 0 0 1 0 2.9L8.3 18.7Z" />
+    </>
+  ),
+  // Sidebar compacta: desplegar / cerrar y cerrar sesión.
+  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+  close: <path d="M6 6l12 12M18 6 6 18" />,
+  logout: (
+    <>
+      <path d="M14.5 4.5h3a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5h-3" />
+      <path d="M10 8.2 6.2 12l3.8 3.8" />
+      <path d="M6.5 12H15" />
     </>
   ),
   alert: (
