@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import OrdenesProduccionView from "./OrdenesProduccionView";
+
+export const metadata: Metadata = { title: "Órdenes de producción" };
 
 export default function OrdenesProduccionPage() {
   return (

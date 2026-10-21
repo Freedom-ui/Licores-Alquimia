@@ -4,7 +4,7 @@
 // solo envuelve a `aplicar`, así que esto es lo que recibe cualquiera que la llame.
 
 import { describe, expect, it } from "vitest";
-import { aplicar, ErrorNegocio, type Accion, type Estado } from "./acciones";
+import { aplicar, aplicarVarios, ErrorNegocio, type Accion, type Estado } from "./acciones";
 import { estadoDemo } from "./demo";
 import { saldoInventario, saldoLote, usadoDeCompra } from "./sync";
 import { hoyLocal } from "@/app/components/data-table/validacion";
@@ -139,6 +139,15 @@ describe("materia prima", () => {
   });
   it("unidad de la lista", () => {
     rechaza({ tipo: "addMateriaPrima", v: { nombre: "Canela", unidad: "Galones" } }, "unidad");
+  });
+  it("cómo se compra: sin dato es 'Con stock' al dar de alta y no cambia al editar", () => {
+    const e = aplicarCualquiera(base, { tipo: "addMateriaPrima", v: { nombre: "Canela", unidad: "Kilogramos" } });
+    expect(e.materiaPrima.at(-1)!.reposicion).toBe("Con stock");
+    const limon = base.materiaPrima.find((m) => m.nombre === "Limón")!;
+    expect(limon.reposicion).toBe("Para cada orden");
+    const editado = aplicarCualquiera(base, { tipo: "updateMateriaPrima", id: limon.id, v: { nombre: "Limón", unidad: "Kilogramos" } });
+    expect(editado.materiaPrima.find((m) => m.id === limon.id)!.reposicion).toBe("Para cada orden");
+    rechaza({ tipo: "addMateriaPrima", v: { nombre: "Canela", unidad: "Kilogramos", reposicion: "A veces" } }, "reposicion");
   });
 });
 
@@ -398,5 +407,58 @@ describe("inventario de materia prima", () => {
 describe("acciones raras", () => {
   it("tipo desconocido", () => {
     rechaza({ tipo: "borrarTodo" });
+  });
+});
+
+// ── Vendedores ──────────────────────────────────────────────────────────────
+
+describe("vendedores", () => {
+  const conVentas = base.vendedores.find((v) => base.operaciones.some((o) => o.vendedor === v.nombre))!;
+
+  it("renombrar actualiza sus ventas", () => {
+    const e = aplicarCualquiera(base, { tipo: "updateVendedor", id: conVentas.id, v: { nombre: "  NUEVO,  NOMBRE " } });
+    expect(e.vendedores.find((v) => v.id === conVentas.id)!.nombre).toBe("NUEVO, NOMBRE");
+    expect(e.operaciones.filter((o) => o.vendedor === conVentas.nombre)).toEqual([]);
+    expect(e.operaciones.filter((o) => o.vendedor === "NUEVO, NOMBRE").length).toBe(
+      base.operaciones.filter((o) => o.vendedor === conVentas.nombre).length
+    );
+  });
+
+  it("no se repite el nombre ni queda vacío", () => {
+    const otro = base.vendedores.find((v) => v.id !== conVentas.id)!;
+    rechaza({ tipo: "updateVendedor", id: conVentas.id, v: { nombre: otro.nombre.toLowerCase() } }, "nombre");
+    rechaza({ tipo: "updateVendedor", id: conVentas.id, v: { nombre: "" } }, "nombre");
+  });
+
+  it("con ventas no se elimina; sin ventas sí", () => {
+    expect(rechaza({ tipo: "deleteVendedor", id: conVentas.id }).message).toMatch(/OP N° /);
+    const e = aplicarCualquiera(base, { tipo: "addVendedor", v: { nombre: "sin ventas" } });
+    expect(e.vendedores.at(-1)!.nombre).toBe("SIN VENTAS");
+    const nuevo = e.vendedores.at(-1)!;
+    expect(aplicarCualquiera(e, { tipo: "deleteVendedor", id: nuevo.id }).vendedores).toEqual(base.vendedores);
+  });
+});
+
+// ── Borrado múltiple (selección de las tablas) ──────────────────────────────
+
+describe("borrado de varios registros", () => {
+  const conVentas = base.clientes.find((c) => base.operaciones.some((o) => o.clienteId === c.id))!;
+
+  it("borra los que se pueden e informa los que no, cada uno todo o nada", () => {
+    const e = aplicarCualquiera(base, { tipo: "addCliente", v: clienteOk });
+    const nuevo = e.clientes.at(-1)!;
+    const r = aplicarVarios(e, [
+      { tipo: "deleteCliente", id: conVentas.id },
+      { tipo: "deleteCliente", id: nuevo.id },
+    ]);
+    expect(r.fallos).toEqual([{ indice: 0, mensaje: expect.stringMatching(/tiene operaciones/) }]);
+    expect(r.estado.clientes.some((c) => c.id === nuevo.id)).toBe(false);
+    expect(r.estado.clientes.find((c) => c.id === conVentas.id)).toEqual(conVentas);
+  });
+
+  it("solo acepta borrados", () => {
+    expect(() => aplicarVarios(base, [{ tipo: "addCliente", v: clienteOk }])).toThrow(ErrorNegocio);
+    expect(() => aplicarVarios(base, [])).toThrow(ErrorNegocio);
+    expect(() => aplicarVarios(base, "todo")).toThrow(ErrorNegocio);
   });
 });

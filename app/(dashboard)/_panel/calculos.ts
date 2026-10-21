@@ -152,7 +152,7 @@ export function construirPanel(d: Datos): Panel {
       titulo: o.cliente,
       detalle: `${fmtNumero(o.cantidad)} × ${nombreCorto(o.descripcion)}`,
       valor: fmtMoneda(o.subTotal),
-      href: "/operaciones",
+      href: `/operaciones?foco=${o.id}`,
     }));
 
   const compras: FilaPanel[] = comprasEn(d, null)
@@ -164,7 +164,7 @@ export function construirPanel(d: Datos): Panel {
       titulo: c.materia,
       detalle: `${fmtCantidad(c.cantidad, c.unidad)} · ${c.proveedor}`,
       valor: fmtMoneda(c.total),
-      href: "/trazabilidad",
+      href: `/trazabilidad?foco=${c.id}`,
     }));
 
   // Producción: primero lo que está macerando; el resto, lo último embotellado (lleva a su lote).
@@ -179,7 +179,7 @@ export function construirPanel(d: Datos): Panel {
       detalle: o.cantidadProducida === null ? `${o.responsable} · sin cantidad estimada` : `${o.responsable} · ≈ ${fmtNumero(o.cantidadProducida)} botellas`,
       valor: `Día ${fmtNumero(diasEntre(o.fechaMaceracion, d.hoy) + 1)}`,
       estado: { texto: "Macerando", tono: "activo" as const },
-      href: "/ordenes-produccion",
+      href: `/ordenes-produccion?foco=${o.id}`,
     })),
     ...embotelladas.map((o) => {
       const lote = d.lotes.find((l) => l.origenOrdenId === o.id);
@@ -190,7 +190,7 @@ export function construirPanel(d: Datos): Panel {
         detalle: `${o.responsable} · ${fmtNumero(diasEntre(o.fechaMaceracion, o.fechaEmbotellado!))} días de maceración`,
         valor: `${fmtNumero(o.cantidadProducida ?? 0)} u.`,
         estado: { texto: "Embotellada", tono: "neutro" as const },
-        href: lote ? `/productos-terminados?foco=${lote.id}` : "/ordenes-produccion",
+        href: lote ? `/productos-terminados?foco=${lote.id}` : `/ordenes-produccion?foco=${o.id}`,
       };
     }),
   ].slice(0, FILAS);

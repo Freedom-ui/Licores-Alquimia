@@ -45,7 +45,7 @@ const columns: Column<ProductoRow>[] = [
 
 export default function ProductosView() {
   const store = useStore();
-  const { productos, addProducto, updateProducto, deleteProducto } = store;
+  const { productos, addProducto, updateProducto, deleteProducto, eliminarFilas } = store;
   const [editingRow, setEditingRow] = useState<ProductoRow | null>(null);
 
   return (
@@ -64,6 +64,8 @@ export default function ProductosView() {
         }
         onEditRow={setEditingRow}
         onDeleteRow={(row) => deleteProducto(row.id)}
+        onDeleteRows={(filas) => eliminarFilas(filas, (r) => ({ tipo: "deleteProducto", id: r.id }))}
+        anchoMaximo
       />
       <EditRecordModal
         title="Productos"

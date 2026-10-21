@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import OperacionesView from "./OperacionesView";
+
+export const metadata: Metadata = { title: "Operaciones" };
 
 export default function OperacionesPage() {
   return (

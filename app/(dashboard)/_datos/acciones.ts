@@ -7,7 +7,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { obtenerSesion } from "@/lib/auth/sesion";
-import { aplicar, ErrorNegocio, type Accion, type Estado } from "../_dominio/acciones";
+import { aplicar, aplicarVarios, ErrorNegocio, type Accion, type Estado, type FalloVarios } from "../_dominio/acciones";
 import { cargarEstado, guardarCambios } from "./repositorio";
 
 export type Resultado =
@@ -40,6 +40,35 @@ export async function ejecutar(accion: unknown): Promise<Resultado> {
   } catch (e) {
     if (e instanceof ErrorNegocio) return { ok: false, error: e.message, ...(e.campo ? { campo: e.campo } : {}) };
     console.error(`No se pudo guardar (${accion.tipo}):`, e);
+    return { ok: false, error: "No se pudo guardar el cambio en la base de datos. Probá de nuevo." };
+  }
+}
+
+export type ResultadoVarios =
+  | { ok: true; estado: Estado; fallos: FalloVarios[] }
+  | { ok: false; error: string; sinSesion?: true };
+
+/**
+ * Borrado múltiple (selección de las tablas), en una sola transacción. Cada
+ * registro es todo o nada: los que una regla no deja borrar vuelven en
+ * `fallos` con su motivo y el resto se guarda.
+ */
+export async function ejecutarVarios(acciones: unknown): Promise<ResultadoVarios> {
+  if (!(await obtenerSesion())) return { ok: false, error: "Tu sesión terminó: volvé a iniciar sesión.", sinSesion: true };
+  try {
+    const r = await prisma.$transaction(
+      async (tx) => {
+        const antes = await cargarEstado(tx);
+        const { estado: despues, fallos } = aplicarVarios(antes, acciones);
+        await guardarCambios(tx, antes, despues);
+        return { estado: await cargarEstado(tx), fallos };
+      },
+      { timeout: 30_000 }
+    );
+    return { ok: true, ...r };
+  } catch (e) {
+    if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
+    console.error("No se pudo guardar el borrado múltiple:", e);
     return { ok: false, error: "No se pudo guardar el cambio en la base de datos. Probá de nuevo." };
   }
 }

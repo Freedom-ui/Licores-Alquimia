@@ -46,7 +46,14 @@ export type Column<T> = {
    * bajo una celda común (ej. "Proveedor" sobre Nombre / Form. / Tipo / N°), en
    * pantalla y en el PDF.
    */
-  group?: string;  /** Metadata para generar el campo correspondiente en RecordFormModal (alta manual de un registro). */
+  group?: string;
+  /**
+   * Ancho máximo de la celda en px: un texto más largo se corta con "…" y se
+   * lee completo al pasar el mouse (y en la ficha de la fila). Default: 260
+   * en columnas de texto y email; null = sin tope.
+   */
+  maxWidth?: number | null;
+  /** Metadata para generar el campo correspondiente en RecordFormModal (alta manual de un registro). */
   form?: ColumnFormConfig;
 };
 
@@ -69,6 +76,25 @@ export type DataTableProps<T> = {
   onDeleteRow?: (row: T) => void | Promise<void>;
   /** Botones extra por fila, antes de editar/eliminar (ej. "Rastrear"). */
   rowActions?: (row: T) => ReactNode;
+  /**
+   * Borrado de las filas seleccionadas (una sola confirmación y una sola
+   * transacción). Devuelve las que no se pudieron borrar y por qué. Sin esto,
+   * la selección sirve solo para exportar.
+   */
+  onDeleteRows?: (rows: T[]) => Promise<{ row: T; mensaje: string }[]>;
+  /**
+   * Ficha de solo lectura (doble clic o Enter sobre la fila activa) con todos
+   * los datos sin cortar y, opcionalmente, información relacionada. Sin
+   * ficha, el doble clic abre la edición.
+   */
+  ficha?: { titulo: (row: T) => string; extra?: (row: T) => ReactNode };
+  /** Tope de 1800 px centrado en pantallas muy anchas (catálogos con pocas columnas). */
+  anchoMaximo?: boolean;
+  /**
+   * Id de una fila a mostrar al entrar (ej. `?foco=1620` desde la ficha de un
+   * cliente): va a su página, la deja como fila activa y la trae a la vista.
+   */
+  enfocar?: number | string | null;
 };
 
 export type RecordFormModalProps<T> = {

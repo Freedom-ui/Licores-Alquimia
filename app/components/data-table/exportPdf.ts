@@ -1,5 +1,6 @@
 import type { Column } from "./types";
 import { formatCellValue } from "./format";
+import { numerarPaginas } from "./pdfComun";
 import JsBarcode from "jsbarcode";
 import { EMPRESA, lineaDatosEmpresa } from "@/app/empresa";
 
@@ -298,5 +299,6 @@ export async function exportRowsToPdf<T extends Record<string, unknown>>(
     },
   });
 
+  numerarPaginas(doc, margin.right);
   doc.save(`${slugify(sectionTitle)}.pdf`);
 }

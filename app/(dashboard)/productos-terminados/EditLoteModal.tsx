@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import ModalShell from "@/app/components/data-table/ModalShell";
 import { CampoNumero, ErrorCampo, CampoFecha } from "@/app/components/data-table/FormFields";
-import { fechaMaximaVencimiento } from "@/app/components/data-table/validacion";
+import { fechaMaximaVencimiento, numeroATexto } from "@/app/components/data-table/validacion";
 import { useErroresFormulario } from "@/app/components/data-table/useErroresFormulario";
 import { useStore, type LoteHeaderInput } from "../store";
 import { validarEncabezadoLote } from "../_dominio/reglas";
@@ -36,8 +36,8 @@ export default function EditLoteModal({
   if (currentId !== loadedLoteId) {
     setLoadedLoteId(currentId);
     setValues({
-      existenciaInicial: lote ? String(lote.existenciaInicial) : "",
-      costoUnitario: lote ? String(lote.costoUnitario) : "",
+      existenciaInicial: lote ? numeroATexto(lote.existenciaInicial) : "",
+      costoUnitario: lote ? numeroATexto(lote.costoUnitario) : "",
       fechaVencimiento: lote?.fechaVencimiento ?? "",
     });
     f.limpiar();

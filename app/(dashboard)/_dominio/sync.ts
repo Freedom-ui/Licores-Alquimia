@@ -156,12 +156,6 @@ export function syncLoteParaOrden(lotes: LoteTerminado[], orden: OrdenProduccion
   ];
 }
 
-// Operaciones → Productos terminados: una venta descuenta del lote más viejo
-// de ese producto que todavía tenga stock (FIFO); si no alcanza, sigue con el
-// siguiente lote, y lo que exceda a todo el stock queda en el último (saldo
-// negativo = falta embotellar). Antes descontaba siempre del primer lote,
-// aunque estuviera agotado, y la venta quedaba atribuida al lote equivocado:
-// para trazabilidad importa saber a qué cliente fue cada lote.
 export function saldoLote(l: LoteTerminado): number {
   return l.movimientos.reduce((s, m) => (m.tipo === "entrada" ? s + m.cantidad : s - m.cantidad), l.existenciaInicial);
 }
@@ -179,42 +173,157 @@ export function quitarSalidaDeOperacion(lotes: LoteTerminado[], operacionId: num
   );
 }
 
-export function syncSalidaParaOperacion(
+// ── Operaciones → Productos terminados: FIFO por fechas ──
+// Cada venta descuenta de los lotes de su producto ya embotellados a la fecha
+// de la venta, del más viejo al más nuevo (los lotes con stock previo al
+// sistema cuentan como disponibles desde siempre). Si no alcanza, el faltante
+// queda en negativo en el último lote disponible a esa fecha (falta
+// embotellar); si a esa fecha no había ningún lote, la venta queda sin lote.
+//
+// Se recalculan juntas todas las ventas del producto, en orden de fecha: así
+// cargar, editar o borrar una venta vieja (o cambiar un embotellado)
+// reacomoda las posteriores, y el resultado no depende del orden en que se
+// cargaron (ej. la importación de la planilla). Para trazabilidad importa
+// saber a qué cliente fue cada lote.
+
+type VentaFifo = { id: number; productoId: number; fecha: string; cantidad: number };
+type OrdenFifo = { id: number; fechaEmbotellado: string | null };
+
+export type AsignacionFifo = {
+  /** loteId → (operacionId → cantidad que esa venta tomó del lote). */
+  porLote: Map<number, Map<number, number>>;
+  /** operacionId → botellas que no se pudieron cubrir con stock a su fecha. */
+  faltantes: Map<number, number>;
+  /** Ventas sin ningún lote embotellado a su fecha (no descuentan de ninguno). */
+  sinLote: number[];
+};
+
+/** Fecha desde la que se puede vender de un lote; null = todavía no se puede (su orden macera). */
+function disponibleDesde(l: LoteTerminado, embotellado: Map<number, string | null>): string | null {
+  if (l.origenOrdenId === undefined || !embotellado.has(l.origenOrdenId)) return "";
+  return embotellado.get(l.origenOrdenId) ?? null;
+}
+
+/** Saldo de un lote sin contar las ventas (existencia + movimientos cargados a mano). */
+function saldoSinVentas(l: LoteTerminado): number {
+  return l.movimientos.reduce(
+    (s, m) => (m.origenOperacionId !== undefined ? s : m.tipo === "entrada" ? s + m.cantidad : s - m.cantidad),
+    l.existenciaInicial
+  );
+}
+
+export function asignarFifo(
   lotes: LoteTerminado[],
-  operacion: { id: number; productoId: number; fecha: string; cantidad: number }
+  operaciones: VentaFifo[],
+  ordenes: OrdenFifo[],
+  productoId: number
+): AsignacionFifo {
+  const embotellado = new Map(ordenes.map((o) => [o.id, o.fechaEmbotellado]));
+  const candidatos = lotes
+    .filter((l) => l.productoId === productoId)
+    .map((l) => ({ l, desde: disponibleDesde(l, embotellado) }))
+    .filter((c): c is { l: LoteTerminado; desde: string } => c.desde !== null)
+    .sort((a, b) => a.desde.localeCompare(b.desde) || a.l.lote - b.l.lote || a.l.id - b.l.id);
+  const saldo = new Map(candidatos.map((c) => [c.l.id, saldoSinVentas(c.l)]));
+  const porLote = new Map<number, Map<number, number>>();
+  const faltantes = new Map<number, number>();
+  const sinLote: number[] = [];
+
+  const asignar = (loteId: number, opId: number, cantidad: number) => {
+    const delLote = porLote.get(loteId) ?? new Map<number, number>();
+    delLote.set(opId, round2((delLote.get(opId) ?? 0) + cantidad));
+    porLote.set(loteId, delLote);
+    saldo.set(loteId, round2(saldo.get(loteId)! - cantidad));
+  };
+
+  const ventas = operaciones
+    .filter((o) => o.productoId === productoId)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
+  for (const v of ventas) {
+    const elegibles = candidatos.filter((c) => c.desde <= v.fecha);
+    if (elegibles.length === 0) {
+      sinLote.push(v.id);
+      faltantes.set(v.id, v.cantidad);
+      continue;
+    }
+    let restante = v.cantidad;
+    for (const { l } of elegibles) {
+      if (restante <= 0) break;
+      const disponible = saldo.get(l.id)!;
+      if (disponible <= 0) continue;
+      const toma = Math.min(disponible, restante);
+      asignar(l.id, v.id, toma);
+      restante = round2(restante - toma);
+    }
+    if (restante > 0) {
+      asignar(elegibles[elegibles.length - 1].l.id, v.id, restante);
+      faltantes.set(v.id, restante);
+    }
+  }
+  return { porLote, faltantes, sinLote };
+}
+
+/** Total de botellas vendidas sin stock a su fecha, para un producto. */
+export function faltanteDeProducto(
+  lotes: LoteTerminado[],
+  operaciones: VentaFifo[],
+  ordenes: OrdenFifo[],
+  productoId: number
+): number {
+  let total = 0;
+  for (const f of asignarFifo(lotes, operaciones, ordenes, productoId).faltantes.values()) total += f;
+  return round2(total);
+}
+
+/**
+ * Vuelve a asignar las ventas de los productos indicados a sus lotes. Respeta
+ * los movimientos cargados a mano y el id de cada salida que ya existía (así
+ * la base guarda solo lo que cambió).
+ */
+export function recalcularFifo(
+  lotes: LoteTerminado[],
+  operaciones: VentaFifo[],
+  ordenes: OrdenFifo[],
+  productoIds: Iterable<number>
 ): LoteTerminado[] {
-  const limpios = quitarSalidaDeOperacion(lotes, operacion.id);
-  // Primero los lotes con stock previo al sistema (no vienen de una orden: son
-  // los más viejos), después por número de lote.
-  const candidatos = limpios
-    .filter((l) => l.productoId === operacion.productoId)
-    .sort((a, b) => Number(a.origenOrdenId !== undefined) - Number(b.origenOrdenId !== undefined) || a.lote - b.lote || a.id - b.id);
-  if (candidatos.length === 0) return limpios;
-
-  const asignado = new Map<number, number>();
-  let restante = operacion.cantidad;
-  for (const l of candidatos) {
-    if (restante <= 0) break;
-    const disponible = saldoLote(l);
-    if (disponible <= 0) continue;
-    const toma = Math.min(disponible, restante);
-    asignado.set(l.id, toma);
-    restante = round2(restante - toma);
+  const productos = new Set(productoIds);
+  if (productos.size === 0) return lotes;
+  const porLote = new Map<number, Map<number, number>>();
+  for (const productoId of productos) {
+    for (const [loteId, ventas] of asignarFifo(lotes, operaciones, ordenes, productoId).porLote) porLote.set(loteId, ventas);
   }
-  if (restante > 0) {
-    const ultimo = candidatos[candidatos.length - 1];
-    asignado.set(ultimo.id, (asignado.get(ultimo.id) ?? 0) + restante);
-  }
+  const fechaDe = new Map(operaciones.map((o) => [o.id, o.fecha]));
 
-  return limpios.map((l) => {
-    const cantidad = asignado.get(l.id);
-    if (!cantidad) return l;
-    return {
-      ...l,
-      movimientos: [
-        ...l.movimientos,
-        { id: nextId(l.movimientos), fecha: operacion.fecha, tipo: "salida", cantidad: round2(cantidad), origenOperacionId: operacion.id },
-      ],
-    };
+  return lotes.map((l) => {
+    if (l.productoId === undefined || !productos.has(l.productoId)) return l;
+    const asignadas = new Map(porLote.get(l.id) ?? []);
+    if (asignadas.size === 0 && !l.movimientos.some((m) => m.origenOperacionId !== undefined)) return l;
+
+    let siguiente = nextId(l.movimientos);
+    let cambio = false;
+    const movimientos: KardexMovimiento[] = [];
+    for (const m of l.movimientos) {
+      if (m.origenOperacionId === undefined) {
+        movimientos.push(m);
+        continue;
+      }
+      const cantidad = asignadas.get(m.origenOperacionId);
+      if (cantidad === undefined) {
+        cambio = true;
+        continue;
+      }
+      asignadas.delete(m.origenOperacionId);
+      const fecha = fechaDe.get(m.origenOperacionId)!;
+      if (m.cantidad === cantidad && m.fecha === fecha && m.tipo === "salida") movimientos.push(m);
+      else {
+        cambio = true;
+        movimientos.push({ ...m, fecha, tipo: "salida", cantidad });
+      }
+    }
+    for (const [opId, cantidad] of asignadas) {
+      cambio = true;
+      movimientos.push({ id: siguiente++, fecha: fechaDe.get(opId)!, tipo: "salida", cantidad, origenOperacionId: opId });
+    }
+    return cambio ? { ...l, movimientos } : l;
   });
 }

@@ -4,13 +4,13 @@ import { useState, type FormEvent } from "react";
 import ModalShell from "@/app/components/data-table/ModalShell";
 import { CampoNumero, ErrorCampo, CampoFecha } from "@/app/components/data-table/FormFields";
 import { formatCellValue } from "@/app/components/data-table/format";
-import { fmtNumero, parsearNumero } from "@/app/components/data-table/validacion";
+import { fmtFecha, fmtNumero, numeroATexto, parsearNumero } from "@/app/components/data-table/validacion";
 import { useErroresFormulario } from "@/app/components/data-table/useErroresFormulario";
 import type { ClienteRow } from "../clientes/data";
 import { productoLabel, type ProductoRow } from "../productos/data";
 import { CANALES, CONDICIONES, type OperacionRow } from "./data";
 import { useStore, type OperacionInput } from "../store";
-import { stockDisponible, validarOperacion } from "../_dominio/reglas";
+import { faltanteDeVenta, validarOperacion } from "../_dominio/reglas";
 
 export type OperacionFormTarget = OperacionRow | "new" | null;
 
@@ -81,10 +81,10 @@ export default function OperacionFormModal({
         clienteId: String(target.clienteId),
         vendedor: target.vendedor,
         productoId: String(target.productoId),
-        cantidad: String(target.cantidad),
+        cantidad: numeroATexto(target.cantidad),
         canal: target.canal,
         condicion: target.condicion,
-        pu: String(target.pu),
+        pu: numeroATexto(target.pu),
       });
     }
     setAvisoConfirmable(null);
@@ -97,7 +97,7 @@ export default function OperacionFormModal({
     // puede pisarlo después (ej. un cliente con precio preferencial).
     if (key === "productoId") {
       const producto = productos.find((p) => p.id === Number(value));
-      if (producto) next.pu = String(producto.precioUnitario);
+      if (producto) next.pu = numeroATexto(producto.precioUnitario);
     }
     setValues(next);
     f.alEscribir(next);
@@ -115,11 +115,16 @@ export default function OperacionFormModal({
   const cantidadNum = num(values.cantidad);
   const subTotal = cantidadNum * num(values.pu);
 
-  // Stock del producto elegido (al editar, cuenta lo que ya tomó esta misma venta).
+  // Stock del producto elegido embotellado a la fecha de la venta (al editar,
+  // cuenta lo que ya tomó esta misma venta).
   const productoId = Number(values.productoId);
-  const stock = productoId ? stockDisponible(estado, productoId, operacionId ?? undefined) : null;
-  const superaStock = stock !== null && cantidadNum > 0 && cantidadNum > stock;
-  const claveAviso = `${values.productoId}|${values.cantidad}`;
+  const fechaOk = /^\d{4}-\d{2}-\d{2}$/.test(values.fecha);
+  const faltante =
+    productoId && fechaOk && cantidadNum > 0
+      ? faltanteDeVenta(estado, { id: operacionId, productoId, fecha: values.fecha, cantidad: cantidadNum })
+      : null;
+  const superaStock = faltante !== null && faltante.faltan > 0;
+  const claveAviso = `${values.productoId}|${values.cantidad}|${values.fecha}`;
   const confirmando = superaStock && avisoConfirmable === claveAviso;
 
   async function handleSubmit(e: FormEvent) {
@@ -266,11 +271,10 @@ export default function OperacionFormModal({
 
         {superaStock && (
           <p className="rf-hint rf-hint-warn" role={confirmando ? "alert" : undefined}>
-            {stock !== null && stock > 0
-              ? `Solo hay ${fmtNumero(stock)} ${stock === 1 ? "botella" : "botellas"} de este producto en stock.`
-              : "No hay botellas de este producto en stock."}{" "}
-            Si guardás igual, el lote queda en negativo hasta que se embotelle lo que falta.
-            {confirmando && " Revisá la cantidad o tocá «Guardar igual» para confirmar."}
+            {faltante.sinLote
+              ? `No hay ningún lote de este producto embotellado al ${fmtFecha(values.fecha)}. Si guardás igual, la venta queda sin lote de origen.`
+              : `Al ${fmtFecha(values.fecha)} faltan ${fmtNumero(faltante.faltan)} ${faltante.faltan === 1 ? "botella" : "botellas"} de este producto en stock. Si guardás igual, el último lote embotellado a esa fecha queda en negativo hasta que se embotelle lo que falta.`}
+            {confirmando && " Revisá la cantidad y la fecha, o tocá «Guardar igual» para confirmar."}
           </p>
         )}
 

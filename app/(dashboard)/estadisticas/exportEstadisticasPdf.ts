@@ -4,6 +4,7 @@
 
 import type { jsPDF as JsPDF } from "jspdf";
 import { EMPRESA, lineaDatosEmpresa } from "@/app/empresa";
+import { numerarPaginas } from "@/app/components/data-table/pdfComun";
 import { graficoComoImagen } from "./Grafico";
 import type { Bloque, Seccion } from "./secciones";
 
@@ -15,6 +16,7 @@ const TONO = { bueno: [46, 125, 66], malo: [178, 58, 58], neutro: [120, 115, 110
 const NIVEL = { critico: { texto: "Crítico", color: [178, 58, 58] }, aviso: { texto: "Aviso", color: [192, 138, 30] }, info: { texto: "Info", color: [111, 107, 102] } } as const;
 
 type AutoTable = (typeof import("jspdf-autotable"))["autoTable"];
+type CreateTable = (typeof import("jspdf-autotable"))["__createTable"];
 type Meta = { periodo: string; comparacion: string | null };
 
 const dateTimeFormatter = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" });
@@ -204,22 +206,68 @@ function dibujarKpis(doc: JsPDF, b: Extract<Bloque, { tipo: "kpis" }>, x: number
   return y + h * filasTotal;
 }
 
-function dibujarTabla(autoTable: AutoTable, doc: JsPDF, b: Extract<Bloque, { tipo: "tabla" }>, x: number, y: number, ancho: number): number {
+// Margen inferior de las tablas (el pie con "Página i de N" va más abajo).
+const MARGEN_INFERIOR_TABLA = 14;
+
+/**
+ * Cuántas filas del cuerpo entran en la página actual debajo del encabezado,
+ * con las alturas reales que calcula autotable (las filas con texto largo
+ * ocupan dos líneas).
+ */
+function filasQueEntran(altosFilas: number[], espacio: number): number {
+  let usado = 0;
+  for (let i = 0; i < altosFilas.length; i++) {
+    usado += altosFilas[i];
+    if (usado > espacio) return i;
+  }
+  return altosFilas.length;
+}
+
+function dibujarTabla(
+  autoTable: AutoTable,
+  createTable: CreateTable,
+  doc: JsPDF,
+  b: Extract<Bloque, { tipo: "tabla" }>,
+  x: number,
+  y: number,
+  ancho: number
+): number {
   const anchoPagina = doc.internal.pageSize.getWidth();
+  const altoPagina = doc.internal.pageSize.getHeight();
   const alineacion = b.columnas.map((c) => (c.alinear === "der" ? "right" : c.alinear === "centro" ? "center" : "left"));
-  autoTable(doc, {
+  const opciones: Parameters<AutoTable>[1] = {
     startY: y,
     head: [b.columnas.map((c) => c.titulo)],
     body: b.filas.length ? b.filas.map((f) => f.map(sinFlechas)) : [[b.vacio, ...b.columnas.slice(1).map(() => "")]],
-    margin: { left: x, right: anchoPagina - x - ancho, top: MARGEN },
+    margin: { left: x, right: anchoPagina - x - ancho, top: MARGEN, bottom: MARGEN_INFERIOR_TABLA },
     tableWidth: ancho,
+    rowPageBreak: "avoid",
     styles: { font: "helvetica", fontSize: 7.5, cellPadding: 1.8, lineWidth: 0.2, lineColor: [200, 195, 188], valign: "middle" },
     headStyles: { fillColor: NARANJA, textColor: 255, fontStyle: "bold", fontSize: 7.5, lineColor: [184, 95, 26] },
     alternateRowStyles: { fillColor: [245, 242, 236] },
     didParseCell: (data) => {
       data.cell.styles.halign = alineacion[data.column.index] as "left" | "right" | "center";
     },
-  });
+  };
+
+  // Sin filas sueltas: si la tabla se corta y de un lado del corte quedaría
+  // una sola fila (ej. la última orden sola en la página siguiente), se corta
+  // una fila antes o se pasa la tabla entera a la página siguiente.
+  const medida = createTable(doc, opciones);
+  const altos = medida.body.map((r) => r.height);
+  const espacio = altoPagina - MARGEN_INFERIOR_TABLA - y - medida.getHeadHeight(medida.columns);
+  const entran = filasQueEntran(altos, espacio);
+  const total = altos.length;
+  if (entran < total && total > 1) {
+    if (entran <= 1) {
+      opciones.pageBreak = "always";
+    } else if (total - entran === 1) {
+      // Se agranda el margen inferior lo justo para que baje una fila más.
+      const margen = opciones.margin as { bottom: number };
+      margen.bottom = MARGEN_INFERIOR_TABLA + (espacio - altos.slice(0, entran - 1).reduce((s, h) => s + h, 0)) - altos[entran - 1] + 0.5;
+    }
+  }
+  autoTable(doc, opciones);
   return finalY(doc);
 }
 
@@ -244,7 +292,7 @@ function dibujarAlertas(autoTable: AutoTable, doc: JsPDF, b: Extract<Bloque, { t
 }
 
 export async function exportEstadisticasPdf(secciones: Seccion[], meta: Meta, archivo: string) {
-  const [{ default: jsPDF }, { autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
+  const [{ default: jsPDF }, { autoTable, __createTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
   const doc = new jsPDF({ orientation: "landscape", unit: "mm" });
   const anchoPagina = doc.internal.pageSize.getWidth();
   const altoPagina = doc.internal.pageSize.getHeight();
@@ -271,7 +319,7 @@ export async function exportEstadisticasPdf(secciones: Seccion[], meta: Meta, ar
         const yContenido = tituloBloque(doc, b, x, y, ancho);
         let fin: number;
         if (b.tipo === "kpis") fin = dibujarKpis(doc, b, x, yContenido, ancho);
-        else if (b.tipo === "tabla") fin = dibujarTabla(autoTable, doc, b, x, yContenido + 1, ancho);
+        else if (b.tipo === "tabla") fin = dibujarTabla(autoTable, __createTable, doc, b, x, yContenido + 1, ancho);
         else if (b.tipo === "alertas") fin = dibujarAlertas(autoTable, doc, b, x, yContenido + 1, ancho);
         else {
           const alto = altoGraficoMm(b.alto);
@@ -304,13 +352,7 @@ export async function exportEstadisticasPdf(secciones: Seccion[], meta: Meta, ar
     }
   });
 
-  const total = doc.getNumberOfPages();
-  for (let i = 1; i <= total; i++) {
-    doc.setPage(i);
-    doc.setFontSize(7.5);
-    doc.setTextColor(140);
-    doc.text(`Página ${i} de ${total}`, anchoPagina - MARGEN, altoPagina - 6, { align: "right" });
-  }
+  numerarPaginas(doc, MARGEN);
 
   doc.save(archivo);
 }

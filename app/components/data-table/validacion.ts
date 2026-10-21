@@ -80,6 +80,16 @@ export function parsearNumero(raw: unknown): number | null {
 const formatoNumero = new Intl.NumberFormat("es-AR", { maximumFractionDigits: DECIMALES });
 export const fmtNumero = (n: number) => formatoNumero.format(n);
 
+/**
+ * Número guardado → texto para cargar en un campo del formulario: coma
+ * decimal como en el resto de la app, sin separador de miles (que
+ * `parsearNumero` no acepta). Vacío si no hay valor.
+ */
+export function numeroATexto(n: number | null | undefined): string {
+  if (n === null || n === undefined || Number.isNaN(n)) return "";
+  return String(n).replace(".", ",");
+}
+
 export type ReglaNumero = {
   /** Con artículo, ej. "una cantidad", "el costo unitario". */
   que: string;

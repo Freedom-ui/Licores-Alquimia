@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import TrazabilidadView from "./TrazabilidadView";
+
+export const metadata: Metadata = { title: "Trazabilidad" };
 
 export default function TrazabilidadPage() {
   return (

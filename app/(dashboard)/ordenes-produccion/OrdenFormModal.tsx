@@ -6,7 +6,7 @@ import LineItemsField from "@/app/components/data-table/LineItemsField";
 import { CampoNumero, ErrorCampo, CampoFecha } from "@/app/components/data-table/FormFields";
 import { formatCellValue } from "@/app/components/data-table/format";
 import type { LineColumn } from "@/app/components/data-table/types";
-import { LARGO_RESPONSABLE, parsearNumero } from "@/app/components/data-table/validacion";
+import { LARGO_RESPONSABLE, numeroATexto, parsearNumero } from "@/app/components/data-table/validacion";
 import { useErroresFormulario } from "@/app/components/data-table/useErroresFormulario";
 import type { OrdenProduccionRow } from "./data";
 import { productoLabel } from "../productos/data";
@@ -158,12 +158,12 @@ export default function OrdenFormModal({
       if (!prev || prev.materiaPrima !== row.materiaPrima) {
         const sugerida = compraSugerida(next, i);
         return sugerida
-          ? { ...row, compraId: String(sugerida.id), costoUnitario: String(sugerida.costoUnitario) }
+          ? { ...row, compraId: String(sugerida.id), costoUnitario: numeroATexto(sugerida.costoUnitario) }
           : { ...row, compraId: "" };
       }
       if (row.compraId && row.compraId !== prev.compraId) {
         const elegida = compras.find((c) => String(c.id) === row.compraId);
-        if (elegida) return { ...row, costoUnitario: String(elegida.costoUnitario) };
+        if (elegida) return { ...row, costoUnitario: numeroATexto(elegida.costoUnitario) };
       }
       return row;
     });
@@ -183,15 +183,15 @@ export default function OrdenFormModal({
         fechaMaceracion: target.fechaMaceracion,
         fechaEmbotellado: target.fechaEmbotellado ?? "",
         responsable: target.responsable,
-        cantidadProducida: target.cantidadProducida === null ? "" : String(target.cantidadProducida),
+        cantidadProducida: numeroATexto(target.cantidadProducida),
       });
       setInsumos(
         withTotales(
           target.insumos.map((i) => ({
             materiaPrima: i.materiaPrima,
             compraId: i.compraId ? String(i.compraId) : "",
-            cantidad: String(i.cantidad),
-            costoUnitario: String(i.costoUnitario),
+            cantidad: numeroATexto(i.cantidad),
+            costoUnitario: numeroATexto(i.costoUnitario),
             costoTotalLinea: 0,
           }))
         )

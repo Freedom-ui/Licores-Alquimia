@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import InventarioMateriaPrimaView from "./InventarioMateriaPrimaView";
+
+export const metadata: Metadata = { title: "Inventario de materia prima" };
 
 export default function InventarioMateriaPrimaPage() {
   return (

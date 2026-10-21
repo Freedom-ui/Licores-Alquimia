@@ -1,4 +1,5 @@
 import { formatCellValue } from "./format";
+import { numerarPaginas } from "./pdfComun";
 import type { KardexFila } from "./kardex";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("es-AR", {
@@ -219,5 +220,6 @@ export async function exportKardexToPdf(
     cursorY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
   });
 
+  numerarPaginas(doc, margin.right);
   doc.save(`${slugify(sectionTitle)}.pdf`);
 }

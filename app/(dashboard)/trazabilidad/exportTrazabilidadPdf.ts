@@ -4,6 +4,7 @@
 
 import type { jsPDF as JsPDF } from "jspdf";
 import { formatCellValue } from "@/app/components/data-table/format";
+import { numerarPaginas } from "@/app/components/data-table/pdfComun";
 import { EMPRESA, lineaDatosEmpresa } from "@/app/empresa";
 import { formatCantidad, formatComprobante, identificadorCompra, nombreMedioPago } from "./data";
 import { clientesDe, type FichaLote, type RastreoLoteProveedor } from "./rastreo";
@@ -152,6 +153,7 @@ export async function exportFichaLotePdf(ficha: FichaLote) {
     ["En stock", `${formatCantidad(destino.enStock)} u.`],
   ]);
 
+  numerarPaginas(doc, MARGIN);
   doc.save(`ficha-trazabilidad-lote-${lote.lote}.pdf`);
 }
 
@@ -214,5 +216,6 @@ export async function exportRastreoLoteProveedorPdf(r: RastreoLoteProveedor) {
     [1]
   );
 
+  numerarPaginas(doc, MARGIN);
   doc.save(`rastreo-${slug(primera.lote || `op-${primera.id}`)}.pdf`);
 }

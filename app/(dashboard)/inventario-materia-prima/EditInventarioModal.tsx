@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import ModalShell from "@/app/components/data-table/ModalShell";
 import { CampoNumero, ErrorCampo } from "@/app/components/data-table/FormFields";
+import { numeroATexto } from "@/app/components/data-table/validacion";
 import { useErroresFormulario } from "@/app/components/data-table/useErroresFormulario";
 import { useStore, type InventarioMateriaPrimaHeaderInput } from "../store";
 import { validarEncabezadoInventario } from "../_dominio/reglas";
@@ -37,8 +38,8 @@ export default function EditInventarioModal({
   if (currentId !== loadedRowId) {
     setLoadedRowId(currentId);
     setValues({
-      existenciaInicial: row ? String(row.existenciaInicial) : "",
-      costoUnitario: row ? String(row.costoUnitario) : "",
+      existenciaInicial: row ? numeroATexto(row.existenciaInicial) : "",
+      costoUnitario: row ? numeroATexto(row.costoUnitario) : "",
     });
     f.limpiar();
   }

@@ -98,6 +98,8 @@ model MateriaPrima {
   nombre String
   /// Litros | Kilogramos | Unidades | Metros
   unidad String
+  /// Se compra fresca para cada orden (cítricos, hierbas): sin alerta de reposición.
+  compraPorOrden Boolean @default(false)
 
   compras    Compra[]
   inventario InventarioMateriaPrima[]

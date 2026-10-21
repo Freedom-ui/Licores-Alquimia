@@ -100,7 +100,14 @@ export async function cargarEstado(db: Db): Promise<Estado> {
       cbu: opt(p.cbu),
       alias: opt(p.alias),
     })),
-    materiaPrima: materiaPrima.map((m): MateriaPrimaRow => ({ id: m.id, nombre: m.nombre, unidad: m.unidad as UnidadMedida })),
+    materiaPrima: materiaPrima.map(
+      (m): MateriaPrimaRow => ({
+        id: m.id,
+        nombre: m.nombre,
+        unidad: m.unidad as UnidadMedida,
+        reposicion: m.compraPorOrden ? "Para cada orden" : "Con stock",
+      })
+    ),
     productos: productos.map((p): ProductoRow => ({
       id: p.id,
       nombre: p.nombre,
@@ -206,7 +213,12 @@ const filaProveedor = (p: ProveedorRow) => ({
   alias: txtOpt(p.alias),
 });
 
-const filaMateriaPrima = (m: MateriaPrimaRow) => ({ id: m.id, nombre: txt(m.nombre), unidad: txt(m.unidad) });
+const filaMateriaPrima = (m: MateriaPrimaRow) => ({
+  id: m.id,
+  nombre: txt(m.nombre),
+  unidad: txt(m.unidad),
+  compraPorOrden: m.reposicion === "Para cada orden",
+});
 
 const filaVendedor = (v: VendedorRow) => ({ id: v.id, nombre: txt(v.nombre) });
 

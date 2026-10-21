@@ -12,7 +12,15 @@ import type { LoteTerminado } from "./data";
 import { useStore } from "../store";
 
 export default function ProductosTerminadosView() {
-  const { productosTerminados, addMovimiento, updateLote, deleteLote } = useStore();
+  const { productosTerminados, ordenesProduccion, addMovimiento, updateLote, deleteLote } = useStore();
+  // Por qué un lote no se puede borrar desde acá (las mismas guardas que el servidor); null = se puede.
+  const motivoSinBorrar = (lote: LoteTerminado): string | null => {
+    if (lote.origenOrdenId !== undefined && ordenesProduccion.some((o) => o.id === lote.origenOrdenId)) {
+      return `Lo generó la orden de producción N° ${lote.origenOrdenId}: se elimina desde Órdenes de producción`;
+    }
+    if (lote.movimientos.some((m) => m.origenOperacionId !== undefined)) return "Tiene ventas: no se puede eliminar";
+    return null;
+  };
   const [search, setSearch] = useState("");
   const [estado, setEstado] = useState<"" | "activo" | "agotado">("");
   // ?foco=<id de lote> (ej. desde una alerta de Estadísticas): abre ese lote y lo lleva a la vista.
@@ -214,9 +222,12 @@ export default function ProductosTerminadosView() {
                     <button
                       type="button"
                       className="dt-row-action-btn danger"
-                      onClick={() => setDeleteTarget(lote)}
+                      onClick={() => {
+                        if (motivoSinBorrar(lote) === null) setDeleteTarget(lote);
+                      }}
+                      aria-disabled={motivoSinBorrar(lote) !== null || undefined}
                       aria-label="Eliminar lote"
-                      title="Eliminar lote"
+                      title={motivoSinBorrar(lote) ?? "Eliminar lote"}
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M4.5 7h15" />

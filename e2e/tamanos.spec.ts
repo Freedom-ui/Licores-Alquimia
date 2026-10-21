@@ -58,6 +58,17 @@ function hoySinBarras() {
   return `${String(d.getDate()).padStart(2, "0")}${String(d.getMonth() + 1).padStart(2, "0")}${d.getFullYear()}`;
 }
 
+/** Doble clic en la primera fila de la tabla: ficha de solo lectura. */
+const abrirFicha = (page: Page) => page.locator(".dt-table tbody tr").first().locator("td").first().dblclick();
+
+/** Fila activa + Shift + clic: 4 filas seleccionadas (aparece la barra de selección). */
+async function seleccionar(page: Page) {
+  const filas = page.locator(".dt-table tbody tr");
+  await filas.nth(0).locator("td").first().click();
+  await filas.nth(3).locator("td").first().click({ modifiers: ["Shift"] });
+  await page.locator(".dt-seleccion").waitFor();
+}
+
 /** Venta por más botellas de las que hay: queda el aviso de «Guardar igual». */
 async function ventaSinStock(page: Page) {
   await page.locator("#op-fecha").pressSequentially(hoySinBarras());
@@ -137,6 +148,23 @@ const VISTAS: Vista[] = [
   { nombre: "trazabilidad-errores", url: "/trazabilidad?nuevo=1", abrir: guardar, modal: true },
   { nombre: "trazabilidad-rastreo", url: "/trazabilidad", abrir: (p) => p.getByRole("button", { name: "Rastrear lote" }).first().click(), modal: true },
   { nombre: "cerrar-sesion", url: "/", abrir: (p) => p.locator(".logout-btn").click(), modal: true },
+
+  // Fase 8: fichas de solo lectura, selección de filas, borrado múltiple y vendedores.
+  ...[
+    ["clientes", "/clientes"],
+    ["proveedores", "/proveedores"],
+    ["operaciones", "/operaciones"],
+    ["ordenes", "/ordenes-produccion"],
+    ["trazabilidad", "/trazabilidad"],
+  ].map(([nombre, url]) => ({ nombre: `${nombre}-ficha-fila`, url, abrir: abrirFicha, modal: true })),
+  { nombre: "operaciones-seleccion", url: "/operaciones", abrir: seleccionar },
+  {
+    nombre: "clientes-borrar-varios",
+    url: "/clientes",
+    abrir: async (p) => (await seleccionar(p), await p.keyboard.press("Delete")),
+    modal: true,
+  },
+  { nombre: "operaciones-vendedores", url: "/operaciones", abrir: (p) => p.getByRole("button", { name: "Vendedores", exact: true }).click(), modal: true },
 
   // Estadísticas con otros períodos (más barras, meses, años) y sin comparación.
   ...["resumen", "ventas", "produccion", "stock", "compras", "rentabilidad"].flatMap((s) =>

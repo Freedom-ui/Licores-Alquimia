@@ -1,4 +1,5 @@
 import type { Column, ColumnType, FormInputType } from "./types";
+import { numeroATexto } from "./validacion";
 
 const currencyFormatter = new Intl.NumberFormat("es-AR", {
   style: "currency",
@@ -87,7 +88,7 @@ export function rowToFormValues<T extends Record<string, unknown>>(
   const values: Record<string, string> = {};
   for (const f of fields) {
     const v = row[f.key];
-    values[f.key] = v === null || v === undefined ? "" : String(v);
+    values[f.key] = typeof v === "number" ? numeroATexto(v) : v === null || v === undefined ? "" : String(v);
   }
   return values;
 }

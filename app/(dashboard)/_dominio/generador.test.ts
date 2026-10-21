@@ -7,6 +7,8 @@ import { generarDatos } from "./generador";
 import { revisarEstado } from "./revisar";
 import { estadoDemo } from "./demo";
 import { embotelladoDeLote } from "./reglas";
+import { stockMaterias } from "../estadisticas/calculos";
+import { construirAlertas } from "../estadisticas/secciones";
 
 // Fecha final fija: así el test no cambia con el día en que se corre.
 const HASTA = "2026-10-15";
@@ -98,5 +100,27 @@ describe("generador de datos de prueba", () => {
     expect(e.productos.find((p) => p.id === 1)!.precioUnitario).toBe(10000);
     const enero2024 = e.operaciones.find((o) => o.fecha.startsWith("2024-01") && o.canal === "Menor" && o.productoId === 1)!;
     expect(enero2024.pu).toBeLessThan(5000);
+  });
+});
+
+describe("alertas de materia prima", () => {
+  it("lo que se compra para cada orden no avisa que falta stock", () => {
+    const datos = {
+      hoy: HASTA,
+      operaciones: e.operaciones,
+      ordenes: e.ordenesProduccion,
+      lotes: e.productosTerminados,
+      inventario: e.inventarioMateriaPrima,
+      materiaPrima: e.materiaPrima,
+      compras: e.compras,
+      proveedores: e.proveedores,
+    };
+    const frescos = e.materiaPrima.filter((m) => m.reposicion === "Para cada orden").map((m) => m.nombre);
+    expect(frescos.sort()).toEqual(["Jengibre", "Limón", "Menta", "Naranja", "Pomelo"]);
+    for (const m of stockMaterias(datos)) {
+      if (frescos.includes(m.nombre)) expect(m.estado).toBe("por-orden");
+    }
+    const alertas = construirAlertas(datos).map((a) => a.texto);
+    for (const nombre of frescos) expect(alertas.some((t) => t.includes(nombre))).toBe(false);
   });
 });

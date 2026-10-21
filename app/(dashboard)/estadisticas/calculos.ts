@@ -266,7 +266,8 @@ export function stockLotes(d: Datos): StockLote[] {
   });
 }
 
-export type EstadoMateria = "sin-stock" | "bajo" | "ok" | "sin-consumo";
+/** "por-orden": se compra fresca para cada orden (ver Materia prima): no se repone, no da alerta. */
+export type EstadoMateria = "sin-stock" | "bajo" | "ok" | "sin-consumo" | "por-orden";
 
 export type StockMateria = {
   rowId: number;
@@ -301,7 +302,15 @@ export function stockMaterias(d: Datos): StockMateria[] {
       .reduce((s, m) => s + m.cantidad, 0);
     const saldo = ultima.saldoC;
     const estado: EstadoMateria =
-      saldo <= 0 ? "sin-stock" : consumoPorOrden === null ? "sin-consumo" : saldo < consumoPorOrden ? "bajo" : "ok";
+      mp?.reposicion === "Para cada orden"
+        ? "por-orden"
+        : saldo <= 0
+          ? "sin-stock"
+          : consumoPorOrden === null
+            ? "sin-consumo"
+            : saldo < consumoPorOrden
+              ? "bajo"
+              : "ok";
     return {
       rowId: r.id,
       materiaPrimaId: r.materiaPrimaId,

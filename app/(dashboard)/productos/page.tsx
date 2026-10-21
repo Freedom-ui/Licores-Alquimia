@@ -1,4 +1,7 @@
+import type { Metadata } from "next";
 import ProductosView from "./ProductosView";
+
+export const metadata: Metadata = { title: "Productos" };
 
 export default function ProductosPage() {
   return (

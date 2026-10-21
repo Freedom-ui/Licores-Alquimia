@@ -77,6 +77,7 @@ test("cada sección carga sin errores ni pedidos a internet", async ({ page }) =
     await expect(page.locator(".topbar-title")).toHaveText(titulo);
     await expect(page.getByText("Cargando…")).toHaveCount(0);
     await expect(page.locator(".content")).not.toBeEmpty();
+    await expect(page).toHaveTitle(`${titulo} · Licores Alquimia`);
   }
   expect(externos, "pedidos a internet").toEqual([]);
   expect(errores, "errores en la consola").toEqual([]);
@@ -202,7 +203,110 @@ test("orden: alta macerando sin cantidad", async ({ page }) => {
   await modal.getByLabel("Cantidad, línea 1").fill("1");
   await modal.getByRole("button", { name: "Guardar" }).click();
   await expect(modal).toHaveCount(0);
+  // La tabla pagina de a 50: la orden nueva se busca.
+  await page.locator(".dt-search").fill("E2E");
   await expect(page.locator("tbody tr", { hasText: "E2E" }).first()).toBeVisible();
+});
+
+test("tabla: fila activa, selección con Shift / Ctrl, ficha y páginas", async ({ page }) => {
+  await irA(page, "/operaciones", "Operaciones");
+  const filas = page.locator(".dt-table tbody tr");
+  await expect(filas).toHaveCount(50);
+
+  // Clic: fila activa. Shift + clic: rango. Ctrl (⌘) + clic: una suelta más.
+  await filas.nth(0).locator("td").first().click();
+  await expect(filas.nth(0)).toHaveClass(/dt-row-activa/);
+  await filas.nth(3).locator("td").first().click({ modifiers: ["Shift"] });
+  await expect(page.locator(".dt-seleccion")).toContainText("4 seleccionadas");
+  await filas.nth(6).locator("td").first().click({ modifiers: ["ControlOrMeta"] });
+  await expect(page.locator(".dt-seleccion")).toContainText("5 seleccionadas");
+  await expect(page.locator(".dt-pdf-btn")).toHaveText("Descargar PDF (5)");
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".dt-seleccion")).toHaveCount(0);
+
+  // Doble clic: ficha de solo lectura; Esc la cierra.
+  await filas.nth(1).locator("td").nth(2).dblclick();
+  const modal = page.locator(".rf-modal");
+  await expect(modal).toContainText("Lote de origen");
+  await page.keyboard.press("Escape");
+  await expect(modal).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Página 2", exact: true }).click();
+  await expect(page.locator(".dt-footer")).toContainText("Mostrando 51–100");
+});
+
+test("borrado de varias filas: borra las que puede y avisa las que no", async ({ page, browserName }) => {
+  const nombre = `E2E SEL ${browserName} ${Date.now()}`;
+  await irA(page, "/clientes", "Clientes");
+  const modal = page.locator(".rf-modal");
+  await page.locator(".rf-trigger-btn").click();
+  await modal.getByLabel("Razón social").fill(nombre);
+  await modal.getByLabel("Cond. IVA").selectOption("Consumidor Final");
+  await modal.getByLabel("Precio Tradicional").fill("12500");
+  await modal.getByRole("button", { name: "Guardar" }).click();
+  await expect(modal).toHaveCount(0);
+
+  // Un cliente con ventas (no se puede borrar) + el nuevo (sí).
+  const filas = page.locator(".dt-table tbody tr");
+  await filas.filter({ hasText: "PARTICULAR" }).first().locator("td").first().click();
+  await filas.filter({ hasText: nombre }).locator("td").first().click({ modifiers: ["ControlOrMeta"] });
+  await expect(page.locator(".dt-seleccion")).toContainText("2 seleccionadas");
+  await page.keyboard.press("Delete");
+  await expect(modal.getByRole("button", { name: "Cancelar" })).toBeFocused();
+  await modal.getByRole("button", { name: "Eliminar 2 registros" }).click();
+  await expect(modal).toContainText("Se eliminó 1 registro");
+  await expect(modal).toContainText("PARTICULAR");
+  await modal.getByRole("button", { name: "Entendido" }).click();
+  await expect(filas.filter({ hasText: nombre })).toHaveCount(0);
+  await expect(filas.filter({ hasText: "PARTICULAR" }).first()).toBeVisible();
+});
+
+test("vendedores: alta en mayúsculas, renombrar y eliminar (con ventas no)", async ({ page, browserName }) => {
+  const nombre = `e2e ${browserName} ${Date.now()}`;
+  const mayus = nombre.toUpperCase();
+  await irA(page, "/operaciones", "Operaciones");
+  await page.getByRole("button", { name: "Vendedores", exact: true }).click();
+  const modal = page.locator(".rf-modal");
+  await modal.getByLabel("Nuevo vendedor").fill(nombre);
+  await modal.getByRole("button", { name: "Agregar" }).click();
+  await expect(modal.locator("tbody tr", { hasText: mayus })).toHaveCount(1);
+
+  await modal.getByRole("button", { name: `Renombrar ${mayus}` }).click();
+  await modal.getByLabel(`Nuevo nombre de ${mayus}`).fill(`${mayus} B`);
+  await modal.getByRole("button", { name: "Guardar" }).click();
+  const renombrado = modal.locator("tbody tr", { hasText: `${mayus} B` });
+  await expect(renombrado).toHaveCount(1);
+
+  await modal.getByRole("button", { name: `Eliminar ${mayus} B` }).click();
+  await modal.getByRole("button", { name: "Sí", exact: true }).click();
+  await expect(renombrado).toHaveCount(0);
+
+  await modal.getByRole("button", { name: "Eliminar ALQUIMIA" }).click();
+  await modal.getByRole("button", { name: "Sí", exact: true }).click();
+  await expect(modal.locator(".rf-error")).toContainText("ventas cargadas");
+});
+
+test("ficha: una venta del cliente lleva a esa venta en Operaciones", async ({ page }) => {
+  await irA(page, "/clientes", "Clientes");
+  await page.locator(".dt-table tbody tr", { hasText: "PARTICULAR" }).first().locator("td").first().dblclick();
+  // La más nueva: está en una de las últimas páginas de Operaciones.
+  const venta = page.locator(".fr-tabla tbody tr").first();
+  const op = (await venta.locator("td").first().textContent())!.trim();
+  await venta.click();
+  await expect(page).toHaveURL(new RegExp(`/operaciones\\?foco=${op}$`));
+  const activa = page.locator("tr.dt-row-activa");
+  await expect(activa).toHaveAttribute("data-clave", op);
+  await expect(activa).toBeInViewport();
+});
+
+test("textos largos: se cortan con «…» y el completo queda en el tooltip", async ({ page }) => {
+  await irA(page, "/clientes", "Clientes");
+  const scroll = page.locator(".dt-table-scroll");
+  const [ancho, visible] = await scroll.evaluate((s) => [s.scrollWidth, s.clientWidth]);
+  expect(ancho, "sin scroll horizontal").toBeLessThanOrEqual(visible + 1);
+  const cortada = page.locator("td.dt-td-corta").first();
+  await expect(cortada).toHaveAttribute("title", /.+/);
+  await expect(cortada).toHaveCSS("text-overflow", "ellipsis");
 });
 
 test("PDF de una tabla, de Estadísticas y de la ficha de lote", async ({ page }) => {

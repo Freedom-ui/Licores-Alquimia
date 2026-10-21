@@ -2,14 +2,26 @@ export type UnidadMedida = "Litros" | "Kilogramos" | "Unidades" | "Metros";
 
 export const UNIDADES_MEDIDA: UnidadMedida[] = ["Litros", "Kilogramos", "Unidades", "Metros"];
 
+/**
+ * "Para cada orden": se compra fresca justo antes de macerar (cítricos,
+ * hierbas), así que no tiene stock de reposición y no dispara la alerta de
+ * "no alcanza para otra orden". "Con stock": se repone cuando baja.
+ */
+export type Reposicion = "Con stock" | "Para cada orden";
+
+export const REPOSICIONES: Reposicion[] = ["Con stock", "Para cada orden"];
+
 export type MateriaPrimaRow = {
   id: number;
   nombre: string;
   /** Necesaria para poder llevar stock/consumo (litros de alcohol vs. unidades de tapas, etc). */
   unidad: UnidadMedida;
+  reposicion: Reposicion;
 };
 
-export const materiaPrimaDemo: MateriaPrimaRow[] = [
+const COMPRA_POR_ORDEN = ["Limón", "Naranja", "Pomelo", "Menta", "Jengibre"];
+
+export const materiaPrimaDemo: MateriaPrimaRow[] = ([
   { id: 1, nombre: "Alcohol", unidad: "Litros" },
   { id: 2, nombre: "Limón", unidad: "Kilogramos" },
   { id: 3, nombre: "Azúcar", unidad: "Kilogramos" },
@@ -37,4 +49,7 @@ export const materiaPrimaDemo: MateriaPrimaRow[] = [
   { id: 25, nombre: "Etiq. LIM Prem. x 750 cc", unidad: "Unidades" },
   { id: 26, nombre: "Etiq. LMJ Prem. x 750 cc", unidad: "Unidades" },
   { id: 27, nombre: "Etiq. LNPH Prem. x 750 cc", unidad: "Unidades" },
-];
+] satisfies Omit<MateriaPrimaRow, "reposicion">[]).map((m) => ({
+  ...m,
+  reposicion: COMPRA_POR_ORDEN.includes(m.nombre) ? "Para cada orden" : "Con stock",
+}));

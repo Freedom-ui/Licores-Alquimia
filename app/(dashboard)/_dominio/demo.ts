@@ -12,7 +12,7 @@ import { productosTerminadosDemo } from "../productos-terminados/data";
 import { inventarioMateriaPrimaDemo } from "../inventario-materia-prima/data";
 import { comprasDemo } from "../trazabilidad/data";
 import type { Estado } from "./acciones";
-import { syncConsumosParaOrden, syncEntradaParaCompra, syncLoteParaOrden, syncSalidaParaOperacion } from "./sync";
+import { recalcularFifo, syncConsumosParaOrden, syncEntradaParaCompra, syncLoteParaOrden } from "./sync";
 
 export function estadoDemo(): Estado {
   let inventario = inventarioMateriaPrimaDemo;
@@ -21,7 +21,7 @@ export function estadoDemo(): Estado {
 
   let lotes = productosTerminadosDemo;
   for (const o of ordenesProduccionDemo) lotes = syncLoteParaOrden(lotes, o);
-  for (const op of operacionesDemo) lotes = syncSalidaParaOperacion(lotes, op);
+  lotes = recalcularFifo(lotes, operacionesDemo, ordenesProduccionDemo, new Set(operacionesDemo.map((op) => op.productoId)));
 
   return {
     clientes: clientesDemo,

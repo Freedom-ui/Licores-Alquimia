@@ -31,15 +31,18 @@ import type { CompraInput } from "./trazabilidad/data";
 import type {
   Accion,
   Estado,
+  FalloVarios,
   InventarioMateriaPrimaHeaderInput,
   LoteHeaderInput,
   NuevaMateriaPrimaInventarioInput,
   OperacionInput,
   OrdenInput,
 } from "./_dominio/acciones";
-import { ejecutar } from "./_datos/acciones";
+import { ejecutar, ejecutarVarios } from "./_datos/acciones";
 
 export type {
+  Accion,
+  FalloVarios,
   InventarioMateriaPrimaHeaderInput,
   LoteHeaderInput,
   NuevaMateriaPrimaInventarioInput,
@@ -78,6 +81,10 @@ type Store = Estado & {
   updateProducto: (id: number, v: Valores) => Promise<void>;
   deleteProducto: (id: number) => Promise<void>;
 
+  addVendedor: (v: Valores) => Promise<void>;
+  updateVendedor: (id: number, v: Valores) => Promise<void>;
+  deleteVendedor: (id: number) => Promise<void>;
+
   addOperacion: (v: OperacionInput) => Promise<void>;
   updateOperacion: (id: number, v: OperacionInput) => Promise<void>;
   deleteOperacion: (id: number) => Promise<void>;
@@ -98,6 +105,15 @@ type Store = Estado & {
   saveCompra: (id: number | null, v: CompraInput) => Promise<void>;
   deleteCompra: (id: number) => Promise<void>;
 
+  /**
+   * Borra varios registros en una sola transacción (selección múltiple de las
+   * tablas). Devuelve los que no se pudieron borrar (índice en `acciones` y
+   * motivo); falla con ErrorGuardado solo si no se pudo guardar nada.
+   */
+  eliminarVarios: (acciones: Accion[]) => Promise<FalloVarios[]>;
+  /** `eliminarVarios` para las filas seleccionadas de una tabla: devuelve cada fila que no se pudo borrar con su motivo. */
+  eliminarFilas: <R>(filas: R[], accion: (fila: R) => Accion) => Promise<{ row: R; mensaje: string }[]>;
+
   /** Reemplaza todo el estado por uno que ya guardó el servidor (después de importar la planilla). */
   reemplazarEstado: (estado: Estado) => void;
 };
@@ -116,6 +132,16 @@ export function StoreProvider({ inicial, children }: { inicial: Estado; children
     setEstado(r.estado);
   }
 
+  async function eliminarVarios(acciones: Accion[]): Promise<FalloVarios[]> {
+    const r = await ejecutarVarios(acciones);
+    if (!r.ok) {
+      if (r.sinSesion) irAlLogin("expirada");
+      throw new ErrorGuardado(r.error);
+    }
+    setEstado(r.estado);
+    return r.fallos;
+  }
+
   const value: Store = {
     ...estado,
     addCliente: (v) => run({ tipo: "addCliente", v }),
@@ -130,6 +156,9 @@ export function StoreProvider({ inicial, children }: { inicial: Estado; children
     addProducto: (v) => run({ tipo: "addProducto", v }),
     updateProducto: (id, v) => run({ tipo: "updateProducto", id, v }),
     deleteProducto: (id) => run({ tipo: "deleteProducto", id }),
+    addVendedor: (v) => run({ tipo: "addVendedor", v }),
+    updateVendedor: (id, v) => run({ tipo: "updateVendedor", id, v }),
+    deleteVendedor: (id) => run({ tipo: "deleteVendedor", id }),
     addOperacion: (v) => run({ tipo: "addOperacion", v }),
     updateOperacion: (id, v) => run({ tipo: "updateOperacion", id, v }),
     deleteOperacion: (id) => run({ tipo: "deleteOperacion", id }),
@@ -144,6 +173,11 @@ export function StoreProvider({ inicial, children }: { inicial: Estado; children
     deleteInventarioMateriaPrima: (rowId) => run({ tipo: "deleteInventarioMateriaPrima", rowId }),
     saveCompra: (id, v) => run({ tipo: "saveCompra", id, v }),
     deleteCompra: (id) => run({ tipo: "deleteCompra", id }),
+    eliminarVarios,
+    eliminarFilas: async (filas, accion) => {
+      const fallos = await eliminarVarios(filas.map(accion));
+      return fallos.map((f) => ({ row: filas[f.indice], mensaje: f.mensaje }));
+    },
     reemplazarEstado: setEstado,
   };
 

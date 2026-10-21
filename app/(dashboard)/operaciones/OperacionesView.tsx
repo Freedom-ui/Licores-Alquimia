@@ -4,9 +4,16 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import DataTable from "@/app/components/data-table/DataTable";
 import type { Column } from "@/app/components/data-table/types";
+import { SeccionFicha, TablaFicha } from "@/app/components/data-table/FichaBloques";
+import { formatCellValue } from "@/app/components/data-table/format";
+import { fmtNumero } from "@/app/components/data-table/validacion";
 import type { OperacionRow } from "./data";
 import OperacionFormModal, { type OperacionFormTarget } from "./OperacionFormModal";
+import VendedoresModal from "./VendedoresModal";
 import { useStore } from "../store";
+import type { Estado } from "../_dominio/acciones";
+import { embotelladoDeLote } from "../_dominio/reglas";
+import { saldoLote } from "../_dominio/sync";
 
 const columns: Column<OperacionRow>[] = [
   { key: "id", label: "OP N°", type: "number", width: "5%" },
@@ -21,13 +28,50 @@ const columns: Column<OperacionRow>[] = [
   { key: "subTotal", label: "Sub Total", type: "currency", width: "8%" },
 ];
 
+/** Ficha de la venta: de qué lote(s) salieron las botellas (FIFO por fechas). */
+function LotesDeLaVenta({ op, e }: { op: OperacionRow; e: Estado }) {
+  const salidas = e.productosTerminados.flatMap((l) =>
+    l.movimientos.filter((m) => m.origenOperacionId === op.id).map((m) => ({ lote: l, cantidad: m.cantidad }))
+  );
+  return (
+    <SeccionFicha titulo="Lote de origen">
+      <TablaFicha
+        columnas={[
+          { titulo: "Lote", centrar: true },
+          { titulo: "Botellas", centrar: true },
+          { titulo: "Embotellado", centrar: true },
+          { titulo: "Vencimiento", centrar: true },
+          { titulo: "Saldo del lote hoy", centrar: true },
+        ]}
+        filas={salidas.map(({ lote, cantidad }) => {
+          const saldo = saldoLote(lote);
+          return [
+            lote.lote,
+            fmtNumero(cantidad),
+            lote.origenOrdenId === undefined ? "Stock previo" : formatCellValue(embotelladoDeLote(lote, e), "date"),
+            lote.fechaVencimiento ? formatCellValue(lote.fechaVencimiento, "date") : "—",
+            saldo < 0 ? <span className="tz-warn">{fmtNumero(saldo)} (falta embotellar)</span> : fmtNumero(saldo),
+          ];
+        })}
+        enlaces={salidas.map(({ lote }) => `/productos-terminados?foco=${lote.id}`)}
+        ayuda="Ver este lote en Productos terminados"
+        vacio="Sin lote: a la fecha de la venta no había ningún lote embotellado de este producto."
+      />
+    </SeccionFicha>
+  );
+}
+
 export default function OperacionesView() {
-  const { operaciones, clientes, productos, addOperacion, updateOperacion, deleteOperacion } = useStore();
+  const store = useStore();
+  const { operaciones, clientes, productos, addOperacion, updateOperacion, deleteOperacion, eliminarFilas } = store;
   // ?nuevo=1 (desde los accesos rápidos del Panel principal): abre el alta directamente.
   const nuevo = useSearchParams().get("nuevo") === "1";
   const router = useRouter();
   const pathname = usePathname();
   const [target, setTarget] = useState<OperacionFormTarget>(nuevo ? "new" : null);
+  const [vendedoresAbierto, setVendedoresAbierto] = useState(false);
+  // ?foco=<OP N°> (desde la ficha de un cliente): muestra esa venta.
+  const foco = Number(useSearchParams().get("foco")) || null;
   useEffect(() => {
     if (nuevo) router.replace(pathname, { scroll: false });
   }, [nuevo, router, pathname]);
@@ -39,12 +83,23 @@ export default function OperacionesView() {
         columns={columns}
         rows={operaciones}
         actions={
-          <button type="button" className="rf-trigger-btn" onClick={() => setTarget("new")}>
-            + Nuevo
-          </button>
+          <>
+            <button type="button" className="tz-secondary-btn" onClick={() => setVendedoresAbierto(true)}>
+              Vendedores
+            </button>
+            <button type="button" className="rf-trigger-btn" onClick={() => setTarget("new")}>
+              + Nuevo
+            </button>
+          </>
         }
         onEditRow={(row) => setTarget(row)}
         onDeleteRow={(row) => deleteOperacion(row.id)}
+        onDeleteRows={(filas) => eliminarFilas(filas, (r) => ({ tipo: "deleteOperacion", id: r.id }))}
+        enfocar={foco}
+        ficha={{
+          titulo: (r) => `Venta OP N° ${r.id} — ${r.cliente}`,
+          extra: (r) => <LotesDeLaVenta op={r} e={store} />,
+        }}
       />
 
       <OperacionFormModal
@@ -54,6 +109,8 @@ export default function OperacionesView() {
         onClose={() => setTarget(null)}
         onSubmit={(id, values) => (id === null ? addOperacion(values) : updateOperacion(id, values))}
       />
+
+      <VendedoresModal open={vendedoresAbierto} onClose={() => setVendedoresAbierto(false)} />
     </>
   );
 }

@@ -492,6 +492,10 @@ body {
 @media (max-width: 1099px) and (max-height: 720px) {
   /* En íconos y con poca altura, el botón de menú ya identifica la barra. */
   .sidebar:not(.sidebar-desplegada) .sidebar-brand { display: none; }
+  /* Botón de menú y pie más ajustados: así las 12 secciones entran sin
+     scroll desde 470 px de alto (1280×720 al 125 %). */
+  .sidebar:not(.sidebar-desplegada) .sidebar-toggle { margin-top: 6px; }
+  .sidebar:not(.sidebar-desplegada) .sidebar-footer { padding: 8px 10px; }
 }
 
 /* ── Main area ─── */
@@ -743,6 +747,9 @@ body {
 .dt-row-action-btn svg { width: 14px; height: 14px; }
 .dt-row-action-btn:hover { background: var(--bg-alt); color: var(--naranja-dark); }
 .dt-row-action-btn.danger:hover { background: #F0D8D8; color: #8B1A1A; }
+/* Acción que no corresponde (ej. borrar el lote de una orden): el tooltip dice por qué. */
+.dt-row-action-btn[aria-disabled="true"],
+.dt-row-action-btn[aria-disabled="true"]:hover { background: transparent; color: var(--text-muted); opacity: .35; cursor: not-allowed; }
 
 .dt-empty {
   text-align: center;
@@ -756,7 +763,122 @@ body {
   margin-top: 10px;
   font-size: 11.5px;
   color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  min-height: 28px;
 }
+.dt-footer-texto { display: inline-flex; align-items: center; gap: 10px; }
+.dt-atajos {
+  border-bottom: 1px dotted var(--border-dark);
+  cursor: help;
+  white-space: nowrap;
+}
+
+/* Textos largos: se cortan con "…" al tope de la columna; el texto completo
+   va en el title de la celda (tooltip) y en la ficha de la fila. */
+.dt-table td.dt-td-corta { overflow: hidden; text-overflow: ellipsis; }
+.dt-table td.dt-td-corta .dt-email { display: inline; }
+
+/* Fila activa (clic) y filas seleccionadas (Shift / Ctrl + clic). */
+.dt-table-scroll:focus { outline: none; }
+.dt-table-scroll:focus-visible { box-shadow: 0 0 0 3px rgba(212,119,42,.25); }
+/* Al moverse con ↑ ↓ la fila no queda tapada por el encabezado fijo. */
+.dt-table tbody tr { scroll-margin-top: 34px; }
+.dt-table tbody tr.dt-row-sel,
+.dt-table tbody tr.dt-row-sel:hover { background: rgba(212,119,42,.09); }
+.dt-table tbody tr.dt-row-activa,
+.dt-table tbody tr.dt-row-activa:hover { background: rgba(212,119,42,.16); }
+.dt-table tbody tr.dt-row-sel > td:first-child { box-shadow: inset 3px 0 0 rgba(212,119,42,.45); }
+.dt-table tbody tr.dt-row-activa > td:first-child { box-shadow: inset 3px 0 0 var(--naranja); }
+
+.dt-seleccion {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid rgba(212,119,42,.45);
+  border-radius: var(--radius);
+  background: rgba(212,119,42,.08);
+  font-size: 12px;
+  color: var(--naranja-dark);
+  white-space: nowrap;
+}
+.dt-seleccion strong { margin-right: 4px; }
+.dt-sel-btn {
+  padding: 5px 10px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--naranja-dark);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dt-sel-btn:hover { background: rgba(212,119,42,.14); }
+.dt-sel-btn.danger { color: #8B1A1A; }
+.dt-sel-btn.danger:hover { background: #F0D8D8; }
+
+.dt-paginador { display: flex; align-items: center; gap: 4px; }
+.dt-pag-btn {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-dark);
+  background: #fff;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dt-pag-btn:hover:not(:disabled) { border-color: var(--naranja); color: var(--naranja-dark); }
+.dt-pag-btn.active { background: var(--naranja); border-color: var(--naranja); color: #fff; cursor: default; }
+.dt-pag-btn:disabled { opacity: .4; cursor: not-allowed; }
+.dt-pag-salto { padding: 0 2px; color: var(--text-muted); }
+
+/* Borrado múltiple: lo que no se pudo eliminar y por qué. */
+.ev-fallos {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.ev-fallos li { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; font-size: 12.5px; border-bottom: 1px solid #EDEAE4; }
+.ev-fallos li:last-child { border-bottom: none; }
+.ev-fallos li span { color: var(--text-muted); }
+
+/* Ficha de solo lectura de una fila: lista "Etiqueta: valor" en columnas,
+   compacta, con los textos largos completos (hacen salto de línea). */
+.fr-datos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  column-gap: 32px;
+  margin: 0;
+}
+.fr-item {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid #EDEAE4;
+}
+.fr-item dt { font-size: 12px; color: var(--text-muted); }
+.fr-item dt::after { content: ":"; }
+.fr-item dd { margin: 0; font-size: 13px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; white-space: pre-wrap; }
+.fr-item dd .dt-barcode-cell svg { max-width: 220px; }
+/* Tablas de la ficha: todas las filas, con scroll propio y encabezado fijo. */
+.fr-tabla { max-height: 320px; overflow-y: auto; }
+.fr-tabla thead { position: sticky; top: 0; z-index: 1; }
+.fr-tabla tr.fr-fila-link { cursor: pointer; }
+.fr-tabla tr.fr-fila-link:hover,
+.fr-tabla tr.fr-fila-link:focus-visible { background: rgba(212,119,42,.09); outline: none; }
 
 /* ── Productos terminados: kardex (una tabla por lote) ───── */
 .pt-list {
@@ -1335,14 +1457,30 @@ body {
 }
 .tz-chip strong { margin-left: 4px; }
 
+/* ── Vendedores (modal de Operaciones) ─────────────────────── */
+.vd-alta { display: flex; align-items: flex-start; gap: 10px; }
+.vd-alta .rf-field { flex: 1; }
+.vd-alta .rf-submit-btn { margin-top: 21px; }
+.vd-tabla { max-height: 340px; overflow-y: auto; }
+.vd-tabla td { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.vd-editar { display: flex; align-items: flex-start; gap: 8px; }
+.vd-editar .rf-field { flex: 1; }
+.vd-editar .rf-field input { padding: 6px 9px; }
+.vd-editar .rf-cancel-btn, .vd-editar .rf-submit-btn { padding: 6px 12px; }
+.vd-nota { font-size: 11.5px; color: var(--text-muted); white-space: normal; }
+.vd-confirmar { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: #8B1A1A; }
+.vd-confirmar .cf-danger-btn, .vd-confirmar .rf-cancel-btn { padding: 4px 10px; font-size: 12px; }
+
 /* ── Estadísticas ─────────────────────────────────────────── */
 .es-wrapper { display: flex; flex-direction: column; gap: 14px; }
 
-/* Pantallas grandes (2560, ultrawide): el Panel y Estadísticas no pasan de
-   1800 px y quedan centrados; el título de la barra se alinea con ellos. Las
-   tablas sí usan todo el ancho. */
-.es-wrapper, .pp-wrapper { width: 100%; max-width: 1800px; margin-inline: auto; }
-.main:has(> .content > .es-wrapper, > .content > .pp-wrapper) > .topbar {
+/* Pantallas grandes (2560, ultrawide): el Panel, Estadísticas y los catálogos
+   (Clientes, Proveedores, Materia prima, Productos: pocas columnas) no pasan
+   de 1800 px y quedan centrados; el título de la barra se alinea con ellos.
+   Las tablas con muchas columnas (Operaciones, Órdenes, Trazabilidad) usan
+   todo el ancho. */
+.es-wrapper, .pp-wrapper, .dt-wrapper.dt-acotada { width: 100%; max-width: 1800px; margin-inline: auto; }
+.main:has(> .content > .es-wrapper, > .content > .pp-wrapper, > .content > .dt-acotada) > .topbar {
   padding-inline: max(24px, calc((100% - 1800px) / 2));
 }
 

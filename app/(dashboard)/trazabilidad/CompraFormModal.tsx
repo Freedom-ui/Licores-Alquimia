@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import ModalShell from "@/app/components/data-table/ModalShell";
 import { CampoNumero, ErrorCampo, CampoFecha } from "@/app/components/data-table/FormFields";
 import { formatCellValue } from "@/app/components/data-table/format";
-import { LARGO_CORTO, parsearNumero } from "@/app/components/data-table/validacion";
+import { LARGO_CORTO, numeroATexto, parsearNumero } from "@/app/components/data-table/validacion";
 import { useErroresFormulario } from "@/app/components/data-table/useErroresFormulario";
 import type { ProveedorRow } from "../proveedores/data";
 import type { MateriaPrimaRow } from "../materia-prima/data";
@@ -54,9 +54,9 @@ function toForm(c: CompraRow): FormState {
   return {
     fecha: c.fecha,
     materiaPrimaId: String(c.materiaPrimaId),
-    cantidad: String(c.cantidad),
-    costoUnitario: String(c.costoUnitario),
-    cantidadCascara: c.cantidadCascara ? String(c.cantidadCascara) : "",
+    cantidad: numeroATexto(c.cantidad),
+    costoUnitario: numeroATexto(c.costoUnitario),
+    cantidadCascara: c.cantidadCascara ? numeroATexto(c.cantidadCascara) : "",
     lote: c.lote,
     proveedorId: String(c.proveedorId),
     comprobanteForm: c.comprobanteForm,

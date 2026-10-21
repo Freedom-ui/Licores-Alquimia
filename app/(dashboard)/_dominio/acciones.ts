@@ -43,11 +43,10 @@ import {
   nextId,
   quitarConsumosDeOrden,
   quitarEntradaDeCompra,
-  quitarSalidaDeOperacion,
+  recalcularFifo,
   syncConsumosParaOrden,
   syncEntradaParaCompra,
   syncLoteParaOrden,
-  syncSalidaParaOperacion,
 } from "./sync";
 
 export type Estado = {
@@ -130,6 +129,8 @@ export type Accion =
   | { tipo: "updateProducto"; id: number; v: Valores }
   | { tipo: "deleteProducto"; id: number }
   | { tipo: "addVendedor"; v: Valores }
+  | { tipo: "updateVendedor"; id: number; v: Valores }
+  | { tipo: "deleteVendedor"; id: number }
   | { tipo: "addOperacion"; v: OperacionInput }
   | { tipo: "updateOperacion"; id: number; v: OperacionInput }
   | { tipo: "deleteOperacion"; id: number }
@@ -160,7 +161,11 @@ export class ErrorNegocio extends Error {
   }
 }
 
-const listaIds = (ids: number[]) => [...new Set(ids)].join(", ");
+/** "18, 19, 53" — con muchos, los primeros 10 y cuántos más (el mensaje tiene que poder leerse). */
+const listaIds = (ids: number[]) => {
+  const unicos = [...new Set(ids)];
+  return unicos.length > 10 ? `${unicos.slice(0, 10).join(", ")} y ${unicos.length - 10} más` : unicos.join(", ");
+};
 
 /** El valor validado, o ErrorNegocio con el primer error (y su campo). */
 function exigir<T>(r: Resultado<T>): T {
@@ -180,6 +185,44 @@ function buscar<T extends { id: number }>(rows: T[], id: unknown): T {
 /** null para un alta, o el id de un registro que existe. */
 function idEdicion<T extends { id: number }>(rows: T[], id: unknown): number | null {
   return id === null ? null : buscar(rows, id).id;
+}
+
+/** Una acción de `aplicarVarios` que no se pudo hacer: su posición en la lista y el motivo. */
+export type FalloVarios = { indice: number; mensaje: string };
+
+/** Tope de registros por borrado múltiple (una sola transacción). */
+export const MAX_VARIOS = 2000;
+
+/**
+ * Borrado de varios registros a la vez (la selección múltiple de las tablas).
+ * Cada uno es todo o nada: si una regla impide borrarlo (ej. un cliente con
+ * ventas), queda como estaba y se informa el motivo; los demás se borran.
+ * Solo acepta acciones `delete*`.
+ */
+export function aplicarVarios(e: Estado, acciones: unknown): { estado: Estado; fallos: FalloVarios[] } {
+  if (!Array.isArray(acciones) || acciones.length === 0) throw new ErrorNegocio("No hay registros para eliminar.");
+  if (acciones.length > MAX_VARIOS) throw new ErrorNegocio(`Se pueden eliminar hasta ${MAX_VARIOS} registros por vez.`);
+  for (const a of acciones) {
+    const tipo = typeof a === "object" && a !== null ? (a as { tipo?: unknown }).tipo : undefined;
+    if (typeof tipo !== "string" || !tipo.startsWith("delete")) throw new ErrorNegocio("Acción desconocida.");
+  }
+  let estado = e;
+  const fallos: FalloVarios[] = [];
+  acciones.forEach((a: Accion, indice) => {
+    try {
+      estado = aplicar(estado, a);
+    } catch (err) {
+      if (!(err instanceof ErrorNegocio)) throw err;
+      fallos.push({ indice, mensaje: err.message });
+    }
+  });
+  return { estado, fallos };
+}
+
+/** Vuelve a repartir las ventas de esos productos entre sus lotes (FIFO por fechas, ver sync.ts). */
+function conFifo(e: Estado, ...productoIds: (number | undefined)[]): Estado {
+  const ids = productoIds.filter((id): id is number => id !== undefined);
+  return { ...e, productosTerminados: recalcularFifo(e.productosTerminados, e.operaciones, e.ordenesProduccion, ids) };
 }
 
 export function aplicar(e: Estado, a: Accion): Estado {
@@ -294,6 +337,26 @@ export function aplicar(e: Estado, a: Accion): Estado {
       const v = exigir(validarVendedor(a.v, e, null));
       return { ...e, vendedores: [...e.vendedores, { id: nextId(e.vendedores), ...v }] };
     }
+    case "updateVendedor": {
+      const anterior = buscar(e.vendedores, a.id);
+      const v = exigir(validarVendedor(a.v, e, anterior.id));
+      // Las ventas guardan el nombre del vendedor (no su id): se renombran con él.
+      return {
+        ...e,
+        vendedores: e.vendedores.map((r) => (r.id === anterior.id ? { id: anterior.id, ...v } : r)),
+        operaciones: e.operaciones.map((o) => (o.vendedor === anterior.nombre ? { ...o, vendedor: v.nombre } : o)),
+      };
+    }
+    case "deleteVendedor": {
+      const vendedor = buscar(e.vendedores, a.id);
+      const ops = e.operaciones.filter((o) => o.vendedor === vendedor.nombre).map((o) => o.id);
+      if (ops.length > 0) {
+        throw new ErrorNegocio(
+          `${vendedor.nombre} tiene ${ops.length} ${ops.length === 1 ? "venta cargada" : "ventas cargadas"} (OP N° ${listaIds(ops)}). No se puede eliminar sin perder esas ventas.`
+        );
+      }
+      return { ...e, vendedores: e.vendedores.filter((r) => r.id !== vendedor.id) };
+    }
 
     // ── Productos terminados: lotes previos al sistema, movimientos manuales + edición/baja de lote ──
     case "addLote": {
@@ -310,26 +373,45 @@ export function aplicar(e: Estado, a: Accion): Estado {
         fechaVencimiento: v.fechaVencimiento,
         movimientos: [],
       };
-      return { ...e, productosTerminados: [...e.productosTerminados, lote] };
+      return conFifo({ ...e, productosTerminados: [...e.productosTerminados, lote] }, lote.productoId);
     }
     case "addMovimiento": {
       const lote = buscar(e.productosTerminados, a.loteId);
       const movimiento = exigir(validarMovimientoLote(a.movimiento, lote, e));
-      return {
-        ...e,
-        productosTerminados: e.productosTerminados.map((l) =>
-          l.id === lote.id ? { ...l, movimientos: [...l.movimientos, { ...movimiento, id: nextId(l.movimientos) }] } : l
-        ),
-      };
+      return conFifo(
+        {
+          ...e,
+          productosTerminados: e.productosTerminados.map((l) =>
+            l.id === lote.id ? { ...l, movimientos: [...l.movimientos, { ...movimiento, id: nextId(l.movimientos) }] } : l
+          ),
+        },
+        lote.productoId
+      );
     }
     case "updateLote": {
       const lote = buscar(e.productosTerminados, a.loteId);
       const v = exigir(validarEncabezadoLote(a.v, lote, e));
-      return { ...e, productosTerminados: e.productosTerminados.map((l) => (l.id === lote.id ? { ...l, ...v } : l)) };
+      return conFifo(
+        { ...e, productosTerminados: e.productosTerminados.map((l) => (l.id === lote.id ? { ...l, ...v } : l)) },
+        lote.productoId
+      );
     }
     case "deleteLote": {
       const lote = buscar(e.productosTerminados, a.loteId);
-      return { ...e, productosTerminados: e.productosTerminados.filter((l) => l.id !== lote.id) };
+      // El lote de una orden es parte de ella: se borra o se cambia desde la orden.
+      if (lote.origenOrdenId !== undefined && e.ordenesProduccion.some((o) => o.id === lote.origenOrdenId)) {
+        throw new ErrorNegocio(
+          `Este lote lo generó la orden de producción N° ${lote.origenOrdenId}: se elimina o se modifica desde Órdenes de producción.`
+        );
+      }
+      // Borrarlo dejaría esas ventas sin lote de origen.
+      const ventas = lote.movimientos.flatMap((m) => (m.origenOperacionId !== undefined ? [m.origenOperacionId] : []));
+      if (ventas.length > 0) {
+        throw new ErrorNegocio(
+          `El lote ${lote.lote} tiene ventas (OP N° ${listaIds(ventas)}). No se puede eliminar sin perder la trazabilidad de esas botellas.`
+        );
+      }
+      return conFifo({ ...e, productosTerminados: e.productosTerminados.filter((l) => l.id !== lote.id) }, lote.productoId);
     }
 
     // ── Inventario de materia prima: movimientos manuales (ajustes, mermas,
@@ -381,7 +463,8 @@ export function aplicar(e: Estado, a: Accion): Estado {
     case "updateOperacion": {
       // Vender más de lo que hay en stock se permite (la pantalla avisa y pide
       // confirmar): el lote queda en negativo hasta que se embotelle.
-      const id = a.tipo === "addOperacion" ? nextId(e.operaciones) : buscar(e.operaciones, a.id).id;
+      const anterior = a.tipo === "addOperacion" ? undefined : buscar(e.operaciones, a.id);
+      const id = anterior?.id ?? nextId(e.operaciones);
       const v = exigir(validarOperacion(a.v, e));
       const cliente = e.clientes.find((c) => c.id === v.clienteId)!;
       const producto = e.productos.find((p) => p.id === v.productoId)!;
@@ -392,25 +475,22 @@ export function aplicar(e: Estado, a: Accion): Estado {
         descripcion: productoLabel(producto),
         subTotal: v.cantidad * v.pu,
       };
-      return {
-        ...e,
-        operaciones: a.tipo === "addOperacion" ? [...e.operaciones, row] : e.operaciones.map((r) => (r.id === id ? row : r)),
-        productosTerminados: syncSalidaParaOperacion(e.productosTerminados, row),
-      };
+      return conFifo(
+        { ...e, operaciones: anterior ? e.operaciones.map((r) => (r.id === id ? row : r)) : [...e.operaciones, row] },
+        row.productoId,
+        anterior?.productoId
+      );
     }
     case "deleteOperacion": {
-      const { id } = buscar(e.operaciones, a.id);
-      return {
-        ...e,
-        operaciones: e.operaciones.filter((r) => r.id !== id),
-        productosTerminados: quitarSalidaDeOperacion(e.productosTerminados, id),
-      };
+      const { id, productoId } = buscar(e.operaciones, a.id);
+      return conFifo({ ...e, operaciones: e.operaciones.filter((r) => r.id !== id) }, productoId);
     }
 
     // ── Órdenes de producción ──
     case "saveOrden": {
       const id = idEdicion(e.ordenesProduccion, a.id);
       const v = exigir(validarOrden(a.v, e, id));
+      const productoAnterior = e.ordenesProduccion.find((o) => o.id === id)?.productoId;
       const producto = e.productos.find((p) => p.id === v.productoId)!;
       const orden: OrdenProduccionRow = {
         id: id ?? nextId(e.ordenesProduccion),
@@ -424,19 +504,33 @@ export function aplicar(e: Estado, a: Accion): Estado {
         insumos: v.insumos,
         costoTotal: calcularCostoTotal(v.insumos),
       };
-      return {
-        ...e,
-        ordenesProduccion: id === null ? [...e.ordenesProduccion, orden] : e.ordenesProduccion.map((r) => (r.id === id ? orden : r)),
-        productosTerminados: syncLoteParaOrden(e.productosTerminados, orden),
-        inventarioMateriaPrima: syncConsumosParaOrden(e.inventarioMateriaPrima, orden, e.materiaPrima),
-      };
+      // El embotellado decide desde cuándo se puede vender del lote: se reacomodan las ventas.
+      return conFifo(
+        {
+          ...e,
+          ordenesProduccion: id === null ? [...e.ordenesProduccion, orden] : e.ordenesProduccion.map((r) => (r.id === id ? orden : r)),
+          productosTerminados: syncLoteParaOrden(e.productosTerminados, orden),
+          inventarioMateriaPrima: syncConsumosParaOrden(e.inventarioMateriaPrima, orden, e.materiaPrima),
+        },
+        orden.productoId,
+        productoAnterior
+      );
     }
     case "deleteOrden": {
       const { id } = buscar(e.ordenesProduccion, a.id);
+      // Con ventas o movimientos, el lote quedaría sin la orden que explica de dónde salió.
+      const lote = e.productosTerminados.find((l) => l.origenOrdenId === id);
+      if (lote && lote.movimientos.length > 0) {
+        const ventas = lote.movimientos.flatMap((m) => (m.origenOperacionId !== undefined ? [m.origenOperacionId] : []));
+        const detalle = ventas.length > 0 ? `ventas (OP N° ${listaIds(ventas)})` : "movimientos cargados a mano";
+        throw new ErrorNegocio(
+          `El lote ${lote.lote} de esta orden ya tiene ${detalle}. No se puede eliminar la orden sin perder la trazabilidad de esas botellas.`
+        );
+      }
       return {
         ...e,
         ordenesProduccion: e.ordenesProduccion.filter((r) => r.id !== id),
-        productosTerminados: e.productosTerminados.filter((l) => !(l.origenOrdenId === id && l.movimientos.length === 0)),
+        productosTerminados: e.productosTerminados.filter((l) => l.origenOrdenId !== id),
         inventarioMateriaPrima: quitarConsumosDeOrden(e.inventarioMateriaPrima, id),
       };
     }

@@ -545,7 +545,7 @@ export function generarDatos(op: OpcionesGenerador = {}): Estado {
   };
 
   // ── Catálogo real ──
-  for (const m of materiaPrimaDemo) hacer({ tipo: "addMateriaPrima", v: { nombre: m.nombre, unidad: m.unidad } });
+  for (const m of materiaPrimaDemo) hacer({ tipo: "addMateriaPrima", v: { nombre: m.nombre, unidad: m.unidad, reposicion: m.reposicion } });
   const mpId = new Map(e.materiaPrima.map((m) => [m.nombre, m.id]));
   const mpUnidades = new Set(e.materiaPrima.filter((m) => m.unidad === "Unidades").map((m) => m.nombre));
 

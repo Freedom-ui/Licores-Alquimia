@@ -163,7 +163,7 @@ export function construirAlertas(d: Datos): Alerta[] {
   for (const o of enMaceracion(d)) {
     const dias = diasEntre(o.fechaMaceracion, d.hoy);
     if (dias > 45) {
-      out.push({ nivel: "aviso", texto: `Orden N° ${o.id} lleva ${dias} días macerando`, detalle: `${o.producto} — ${o.formato}: falta cargar el embotellado`, destino: { href: "/ordenes-produccion" } });
+      out.push({ nivel: "aviso", texto: `Orden N° ${o.id} lleva ${dias} días macerando`, detalle: `${o.producto} — ${o.formato}: falta cargar el embotellado`, destino: { href: `/ordenes-produccion?foco=${o.id}` } });
     }
   }
   const sinCompra = insumosSinCompra(d);
@@ -560,7 +560,8 @@ function seccionProduccion(ctx: Contexto): Seccion {
           o.fechaMaceracion.split("-").reverse().join("/"),
           o.fechaEmbotellado ? o.fechaEmbotellado.split("-").reverse().join("/") : "—",
           fmtNumero(diasEntre(o.fechaMaceracion, o.fechaEmbotellado ?? d.hoy)),
-          fmtNumero(o.cantidadProducida ?? 0),
+          // Macerando sin cantidad estimada: todavía no se sabe (no son 0 botellas).
+          o.cantidadProducida === null ? "—" : fmtNumero(o.cantidadProducida),
           fmtMoneda(o.costoTotal),
           o.cantidadProducida ? fmtMoneda(o.costoTotal / o.cantidadProducida) : "—",
           o.responsable,
@@ -578,7 +579,9 @@ const ESTADO_MATERIA: Record<StockMateria["estado"], { texto: string; color: str
   bajo: { texto: "Menos de 1 orden", color: COLOR.ambar },
   ok: { texto: "OK", color: COLOR.verde },
   "sin-consumo": { texto: "Sin consumo registrado", color: COLOR.gris },
+  "por-orden": { texto: "Se compra para cada orden", color: COLOR.gris },
 };
+const ORDEN_ESTADO_MATERIA: StockMateria["estado"][] = ["sin-stock", "bajo", "ok", "sin-consumo", "por-orden"];
 
 function seccionStock(ctx: Contexto): Seccion {
   const { d } = ctx;
@@ -589,7 +592,7 @@ function seccionStock(ctx: Contexto): Seccion {
   const valorLicor = lotes.reduce((s, l) => s + l.valor, 0);
   const valorMp = mats.reduce((s, m) => s + m.valor, 0);
   const porProducto = sumarPor(conStock, (l) => nombreCorto(l.producto), (l) => l.saldo);
-  const conConsumo = mats.filter((m) => m.ordenesQueAlcanza !== null).sort((a, b) => (a.ordenesQueAlcanza ?? 0) - (b.ordenesQueAlcanza ?? 0));
+  const conConsumo = mats.filter((m) => m.ordenesQueAlcanza !== null && m.estado !== "por-orden").sort((a, b) => (a.ordenesQueAlcanza ?? 0) - (b.ordenesQueAlcanza ?? 0));
   const porVencer = conStock.filter((l) => l.diasParaVencer !== null && l.diasParaVencer <= 90).length;
   const quietos = conStock.filter((l) => l.ultimoMovimiento && diasEntre(l.ultimoMovimiento, d.hoy) > 60).length;
 
@@ -623,6 +626,7 @@ function seccionStock(ctx: Contexto): Seccion {
               { nombre: "Sin stock", valor: mats.filter((m) => m.estado === "sin-stock").length, color: COLOR.rojo },
               { nombre: "No alcanza para otra orden", valor: mats.filter((m) => m.estado === "bajo").length, color: COLOR.ambar },
               { nombre: "OK", valor: mats.filter((m) => m.estado === "ok" || m.estado === "sin-consumo").length, color: COLOR.verde },
+              { nombre: "Se compra para cada orden", valor: mats.filter((m) => m.estado === "por-orden").length, color: COLOR.gris },
             ],
             destino: { seccion: "stock", foco: "stock-materias" },
           },
@@ -696,7 +700,7 @@ function seccionStock(ctx: Contexto): Seccion {
           { titulo: "Estado", alinear: "centro" },
         ],
         filas: [...mats]
-          .sort((a, b) => ["sin-stock", "bajo", "ok", "sin-consumo"].indexOf(a.estado) - ["sin-stock", "bajo", "ok", "sin-consumo"].indexOf(b.estado))
+          .sort((a, b) => ORDEN_ESTADO_MATERIA.indexOf(a.estado) - ORDEN_ESTADO_MATERIA.indexOf(b.estado))
           .map((m) => [
             m.nombre,
             fmtCantidad(m.saldo, m.unidad),

@@ -11,7 +11,7 @@
 
 import { CONDICIONES_IVA, type ClienteRow } from "../clientes/data";
 import type { ProveedorRow } from "../proveedores/data";
-import { UNIDADES_MEDIDA, type MateriaPrimaRow, type UnidadMedida } from "../materia-prima/data";
+import { REPOSICIONES, UNIDADES_MEDIDA, type MateriaPrimaRow, type Reposicion, type UnidadMedida } from "../materia-prima/data";
 import { productoLabel, type ProductoRow } from "../productos/data";
 import { CANALES, CONDICIONES, type VendedorRow } from "../operaciones/data";
 import type { LoteTerminado } from "../productos-terminados/data";
@@ -69,7 +69,7 @@ import type {
   OperacionInput,
   OrdenInput,
 } from "./acciones";
-import { round2, saldoInventario, saldoLote, usadoDeCompra } from "./sync";
+import { asignarFifo, faltanteDeProducto, round2, saldoInventario, saldoLote, usadoDeCompra } from "./sync";
 
 export type { Errores, Resultado };
 type Movimiento = Omit<KardexMovimiento, "id">;
@@ -207,8 +207,11 @@ export function validarMateriaPrima(v: unknown, e: Estado, id: number | null): R
   }
   const unidad = texto(o.unidad);
   poner("unidad", validarOpcion(unidad, UNIDADES_MEDIDA, "la unidad"));
+  // Sin dato (la importación o un alta vieja) queda como estaba, o "Con stock" si es nueva.
+  const reposicion = texto(o.reposicion) || (e.materiaPrima.find((m) => m.id === id)?.reposicion ?? "Con stock");
+  poner("reposicion", validarOpcion(reposicion, REPOSICIONES, "cómo se compra"));
 
-  return resultado(errores, () => ({ nombre, unidad: unidad as UnidadMedida }));
+  return resultado(errores, () => ({ nombre, unidad: unidad as UnidadMedida, reposicion: reposicion as Reposicion }));
 }
 
 export function validarProducto(v: unknown, e: Estado, id: number | null): Resultado<Omit<ProductoRow, "id">> {
@@ -243,7 +246,8 @@ export function validarVendedor(v: unknown, e: Estado, id: number | null): Resul
   const o = objeto(v);
   const { errores, poner, tiene } = recolector();
 
-  const nombre = texto(o.nombre);
+  // En mayúsculas, como en la planilla ("VICENTE, RODRIGO"): así la lista se ve pareja.
+  const nombre = texto(o.nombre).toLocaleUpperCase("es-AR");
   poner("nombre", validarTexto(nombre, { que: "el nombre del vendedor", requerido: true, max: LARGO_NOMBRE }));
   if (nombre && !tiene("nombre")) {
     const otro = e.vendedores.find((x) => x.id !== id && claveTexto(x.nombre) === claveTexto(nombre));
@@ -266,6 +270,25 @@ export function stockDisponible(e: Estado, productoId: number, excluirOperacionI
     }
   }
   return round2(total);
+}
+
+/**
+ * Cuánto stock falta si se guarda esta venta (alta o edición), mirando lo que
+ * había embotellado a su fecha (FIFO por fechas, ver sync.ts). `faltan` cuenta
+ * también las ventas posteriores que se quedarían sin stock por esta.
+ * `sinLote`: a esa fecha no había ningún lote de ese producto.
+ */
+export function faltanteDeVenta(
+  e: Estado,
+  venta: { id: number | null; productoId: number; fecha: string; cantidad: number }
+): { faltan: number; sinLote: boolean } {
+  const id = venta.id ?? -1;
+  const operaciones = [...e.operaciones.filter((o) => o.id !== id), { ...venta, id }];
+  const antes = faltanteDeProducto(e.productosTerminados, e.operaciones, e.ordenesProduccion, venta.productoId);
+  const asignacion = asignarFifo(e.productosTerminados, operaciones, e.ordenesProduccion, venta.productoId);
+  let despues = 0;
+  for (const f of asignacion.faltantes.values()) despues += f;
+  return { faltan: Math.max(0, round2(despues - antes)), sinLote: asignacion.sinLote.includes(id) };
 }
 
 export function validarOperacion(v: unknown, e: Estado): Resultado<OperacionInput> {
@@ -339,8 +362,26 @@ export function validarOrden(v: unknown, e: Estado, id: number | null): Resultad
     "cantidadProducida",
     validarNumero(cantidadProducida, { ...reglaCantidad("la cantidad de botellas producidas", true), requerido: false })
   );
-  // Si el lote de esta orden ya tuvo ventas, no se puede producir menos de lo que ya salió.
+  // Si el lote de esta orden ya tiene ventas o movimientos, la orden no puede
+  // volver a "macerando" ni cambiar de producto: el lote quedaría huérfano.
   const lote = id !== null ? e.productosTerminados.find((l) => l.origenOrdenId === id) : undefined;
+  if (lote && lote.movimientos.length > 0) {
+    if (!fechaEmbotellado && !tiene("fechaEmbotellado")) {
+      poner("fechaEmbotellado", `El lote ${lote.lote} de esta orden ya tiene ventas o movimientos: no se puede quitar la fecha de embotellado.`);
+    }
+    if (productoId !== null && lote.productoId !== undefined && productoId !== lote.productoId && !tiene("productoId")) {
+      poner("productoId", `El lote ${lote.lote} de esta orden ya tiene ventas o movimientos: no se puede cambiar el producto.`);
+    }
+    // Las ventas se reacomodan solas con el embotellado nuevo; los movimientos
+    // cargados a mano no pueden quedar antes del embotellado.
+    const primerManual = lote.movimientos
+      .filter((m) => m.origenOperacionId === undefined && m.fecha)
+      .reduce<string | null>((min, m) => (min === null || m.fecha! < min ? m.fecha! : min), null);
+    if (fechaEmbotellado && primerManual && fechaEmbotellado > primerManual && !tiene("fechaEmbotellado")) {
+      poner("fechaEmbotellado", `El lote ${lote.lote} tiene un movimiento cargado a mano el ${fmtFecha(primerManual)}: el embotellado no puede ser posterior.`);
+    }
+  }
+  // Si el lote de esta orden ya tuvo ventas, no se puede producir menos de lo que ya salió.
   if (lote && fechaEmbotellado && cantidadProducida !== null && !tiene("cantidadProducida")) {
     const salio = round2(lote.existenciaInicial - saldoLote(lote));
     if (cantidadProducida < salio) {

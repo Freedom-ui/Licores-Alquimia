@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import ProductosTerminadosView from "./Productosterminadosview";
+
+export const metadata: Metadata = { title: "Productos terminados" };
 
 export default function ProductosTerminadosPage() {
   return (

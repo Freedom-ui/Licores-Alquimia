@@ -1,4 +1,7 @@
+import type { Metadata } from "next";
 import MateriaPrimaView from "./MateriaPrimaView";
+
+export const metadata: Metadata = { title: "Materia prima" };
 
 export default function MateriaPrimaPage() {
   return (
