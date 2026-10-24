@@ -1,101 +1,12 @@
-// PDF de los dos reportes de trazabilidad: la ficha de un lote de licor
-// (hacia atrás + destino) y el rastreo de un lote de proveedor (hacia
-// adelante). Mismo estilo que el resto de los PDF de la app (exportPdf.ts).
+// PDF de los reportes de trazabilidad: la ficha de un lote de licor (hacia
+// atrás + destino), el rastreo de un lote de proveedor (hacia adelante) y el
+// retiro de un lote (a quién avisar y qué inmovilizar). Mismo estilo que el
+// resto de los PDF de la app (exportPdf.ts).
 
-import type { jsPDF as JsPDF } from "jspdf";
-import { formatCellValue } from "@/app/components/data-table/format";
 import { numerarPaginas } from "@/app/components/data-table/pdfComun";
-import { EMPRESA, lineaDatosEmpresa } from "@/app/empresa";
+import { MARGIN, datos, fecha, nuevoDocumento, seccion, slug, tabla } from "@/app/components/data-table/pdfReporte";
 import { formatCantidad, formatComprobante, identificadorCompra, nombreMedioPago } from "./data";
-import { clientesDe, type FichaLote, type RastreoLoteProveedor } from "./rastreo";
-
-const dateTimeFormatter = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" });
-const MARGIN = 14;
-
-type AutoTable = (typeof import("jspdf-autotable"))["autoTable"];
-
-const fecha = (v: string | null | undefined) => formatCellValue(v, "date");
-
-function finalY(doc: JsPDF): number {
-  return (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
-}
-
-async function nuevoDocumento(titulo: string, subtitulo: string) {
-  const [{ default: jsPDF }, { autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm" });
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text(EMPRESA.nombre, MARGIN, 16);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  doc.text(titulo, MARGIN, 23);
-  doc.setFontSize(8);
-  doc.setTextColor(130);
-  let y = 28;
-  const datos = lineaDatosEmpresa();
-  if (datos) {
-    doc.text(datos, MARGIN, y);
-    y += 4.5;
-  }
-  doc.text(`${subtitulo} · Generado el ${dateTimeFormatter.format(new Date())}`, MARGIN, y);
-  doc.setTextColor(0);
-  return { doc, autoTable, y: y + 6 };
-}
-
-function seccion(doc: JsPDF, texto: string, y: number): number {
-  if (y > doc.internal.pageSize.getHeight() - 30) {
-    doc.addPage();
-    y = 18;
-  }
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(184, 95, 26);
-  doc.text(texto, MARGIN, y);
-  doc.setTextColor(0);
-  doc.setFont("helvetica", "normal");
-  return y + 2.5;
-}
-
-function tabla(autoTable: AutoTable, doc: JsPDF, startY: number, head: string[], body: string[][], centradas: number[] = []) {
-  autoTable(doc, {
-    startY,
-    head: [head],
-    body,
-    margin: { left: MARGIN, right: MARGIN },
-    styles: { font: "helvetica", fontSize: 7.5, cellPadding: 2, valign: "middle", lineWidth: 0.2, lineColor: [190, 183, 174] },
-    headStyles: { fillColor: [212, 119, 42], textColor: 255, fontStyle: "bold", fontSize: 8, lineColor: [184, 95, 26] },
-    alternateRowStyles: { fillColor: [245, 242, 236] },
-    // Las columnas centradas son de dato corto (fecha, cantidad, lote): nunca en 2 líneas.
-    columnStyles: Object.fromEntries(centradas.map((i) => [i, { cellWidth: "wrap" as const }])),
-    didParseCell: (data) => {
-      if (centradas.includes(data.column.index)) data.cell.styles.halign = "center";
-    },
-  });
-  return finalY(doc) + 8;
-}
-
-/** Tabla de 2 columnas "dato: valor" para la cabecera de un reporte. */
-function datos(autoTable: AutoTable, doc: JsPDF, startY: number, filas: [string, string][]) {
-  autoTable(doc, {
-    startY,
-    body: filas,
-    margin: { left: MARGIN, right: MARGIN },
-    theme: "plain",
-    styles: { font: "helvetica", fontSize: 8.5, cellPadding: 1.2 },
-    columnStyles: { 0: { fontStyle: "bold", cellWidth: 52, textColor: [85, 85, 85] } },
-  });
-  return finalY(doc) + 7;
-}
-
-function slug(texto: string): string {
-  return texto
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
+import { clientesDe, type FichaLote, type RastreoLoteProveedor, type RetiroLote } from "./rastreo";
 
 export async function exportFichaLotePdf(ficha: FichaLote) {
   const { lote, orden, insumos, destino, clientes } = ficha;
@@ -218,4 +129,83 @@ export async function exportRastreoLoteProveedorPdf(r: RastreoLoteProveedor) {
 
   numerarPaginas(doc, MARGIN);
   doc.save(`rastreo-${slug(primera.lote || `op-${primera.id}`)}.pdf`);
+}
+
+export async function exportRetiroPdf(r: RetiroLote) {
+  const { doc, autoTable, y: y0 } = await nuevoDocumento(r.titulo, "Retiro de producto del mercado");
+  const vendidas = r.entregas.reduce((s, e) => s + e.cantidad, 0);
+  const lotes = r.lotes.map((l) => String(l.lote.lote));
+
+  let y = seccion(doc, "1. Qué se retira", y0);
+  y = datos(autoTable, doc, y, [
+    ...r.origen,
+    [lotes.length === 1 ? "Lote de licor afectado" : "Lotes de licor afectados", lotes.length ? `${lotes.length === 1 ? "Lote" : "Lotes"} ${lotes.join(", ")}` : "Ninguno embotellado"],
+    ["Unidades entregadas a clientes", `${formatCantidad(vendidas)} u. a ${r.contactos.length} ${r.contactos.length === 1 ? "cliente" : "clientes"}`],
+    ["Unidades en stock a inmovilizar", `${formatCantidad(r.enStock)} u.`],
+  ]);
+
+  // Pasos a seguir, con casillas para tildar a mano.
+  y = seccion(doc, "2. Pasos a seguir", y);
+  doc.setFontSize(9);
+  doc.setDrawColor(120);
+  for (const paso of [
+    "Avisar a cada cliente de la lista (punto 4) y pedirle que separe las unidades.",
+    "Inmovilizar el stock del depósito y rotularlo como retenido.",
+    "Registrar las unidades recuperadas (salida en Productos terminados) y su destino.",
+    "Avisar a la autoridad sanitaria si corresponde.",
+  ]) {
+    y += 5.5;
+    doc.rect(MARGIN, y - 3.2, 3.5, 3.5);
+    doc.text(paso, MARGIN + 6, y);
+  }
+  y += 10;
+
+  y = seccion(doc, "3. Lotes afectados", y);
+  y = tabla(
+    autoTable,
+    doc,
+    y,
+    ["Lote", "Producto", "Orden", "Embotellado", "Vencimiento", "Elaboradas", "Vendidas", "Otras salidas", "En stock"],
+    r.lotes.length
+      ? r.lotes.map(({ lote, orden, destino }) => [
+          String(lote.lote),
+          `${lote.producto} — ${lote.formato}`,
+          orden ? `N° ${orden.id}` : "—",
+          fecha(orden?.fechaEmbotellado),
+          fecha(lote.fechaVencimiento),
+          `${formatCantidad(orden?.cantidadProducida ?? lote.existenciaInicial)} u.`,
+          `${formatCantidad(destino.ventas.reduce((s, v) => s + v.cantidad, 0))} u.`,
+          `${formatCantidad(destino.otrasSalidas)} u.`,
+          `${formatCantidad(destino.enStock)} u.`,
+        ])
+      : [["—", "Ningún lote embotellado con esta materia prima", "—", "—", "—", "—", "—", "—", "—"]],
+    [0, 2, 3, 4, 5, 6, 7, 8]
+  );
+
+  y = seccion(doc, "4. Clientes a avisar", y);
+  y = tabla(
+    autoTable,
+    doc,
+    y,
+    ["Cliente", "Contacto", "CUIT", "Teléfono", "Email", "Domicilio", "Unidades"],
+    r.contactos.length
+      ? r.contactos.map((c) => [c.cliente, c.contacto || "—", c.cuit || "—", c.telefono || "—", c.email || "—", c.domicilio || "—", `${formatCantidad(c.cantidad)} u.`])
+      : [["Ningún cliente recibió producto de estos lotes", "—", "—", "—", "—", "—", "—"]],
+    [2, 3, 6]
+  );
+
+  if (r.entregas.length) {
+    y = seccion(doc, "5. Detalle de las entregas", y);
+    tabla(
+      autoTable,
+      doc,
+      y,
+      ["Fecha", "Operación", "Cliente", "Lote", "Unidades"],
+      r.entregas.map((e) => [fecha(e.fecha), `OP N° ${e.operacionId}`, e.cliente, String(e.lote), `${formatCantidad(e.cantidad)} u.`]),
+      [0, 1, 3, 4]
+    );
+  }
+
+  numerarPaginas(doc, MARGIN);
+  doc.save(`${slug(r.archivo)}.pdf`);
 }

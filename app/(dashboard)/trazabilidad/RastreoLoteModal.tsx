@@ -4,27 +4,37 @@ import { useState } from "react";
 import ModalShell from "@/app/components/data-table/ModalShell";
 import { formatCellValue } from "@/app/components/data-table/format";
 import { formatCantidad, formatComprobante, identificadorCompra, nombreMedioPago } from "./data";
-import { clientesDe, type RastreoLoteProveedor } from "./rastreo";
-import { exportRastreoLoteProveedorPdf } from "./exportTrazabilidadPdf";
+import { clientesDe, retiroDeLoteProveedor, type RastreoLoteProveedor, type TrazaContexto } from "./rastreo";
+import { exportRastreoLoteProveedorPdf, exportRetiroPdf } from "./exportTrazabilidadPdf";
+import ContactosRetiro from "./ContactosRetiro";
 
 const fecha = (v: string | null | undefined) => formatCellValue(v, "date");
 
 /** Hacia adelante: de un lote de proveedor a los lotes de licor y los clientes. */
-export default function RastreoLoteModal({ rastreo, onClose }: { rastreo: RastreoLoteProveedor | null; onClose: () => void }) {
-  const [exporting, setExporting] = useState(false);
+export default function RastreoLoteModal({
+  rastreo,
+  ctx,
+  onClose,
+}: {
+  rastreo: RastreoLoteProveedor | null;
+  ctx: TrazaContexto;
+  onClose: () => void;
+}) {
+  const [exporting, setExporting] = useState<"rastreo" | "retiro" | null>(null);
   if (!rastreo) return null;
 
   const primera = rastreo.compras[0];
   const unidad = rastreo.materiaPrima?.unidad;
   const nombre = rastreo.materiaPrima?.nombre ?? "Materia prima eliminada";
 
-  async function descargar() {
+  async function descargar(que: "rastreo" | "retiro") {
     if (!rastreo) return;
-    setExporting(true);
+    setExporting(que);
     try {
-      await exportRastreoLoteProveedorPdf(rastreo);
+      if (que === "rastreo") await exportRastreoLoteProveedorPdf(rastreo);
+      else await exportRetiroPdf(retiroDeLoteProveedor(rastreo, ctx));
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   }
 
@@ -132,25 +142,24 @@ export default function RastreoLoteModal({ rastreo, onClose }: { rastreo: Rastre
 
         <section>
           <h3 className="tz-h">Clientes que recibieron producto de este lote</h3>
-          {rastreo.clientes.length === 0 ? (
-            <p className="tz-empty">Ninguno todavía.</p>
-          ) : (
-            <div className="tz-chips">
-              {rastreo.clientes.map((c) => (
-                <span key={c.cliente} className="tz-chip">
-                  {c.cliente} <strong>{formatCantidad(c.cantidad)} u.</strong>
-                </span>
-              ))}
-            </div>
-          )}
+          <ContactosRetiro contactos={rastreo.contactos} />
         </section>
 
         <div className="rf-actions-row">
           <button type="button" className="rf-cancel-btn" onClick={onClose}>
             Cerrar
           </button>
-          <button type="button" className="rf-submit-btn" onClick={descargar} disabled={exporting}>
-            {exporting ? "Generando…" : "Descargar PDF"}
+          <button
+            type="button"
+            className="tz-secondary-btn"
+            onClick={() => descargar("retiro")}
+            disabled={exporting !== null}
+            title="Lista de clientes con sus datos de contacto y el stock a inmovilizar, para retirar del mercado lo elaborado con este lote"
+          >
+            {exporting === "retiro" ? "Generando…" : "PDF de retiro"}
+          </button>
+          <button type="button" className="rf-submit-btn" onClick={() => descargar("rastreo")} disabled={exporting !== null}>
+            {exporting === "rastreo" ? "Generando…" : "Descargar PDF"}
           </button>
         </div>
       </div>

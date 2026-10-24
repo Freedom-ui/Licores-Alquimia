@@ -28,6 +28,7 @@ import {
 import { COLOR, PALETA, barras, barrasAgrupadas, costoMargen, dona, lineaComparada, lineaEscalonada } from "./graficos";
 import { fmtCantidad, fmtMoneda, fmtNumero, fmtPct } from "./formato";
 import { diasEntre, formatRango, type Bucket, type Rango } from "./periodo";
+import { montoCompra } from "../trazabilidad/data";
 
 export type SeccionId = "resumen" | "ventas" | "produccion" | "stock" | "compras" | "rentabilidad";
 
@@ -124,6 +125,9 @@ const nombreComp = (ctx: Contexto) => (ctx.comp ? `Comparación (${formatRango(c
 
 const NIVEL_ORDEN = { critico: 0, aviso: 1, info: 2 };
 
+/** Una compra impaga más vieja que esto da alerta. */
+export const DIAS_PAGO_ATRASADO = 30;
+
 export function construirAlertas(d: Datos): Alerta[] {
   const out: Alerta[] = [];
   for (const m of stockMaterias(d)) {
@@ -165,6 +169,19 @@ export function construirAlertas(d: Datos): Alerta[] {
     if (dias > 45) {
       out.push({ nivel: "aviso", texto: `Orden N° ${o.id} lleva ${dias} días macerando`, detalle: `${o.producto} — ${o.formato}: falta cargar el embotellado`, destino: { href: `/ordenes-produccion?foco=${o.id}` } });
     }
+  }
+  const atrasadas = d.compras.filter((c) => !c.fechaPago && diasEntre(c.fecha, d.hoy) > DIAS_PAGO_ATRASADO);
+  if (atrasadas.length > 0) {
+    const total = atrasadas.reduce((s, c) => s + montoCompra(c), 0);
+    const ids = [...new Set(atrasadas.map((c) => c.proveedorId))];
+    const nombres = ids.map((id) => d.proveedores.find((p) => p.id === id)?.razonSocial ?? "Proveedor eliminado");
+    const quienes = nombres.length > 3 ? `${nombres.slice(0, 3).join(", ")} y ${nombres.length - 3} más` : nombres.join(", ");
+    out.push({
+      nivel: "aviso",
+      texto: `Pagos a proveedores atrasados: ${fmtMoneda(total)}`,
+      detalle: `${fmtNumero(atrasadas.length)} ${atrasadas.length === 1 ? "compra impaga" : "compras impagas"} hace más de ${DIAS_PAGO_ATRASADO} días (${quienes})`,
+      destino: { href: ids.length === 1 ? `/proveedores?foco=${ids[0]}` : "/proveedores" },
+    });
   }
   const sinCompra = insumosSinCompra(d);
   if (sinCompra > 0) {

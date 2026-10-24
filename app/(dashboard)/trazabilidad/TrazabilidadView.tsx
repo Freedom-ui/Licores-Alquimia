@@ -9,7 +9,8 @@ import { formatCellValue } from "@/app/components/data-table/format";
 import CompraFormModal, { type CompraFormTarget } from "./CompraFormModal";
 import RastreoLoteModal from "./RastreoLoteModal";
 import FichaLoteModal from "./FichaLoteModal";
-import { formatCantidad, formatComprobante, nombreMedioPago, stockDeCompra, type CompraRow } from "./data";
+import PagarComprasModal from "./PagarComprasModal";
+import { formatCantidad, formatComprobante, montoCompra, nombreMedioPago, stockDeCompra, type CompraRow } from "./data";
 import { rastrearLoteProveedor, type TrazaContexto } from "./rastreo";
 import { usadoDeCompra, useStore } from "../store";
 
@@ -27,6 +28,7 @@ type LibroRow = {
   tipo: string;
   numero: string;
   medioPago: string;
+  pago: string;
 };
 
 const PROVEEDOR = "Proveedor";
@@ -34,15 +36,24 @@ const PROVEEDOR = "Proveedor";
 const columns: Column<LibroRow>[] = [
   { key: "id", label: "N° de OP", title: "N° de operación", type: "number", align: "center", width: "6%" },
   { key: "fecha", label: "Fecha", type: "date", width: "8%" },
-  { key: "materiaPrima", label: "Materia prima", filterable: true, width: "15%" },
+  { key: "materiaPrima", label: "Materia prima", filterable: true, width: "14%" },
   { key: "cantidad", label: "Cant.", title: "Cantidad comprada", align: "center", sortable: false, width: "7%", maxWidth: null },
-  { key: "lote", label: "Lote producto", title: "Lote del producto comprado (del proveedor)", width: "11%" },
-  { key: "proveedor", label: "Nombre - Razón social", group: PROVEEDOR, filterable: true, width: "19%" },
+  { key: "lote", label: "Lote producto", title: "Lote del producto comprado (del proveedor)", width: "10%" },
+  { key: "proveedor", label: "Nombre - Razón social", group: PROVEEDOR, filterable: true, width: "17%" },
   { key: "form", label: "Form.", title: "Forma del comprobante", group: PROVEEDOR, width: "6%", maxWidth: null },
   { key: "tipo", label: "Tipo", title: "Tipo de comprobante", group: PROVEEDOR, align: "center", width: "4%", maxWidth: null },
   { key: "numero", label: "N°", title: "N° de comprobante", group: PROVEEDOR, width: "11%", maxWidth: null },
   // En la planilla eran 4 columnas marcadas con X; acá una sola con el nombre.
-  { key: "medioPago", label: "Medio de pago", type: "tag", filterable: true, align: "center", width: "9%" },
+  { key: "medioPago", label: "Medio de pago", type: "tag", filterable: true, align: "center", width: "8%" },
+  {
+    key: "pago",
+    label: "Pago",
+    title: "Pago al proveedor",
+    type: "tag",
+    filterable: true,
+    align: "center",
+    width: "7%",
+  },
 ];
 
 /** Ficha de una compra: costo, comprobante completo y en qué órdenes (y lotes) se usó. */
@@ -60,7 +71,8 @@ function UsoDeLaCompra({ compra, ctx }: { compra: CompraRow; ctx: TrazaContexto 
           items={[
             ["Comprobante", formatComprobante(compra) || "—"],
             ["Costo unitario", formatCellValue(compra.costoUnitario, "currency")],
-            ["Total", formatCellValue(compra.cantidad * compra.costoUnitario, "currency")],
+            ["Total", formatCellValue(montoCompra(compra), "currency")],
+            ["Pago", compra.fechaPago ? `Pagada el ${formatCellValue(compra.fechaPago, "date")}` : "Pendiente"],
             ...(compra.cantidadCascara ? ([["Cáscara", formatCantidad(compra.cantidadCascara, unidad)]] as [string, string][]) : []),
             ["Usado en órdenes", formatCantidad(usado, unidad)],
             ["Disponible", formatCantidad(Math.max(0, Math.round((stock - usado) * 100) / 100), unidad)],
@@ -100,10 +112,13 @@ export default function TrazabilidadView() {
     ordenesProduccion,
     productosTerminados,
     operaciones,
+    clientes,
     saveCompra,
     deleteCompra,
+    pagarCompras,
     eliminarFilas,
   } = useStore();
+  const [aPagar, setAPagar] = useState<CompraRow[] | null>(null);
   // ?nuevo=1 (desde los accesos rápidos del Panel principal): abre el alta directamente.
   const nuevo = useSearchParams().get("nuevo") === "1";
   const router = useRouter();
@@ -132,6 +147,7 @@ export default function TrazabilidadView() {
           tipo: c.comprobanteTipo,
           numero: c.comprobanteNumero,
           medioPago: nombreMedioPago(c.medioPago),
+          pago: c.fechaPago ? "Pagada" : "Pendiente",
         };
       }),
     [compras, proveedores, materiaPrima]
@@ -144,6 +160,7 @@ export default function TrazabilidadView() {
     ordenes: ordenesProduccion,
     lotes: productosTerminados,
     operaciones,
+    clientes,
   };
   const compraEnRastreo = compras.find((c) => c.id === rastreoId);
   const rastreo = compraEnRastreo ? rastrearLoteProveedor(compraEnRastreo, ctx) : null;
@@ -182,6 +199,16 @@ export default function TrazabilidadView() {
         onEditRow={(row) => setTarget(compras.find((c) => c.id === row.id) ?? null)}
         onDeleteRow={(row) => deleteCompra(row.id)}
         onDeleteRows={(filas) => eliminarFilas(filas, (r) => ({ tipo: "deleteCompra", id: r.id }))}
+        accionesSeleccion={(filas) => (
+          <button
+            type="button"
+            className="dt-sel-btn"
+            onClick={() => setAPagar(compras.filter((c) => filas.some((r) => r.id === c.id)))}
+            title="Marcar las compras seleccionadas como pagadas al proveedor"
+          >
+            Marcar pagadas
+          </button>
+        )}
         enfocar={foco}
         ficha={{
           titulo: (r) => `Compra OP N° ${r.id} — ${r.materiaPrima}`,
@@ -200,7 +227,17 @@ export default function TrazabilidadView() {
         onSubmit={saveCompra}
       />
 
-      <RastreoLoteModal rastreo={rastreo} onClose={() => setRastreoId(null)} />
+      <PagarComprasModal
+        compras={aPagar}
+        etiqueta={(c) => {
+          const r = rows.find((x) => x.id === c.id);
+          return r ? `OP N° ${c.id} — ${r.materiaPrima} (${r.proveedor})` : `OP N° ${c.id}`;
+        }}
+        onClose={() => setAPagar(null)}
+        onPagar={pagarCompras}
+      />
+
+      <RastreoLoteModal rastreo={rastreo} ctx={ctx} onClose={() => setRastreoId(null)} />
 
       {fichaAbierta && <FichaLoteModal ctx={ctx} onClose={() => setFichaAbierta(false)} />}
     </>

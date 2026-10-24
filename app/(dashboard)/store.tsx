@@ -27,7 +27,7 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import type { KardexMovimiento } from "@/app/components/data-table/kardex";
 import { irAlLogin } from "./ControlInactividad";
-import type { CompraInput } from "./trazabilidad/data";
+import type { CompraInput, CompraRow } from "./trazabilidad/data";
 import type {
   Accion,
   Estado,
@@ -104,6 +104,8 @@ type Store = Estado & {
   /** Alta (id null) o edición. */
   saveCompra: (id: number | null, v: CompraInput) => Promise<void>;
   deleteCompra: (id: number) => Promise<void>;
+  /** Marca como pagadas las compras elegidas: devuelve cada una que no se pudo marcar con su motivo. */
+  pagarCompras: (compras: CompraRow[], fecha: string) => Promise<{ row: CompraRow; mensaje: string }[]>;
 
   /**
    * Borra varios registros en una sola transacción (selección múltiple de las
@@ -173,6 +175,10 @@ export function StoreProvider({ inicial, children }: { inicial: Estado; children
     deleteInventarioMateriaPrima: (rowId) => run({ tipo: "deleteInventarioMateriaPrima", rowId }),
     saveCompra: (id, v) => run({ tipo: "saveCompra", id, v }),
     deleteCompra: (id) => run({ tipo: "deleteCompra", id }),
+    pagarCompras: async (compras, fecha) => {
+      const fallos = await eliminarVarios(compras.map((c) => ({ tipo: "pagarCompra", id: c.id, fecha })));
+      return fallos.map((f) => ({ row: compras[f.indice], mensaje: f.mensaje }));
+    },
     eliminarVarios,
     eliminarFilas: async (filas, accion) => {
       const fallos = await eliminarVarios(filas.map(accion));

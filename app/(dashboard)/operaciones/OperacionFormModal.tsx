@@ -11,6 +11,7 @@ import { productoLabel, type ProductoRow } from "../productos/data";
 import { CANALES, CONDICIONES, type OperacionRow } from "./data";
 import { useStore, type OperacionInput } from "../store";
 import { faltanteDeVenta, validarOperacion } from "../_dominio/reglas";
+import { precioSugerido } from "./precio";
 
 export type OperacionFormTarget = OperacionRow | "new" | null;
 
@@ -64,6 +65,9 @@ export default function OperacionFormModal({
   // Rastrea para qué `target` están cargados los valores actuales, para poder
   // recargarlos durante el render cuando `target` cambia (sin pasar por un efecto).
   const [loadedTarget, setLoadedTarget] = useState<OperacionFormTarget>(null);
+  // El P.U. sigue al precio sugerido (producto, cliente y canal) hasta que el
+  // usuario lo escribe a mano; al editar una venta se respeta el que tenía.
+  const [puManual, setPuManual] = useState(false);
   const f = useErroresFormulario("op", (v: FormState) => {
     const r = validarOperacion(v, estado);
     return r.ok ? {} : r.errores;
@@ -73,6 +77,7 @@ export default function OperacionFormModal({
 
   if (target !== loadedTarget) {
     setLoadedTarget(target);
+    setPuManual(target !== "new");
     if (target === "new") {
       setValues(EMPTY);
     } else if (target) {
@@ -91,14 +96,29 @@ export default function OperacionFormModal({
     f.limpiar();
   }
 
+  /** Precio sugerido para los valores del formulario (null sin producto elegido). */
+  function sugerencia(v: FormState) {
+    const producto = productos.find((p) => p.id === Number(v.productoId));
+    if (!producto) return null;
+    return precioSugerido(producto, clientes.find((c) => c.id === Number(v.clienteId)), v.canal);
+  }
+
   function update<K extends keyof FormState>(key: K, value: string) {
     const next = { ...values, [key]: value };
-    // Al elegir un producto se sugiere su precio de lista, pero el usuario
-    // puede pisarlo después (ej. un cliente con precio preferencial).
-    if (key === "productoId") {
-      const producto = productos.find((p) => p.id === Number(value));
-      if (producto) next.pu = numeroATexto(producto.precioUnitario);
+    if (key === "pu") setPuManual(true);
+    // Al cambiar producto, cliente o canal se vuelve a sugerir el precio, salvo
+    // que el usuario ya haya escrito uno (ej. un precio especial para esta venta).
+    if ((key === "productoId" || key === "clienteId" || key === "canal") && !puManual) {
+      const s = sugerencia(next);
+      if (s) next.pu = numeroATexto(s.precio);
     }
+    setValues(next);
+    f.alEscribir(next);
+  }
+
+  function usarSugerido(precio: number) {
+    const next = { ...values, pu: numeroATexto(precio) };
+    setPuManual(false);
     setValues(next);
     f.alEscribir(next);
   }
@@ -111,6 +131,9 @@ export default function OperacionFormModal({
     if (submitting) return;
     onClose();
   }
+
+  const sugerido = sugerencia(values);
+  const puDistinto = sugerido !== null && parsearNumero(values.pu) !== sugerido.precio;
 
   const cantidadNum = num(values.cantidad);
   const subTotal = cantidadNum * num(values.pu);
@@ -261,6 +284,17 @@ export default function OperacionFormModal({
             </label>
             <CampoNumero {...campo("pu")} placeholder="Ej: 10000" valor={values.pu} onCambio={(v) => update("pu", v)} />
             <ErrorCampo f={f} campo="pu" />
+            {sugerido && (
+              <span className="op-precio-sugerido">
+                {puDistinto ? (
+                  <button type="button" className="op-usar-sugerido" onClick={() => usarSugerido(sugerido.precio)} title={sugerido.origen}>
+                    Usar sugerido ({formatCellValue(sugerido.precio, "currency")})
+                  </button>
+                ) : (
+                  sugerido.origen
+                )}
+              </span>
+            )}
           </div>
         </div>
 

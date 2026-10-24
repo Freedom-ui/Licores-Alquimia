@@ -158,6 +158,14 @@ const VISTAS: Vista[] = [
     ["trazabilidad", "/trazabilidad"],
   ].map(([nombre, url]) => ({ nombre: `${nombre}-ficha-fila`, url, abrir: abrirFicha, modal: true })),
   { nombre: "operaciones-seleccion", url: "/operaciones", abrir: seleccionar },
+  { nombre: "trazabilidad-seleccion", url: "/trazabilidad", abrir: seleccionar },
+  {
+    nombre: "trazabilidad-pagar",
+    url: "/trazabilidad",
+    abrir: async (p) => (await seleccionar(p), await p.locator(".dt-seleccion").getByRole("button", { name: "Marcar pagadas" }).click()),
+    modal: true,
+  },
+  { nombre: "productos-terminados-rastreo", url: "/productos-terminados", abrir: (p) => p.getByRole("button", { name: "Rastrear lote" }).first().click(), modal: true },
   {
     nombre: "clientes-borrar-varios",
     url: "/clientes",

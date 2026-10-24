@@ -583,7 +583,7 @@ body {
 }
 .dt-clear-btn:hover { background: var(--bg-alt); color: var(--text); }
 
-.dt-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.dt-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; margin-left: auto; max-width: 100%; }
 
 .dt-pdf-btn {
   padding: 8px 14px;
@@ -695,6 +695,8 @@ body {
   font-weight: 600;
   white-space: nowrap;
 }
+/* Compra impaga en el Libro de compras. */
+.dt-tag[data-valor="Pendiente"] { background: #FBF1DC; color: #7A5512; box-shadow: inset 0 0 0 1px rgba(166,122,28,.35); }
 
 .dt-email {
   display: inline-block;
@@ -820,6 +822,8 @@ body {
 .dt-sel-btn:hover { background: rgba(212,119,42,.14); }
 .dt-sel-btn.danger { color: #8B1A1A; }
 .dt-sel-btn.danger:hover { background: #F0D8D8; }
+.dt-sel-btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.dt-sel-btn[aria-disabled="true"]:hover { background: transparent; }
 
 .dt-paginador { display: flex; align-items: center; gap: 4px; }
 .dt-pag-btn {
@@ -1046,6 +1050,8 @@ body {
   max-height: calc(100dvh - 40px);
   overflow-y: auto;
   background: #F9F7F3;
+  /* El fondo es siempre claro: el texto no hereda el color del modo oscuro del sistema. */
+  color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: 0 20px 48px rgba(0,0,0,.28);
@@ -1198,6 +1204,16 @@ body {
   border-radius: var(--radius);
   border: 1px dashed rgba(212,119,42,.35);
 }
+
+/* Precio sugerido debajo del P.U. de una venta (operaciones/precio.ts). */
+.op-precio-sugerido { font-size: 11.5px; color: var(--text-muted); line-height: 1.3; }
+.op-usar-sugerido {
+  padding: 0; border: 0; background: none; font: inherit; color: var(--naranja-dark);
+  text-decoration: underline; cursor: pointer; text-align: left;
+}
+.op-usar-sugerido:hover, .op-usar-sugerido:focus-visible { color: var(--naranja); outline: none; }
+
+.op-ficha-acciones { display: flex; justify-content: flex-end; margin-bottom: 8px; }
 
 .rf-hint-warn {
   background: #FBF1DC;
@@ -1409,6 +1425,7 @@ body {
   text-transform: uppercase;
   letter-spacing: .8px;
 }
+.tz-h-sub { margin-top: 6px; font-size: 10.5px; color: var(--text-muted); }
 
 .tz-stats {
   display: grid;
@@ -1447,15 +1464,6 @@ body {
 .tz-muted { color: var(--text-muted); }
 .tz-warn { color: #7A5512; font-weight: 600; }
 
-.tz-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.tz-chip {
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(212,119,42,.12);
-  color: var(--naranja-dark);
-  font-size: 12px;
-}
-.tz-chip strong { margin-left: 4px; }
 
 /* ── Vendedores (modal de Operaciones) ─────────────────────── */
 .vd-alta { display: flex; align-items: flex-start; gap: 10px; }

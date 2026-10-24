@@ -583,7 +583,7 @@ describe("importación incremental", () => {
     // Una compra de limón cargada a mano en la app, con las mismas reglas que el formulario.
     const datosCompra: Partial<typeof compraLimon> = { ...compraLimon };
     delete datosCompra.id;
-    const conCompraAparte = aplicar(limpia.estado, { tipo: "saveCompra", id: null, v: { ...datosCompra, fecha: "2026-10-03" } as never });
+    const conCompraAparte = aplicar(limpia.estado, { tipo: "saveCompra", id: null, v: { ...datosCompra, fecha: "2026-10-03", fechaPago: "2026-10-03" } as never });
     const masLimon = planificar({ ...extraccion, registros: sinErrores }, { base: conCompraAparte });
     const stock = masLimon.cotejo.find((c) => c.concepto === "Stock de Limón")!;
     expect(stock.coincide).toBe(false);

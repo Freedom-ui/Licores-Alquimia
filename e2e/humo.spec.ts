@@ -323,6 +323,85 @@ test("PDF de una tabla, de Estadísticas y de la ficha de lote", async ({ page }
   await descargaPdf(page, () => modal.getByRole("button", { name: "Descargar PDF" }).click());
 });
 
+test("venta mayorista: sugiere el precio del cliente según la línea del producto", async ({ page }) => {
+  await irA(page, "/operaciones", "Operaciones");
+  await page.locator(".rf-trigger-btn").click();
+  const modal = page.locator(".rf-modal");
+  const pu = page.locator("#op-pu");
+  const ayuda = modal.locator(".op-precio-sugerido");
+
+  await page.locator("#op-productoId").selectOption({ label: "Licor Fino de Limón — 750 cc Premium" });
+  const lista = await pu.inputValue();
+  await expect(ayuda).toHaveText("Precio de lista");
+  await page.locator("#op-canal").selectOption("Mayor");
+  await page.locator("#op-clienteId").selectOption({ label: "LA CAVA DE GÜEMES SRL" });
+  await expect(ayuda).toHaveText("Precio del cliente (Premium)");
+  await expect(pu).not.toHaveValue(lista);
+  const delCliente = await pu.inputValue();
+
+  // Un precio escrito a mano no se pisa al cambiar el canal; se puede volver al sugerido.
+  await pu.fill("12345");
+  await page.locator("#op-canal").selectOption("Menor");
+  await expect(pu).toHaveValue("12345");
+  await modal.getByRole("button", { name: /Usar sugerido/ }).click();
+  await expect(pu).toHaveValue(lista);
+  await page.locator("#op-canal").selectOption("Mayor");
+  await expect(pu).toHaveValue(delCliente);
+  await modal.getByRole("button", { name: "Cancelar" }).click();
+});
+
+test("compra: aviso sin lote, pendiente de pago y marcar pagada", async ({ page, browserName }) => {
+  const lote = `E2E-${browserName}-${Date.now()}`;
+  await irA(page, "/trazabilidad", "Trazabilidad");
+  await page.getByRole("button", { name: "+ Nueva compra" }).click();
+  const modal = page.locator(".rf-modal");
+  await page.locator("#compra-fecha").pressSequentially(hoy().replace(/\//g, ""));
+  await page.locator("#compra-materiaPrimaId").selectOption({ index: 1 });
+  await page.locator("#compra-cantidad").fill("1");
+  await page.locator("#compra-costoUnitario").fill("100");
+  await page.locator("#compra-proveedorId").selectOption({ index: 1 });
+  await modal.getByRole("radio", { name: "Efectivo" }).click();
+  await modal.getByRole("radio", { name: "Pendiente de pago" }).click();
+  await expect(page.locator("#compra-fechaPago")).toHaveCount(0);
+
+  // Sin lote del proveedor: avisa y pide confirmar; con lote, guarda.
+  await modal.getByRole("button", { name: "Guardar" }).click();
+  await expect(modal.getByRole("button", { name: "Guardar igual" })).toBeVisible();
+  await expect(modal).toContainText("Falta el lote del proveedor");
+  await page.locator("#compra-lote").fill(lote);
+  await expect(modal.getByRole("button", { name: "Guardar", exact: true })).toBeVisible();
+  await modal.getByRole("button", { name: "Guardar", exact: true }).click();
+  await expect(modal).toHaveCount(0);
+
+  await page.locator(".dt-search").fill(lote);
+  const fila = page.locator(".dt-table tbody tr", { hasText: lote });
+  await expect(fila).toContainText("Pendiente");
+  await fila.locator("td").first().click();
+  await fila.locator("td").first().click({ modifiers: ["Shift"] });
+  await page.locator(".dt-seleccion").getByRole("button", { name: "Marcar pagadas" }).click();
+  await expect(modal).toContainText("1 compra pendiente");
+  await modal.getByRole("button", { name: "Marcar 1 compra" }).click();
+  await expect(modal).toContainText("Quedó pagada 1 compra");
+  await modal.getByRole("button", { name: "Entendido" }).click();
+  await expect(fila).toContainText("Pagada");
+});
+
+test("PDF de un remito y de retiro de lote", async ({ page }) => {
+  await irA(page, "/operaciones", "Operaciones");
+  await descargaPdf(page, () => page.getByRole("button", { name: "Descargar remito" }).first().click());
+
+  await irA(page, "/productos-terminados", "Productos terminados");
+  await page.getByRole("button", { name: "Rastrear lote" }).first().click();
+  const modal = page.locator(".rf-modal");
+  await expect(modal).toContainText("Clientes a avisar si hay que retirar el lote");
+  await descargaPdf(page, () => modal.getByRole("button", { name: "PDF de retiro" }).click());
+  await page.keyboard.press("Escape");
+
+  await irA(page, "/trazabilidad", "Trazabilidad");
+  await page.getByRole("button", { name: "Rastrear lote" }).first().click();
+  await descargaPdf(page, () => modal.getByRole("button", { name: "PDF de retiro" }).click());
+});
+
 test("gráficos: ECharts dibuja en el canvas", async ({ page }) => {
   await irA(page, "/estadisticas?seccion=resumen", "Estadísticas");
   const canvas = page.locator(".es-bloque canvas").first();

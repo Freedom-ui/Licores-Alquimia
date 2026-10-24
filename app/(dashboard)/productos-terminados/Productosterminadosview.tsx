@@ -10,9 +10,13 @@ import AgregarMovimientoModal from "./AgregarMovimientoModal";
 import EditLoteModal from "./EditLoteModal";
 import type { LoteTerminado } from "./data";
 import { useStore } from "../store";
+import FichaLoteModal from "../trazabilidad/FichaLoteModal";
 
 export default function ProductosTerminadosView() {
-  const { productosTerminados, ordenesProduccion, addMovimiento, updateLote, deleteLote } = useStore();
+  const store = useStore();
+  const { productosTerminados, ordenesProduccion, addMovimiento, updateLote, deleteLote } = store;
+  // Lote abierto en la ficha de trazabilidad (origen, a quién se vendió y retiro).
+  const [rastreoId, setRastreoId] = useState<number | null>(null);
   // Por qué un lote no se puede borrar desde acá (las mismas guardas que el servidor); null = se puede.
   const motivoSinBorrar = (lote: LoteTerminado): string | null => {
     if (lote.origenOrdenId !== undefined && ordenesProduccion.some((o) => o.id === lote.origenOrdenId)) {
@@ -210,6 +214,18 @@ export default function ProductosTerminadosView() {
                     <button
                       type="button"
                       className="dt-row-action-btn"
+                      onClick={() => setRastreoId(lote.id)}
+                      aria-label="Rastrear lote"
+                      title="Rastrear: de dónde salió, a qué clientes llegó y PDF de retiro"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="10.5" cy="10.5" r="5.5" />
+                        <path d="M14.6 14.6 20 20" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className="dt-row-action-btn"
                       onClick={() => setEditTarget(lote)}
                       aria-label="Editar lote"
                       title="Editar lote"
@@ -302,6 +318,22 @@ export default function ProductosTerminadosView() {
       />
 
       <EditLoteModal lote={editTarget} onClose={() => setEditTarget(null)} onSubmit={updateLote} />
+
+      {rastreoId !== null && (
+        <FichaLoteModal
+          ctx={{
+            compras: store.compras,
+            proveedores: store.proveedores,
+            materiaPrima: store.materiaPrima,
+            ordenes: ordenesProduccion,
+            lotes: productosTerminados,
+            operaciones: store.operaciones,
+            clientes: store.clientes,
+          }}
+          loteInicial={rastreoId}
+          onClose={() => setRastreoId(null)}
+        />
+      )}
 
       <ConfirmDeleteDialog
         open={deleteTarget !== null}

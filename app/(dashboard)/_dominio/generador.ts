@@ -522,6 +522,9 @@ export function generarDatos(op: OpcionesGenerador = {}): Estado {
   if (hasta < desde) throw new Error(`La fecha final (${hasta}) es anterior al inicio (${desde}).`);
 
   const az = crearAzar(semilla);
+  // Los pagos a proveedores usan su propio azar: así no cambia el resto de los
+  // datos que salen de cada semilla (la base del usuario se puede reproducir).
+  const azPago = crearAzar(semilla ^ 0x9e3779b9);
   const contacto = crearContacto(az);
   const factor = crearIndice(hasta);
   const inicio = sumarDias(desde, -ARRANQUE_PRODUCCION);
@@ -687,7 +690,23 @@ export function generarDatos(op: OpcionesGenerador = {}): Estado {
 
   // ── Compras ──
   let ultimaCompra = inicio;
-  const comprobanteDelDia = new Map<string, { form: string; tipo: string; numero: string; medio: MedioPago; materias: Set<string> }>();
+  const comprobanteDelDia = new Map<
+    string,
+    { form: string; tipo: string; numero: string; medio: MedioPago; pago: string | null; materias: Set<string> }
+  >();
+
+  /**
+   * Cuándo se le paga una factura al proveedor: en efectivo, en el día; el
+   * resto, hasta 30 días después. Lo que todavía no se pagó a la fecha final
+   * (y parte de lo del último mes y medio) queda pendiente.
+   */
+  function fechaDePago(fecha: string, medio: MedioPago): string | null {
+    if (medio === "EFE") return fecha;
+    const pago = sumarDias(fecha, azPago.pesado([[0, 30], [azPago.entre(1, 15), 45], [azPago.entre(16, 30), 25]] as const));
+    if (pago > hasta) return null;
+    if (diasEntre(fecha, hasta) <= 45 && azPago.prob(0.35)) return null;
+    return pago;
+  }
 
   function comprar(nombre: string, cantidad: number, fecha: string, cascara?: number) {
     const info = MATERIAS[nombre];
@@ -701,9 +720,10 @@ export function generarDatos(op: OpcionesGenerador = {}): Estado {
       const tipo = az.pesado(proveedor.comprobantes);
       const num = numeracion.get(proveedor.razonSocial)!;
       num.n += az.entre(3, 60);
+      const medio = az.pesado(proveedor.medios);
       comp = tipo
-        ? { form: tipo.form, tipo: tipo.tipo, numero: `${num.pv} - ${String(num.n).padStart(8, "0")}`, medio: az.pesado(proveedor.medios), materias: new Set<string>() }
-        : { form: "", tipo: "", numero: "", medio: az.pesado(proveedor.medios), materias: new Set<string>() };
+        ? { form: tipo.form, tipo: tipo.tipo, numero: `${num.pv} - ${String(num.n).padStart(8, "0")}`, medio, pago: fechaDePago(fecha, medio), materias: new Set<string>() }
+        : { form: "", tipo: "", numero: "", medio, pago: fechaDePago(fecha, medio), materias: new Set<string>() };
       comprobanteDelDia.set(clave, comp);
     }
     comp.materias.add(nombre);
@@ -732,6 +752,7 @@ export function generarDatos(op: OpcionesGenerador = {}): Estado {
         comprobanteTipo: comp.tipo,
         comprobanteNumero: comp.numero,
         medioPago: comp.medio,
+        fechaPago: comp.pago,
       },
     });
     const compra = e.compras.at(-1)!;

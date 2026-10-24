@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import ProveedoresView from "./ProveedoresView";
 
 export const metadata: Metadata = { title: "Proveedores" };
@@ -10,7 +11,9 @@ export default function ProveedoresPage() {
         <span className="topbar-title">Proveedores</span>
       </div>
       <div className="content">
-        <ProveedoresView />
+        <Suspense fallback={<div className="placeholder-view">Cargando…</div>}>
+          <ProveedoresView />
+        </Suspense>
       </div>
     </>
   );

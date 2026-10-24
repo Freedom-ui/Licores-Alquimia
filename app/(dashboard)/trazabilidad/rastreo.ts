@@ -10,7 +10,12 @@
 //
 // No estima nada: usa el vínculo que se registra en cada orden
 // (OrdenInsumo.compraId) y las ventas tageadas contra cada lote.
+//
+// Retiro de lote (retiroDeLote / retiroDeLoteProveedor): lo que hace falta
+// para sacar un lote del mercado — los lotes afectados con su stock a
+// inmovilizar y cada cliente que lo recibió, con sus datos de contacto.
 
+import type { ClienteRow } from "../clientes/data";
 import type { ProveedorRow } from "../proveedores/data";
 import type { MateriaPrimaRow } from "../materia-prima/data";
 import type { OrdenProduccionRow } from "../ordenes-produccion/data";
@@ -25,9 +30,10 @@ export type TrazaContexto = {
   ordenes: OrdenProduccionRow[];
   lotes: LoteTerminado[];
   operaciones: OperacionRow[];
+  clientes: ClienteRow[];
 };
 
-export type VentaTraza = { operacionId: number; fecha: string; cliente: string; cantidad: number };
+export type VentaTraza = { operacionId: number; fecha: string; clienteId: number; cliente: string; cantidad: number };
 
 export type DestinoLote = {
   ventas: VentaTraza[];
@@ -51,20 +57,49 @@ export function destinoDeLote(lote: LoteTerminado, operaciones: OperacionRow[]):
     }
     saldo -= m.cantidad;
     const op = m.origenOperacionId ? operaciones.find((o) => o.id === m.origenOperacionId) : undefined;
-    if (op) ventas.push({ operacionId: op.id, fecha: m.fecha ?? op.fecha, cliente: op.cliente, cantidad: m.cantidad });
+    if (op) ventas.push({ operacionId: op.id, fecha: m.fecha ?? op.fecha, clienteId: op.clienteId, cliente: op.cliente, cantidad: m.cantidad });
     else otrasSalidas += m.cantidad;
   }
   ventas.sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.operacionId - b.operacionId));
   return { ventas, otrasSalidas: round2(otrasSalidas), enStock: round2(saldo) };
 }
 
-/** Total recibido por cliente (para la lista de a quién avisar ante un retiro). */
-export function clientesDe(ventas: VentaTraza[]): { cliente: string; cantidad: number }[] {
-  const porCliente = new Map<string, number>();
-  for (const v of ventas) porCliente.set(v.cliente, (porCliente.get(v.cliente) ?? 0) + v.cantidad);
-  return [...porCliente]
-    .map(([cliente, cantidad]) => ({ cliente, cantidad: round2(cantidad) }))
-    .sort((a, b) => b.cantidad - a.cantidad || a.cliente.localeCompare(b.cliente, "es"));
+export type ClienteTraza = { clienteId: number; cliente: string; cantidad: number };
+
+/** Total recibido por cliente (para la lista de a quién avisar ante un retiro). Agrupa por cliente, no por nombre. */
+export function clientesDe(ventas: VentaTraza[]): ClienteTraza[] {
+  const porCliente = new Map<number, ClienteTraza>();
+  for (const v of ventas) {
+    const c = porCliente.get(v.clienteId) ?? { clienteId: v.clienteId, cliente: v.cliente, cantidad: 0 };
+    c.cantidad += v.cantidad;
+    porCliente.set(v.clienteId, c);
+  }
+  return [...porCliente.values()]
+    .map((c) => ({ ...c, cantidad: round2(c.cantidad) }))
+    .sort((a, b) => b.cantidad - a.cantidad || a.cliente.localeCompare(b.cliente, "es") || a.clienteId - b.clienteId);
+}
+
+export type ContactoRetiro = ClienteTraza & {
+  contacto: string;
+  cuit: string;
+  telefono: string;
+  email: string;
+  domicilio: string;
+};
+
+/** Cada cliente que recibió esas ventas, con sus datos de contacto y las unidades que recibió. */
+export function contactosDeRetiro(ventas: VentaTraza[], clientes: ClienteRow[]): ContactoRetiro[] {
+  return clientesDe(ventas).map((c) => {
+    const datos = clientes.find((x) => x.id === c.clienteId);
+    return {
+      ...c,
+      contacto: datos?.apellidoNombre ?? "",
+      cuit: datos?.cuit ?? "",
+      telefono: datos?.telefono ?? "",
+      email: datos?.email ?? "",
+      domicilio: datos?.domicilio ?? "",
+    };
+  });
 }
 
 // ── Hacia adelante ──────────────────────────────────────────────────────────
@@ -86,7 +121,8 @@ export type RastreoLoteProveedor = {
   totalComprado: number;
   totalUsado: number;
   ordenes: OrdenAfectada[];
-  clientes: { cliente: string; cantidad: number }[];
+  clientes: ClienteTraza[];
+  contactos: ContactoRetiro[];
 };
 
 export function rastrearLoteProveedor(compra: CompraRow, ctx: TrazaContexto): RastreoLoteProveedor {
@@ -127,6 +163,7 @@ export function rastrearLoteProveedor(compra: CompraRow, ctx: TrazaContexto): Ra
     totalUsado,
     ordenes,
     clientes: clientesDe(ordenes.flatMap((o) => o.destino?.ventas ?? [])),
+    contactos: contactosDeRetiro(ordenes.flatMap((o) => o.destino?.ventas ?? []), ctx.clientes),
   };
 }
 
@@ -147,7 +184,8 @@ export type FichaLote = {
   orden: OrdenProduccionRow | null;
   insumos: InsumoTraza[];
   destino: DestinoLote;
-  clientes: { cliente: string; cantidad: number }[];
+  clientes: ClienteTraza[];
+  contactos: ContactoRetiro[];
 };
 
 export function fichaDeLote(lote: LoteTerminado, ctx: TrazaContexto): FichaLote {
@@ -163,5 +201,78 @@ export function fichaDeLote(lote: LoteTerminado, ctx: TrazaContexto): FichaLote 
     };
   });
   const destino = destinoDeLote(lote, ctx.operaciones);
-  return { lote, orden, insumos, destino, clientes: clientesDe(destino.ventas) };
+  return { lote, orden, insumos, destino, clientes: clientesDe(destino.ventas), contactos: contactosDeRetiro(destino.ventas, ctx.clientes) };
+}
+
+// ── Retiro de lote ──────────────────────────────────────────────────────────
+
+export type LoteAfectado = {
+  lote: LoteTerminado;
+  /** null = lote anterior al sistema. */
+  orden: OrdenProduccionRow | null;
+  destino: DestinoLote;
+};
+
+export type RetiroLote = {
+  titulo: string;
+  /** Qué se retira y por qué está afectado ("dato: valor"). */
+  origen: [string, string][];
+  lotes: LoteAfectado[];
+  contactos: ContactoRetiro[];
+  /** Cada entrega a un cliente: fecha, operación, lote y unidades. */
+  entregas: (VentaTraza & { lote: number })[];
+  /** Unidades que todavía están en stock y hay que inmovilizar. */
+  enStock: number;
+  archivo: string;
+};
+
+function armarRetiro(titulo: string, origen: [string, string][], lotes: LoteAfectado[], ctx: TrazaContexto, archivo: string): RetiroLote {
+  const entregas = lotes
+    .flatMap((l) => l.destino.ventas.map((v) => ({ ...v, lote: l.lote.lote })))
+    .sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.operacionId - b.operacionId));
+  return {
+    titulo,
+    origen,
+    lotes,
+    contactos: contactosDeRetiro(entregas, ctx.clientes),
+    entregas,
+    // Un lote en negativo (venta sin embotellar) no resta lo que hay en los otros.
+    enStock: round2(lotes.reduce((s, l) => s + Math.max(0, l.destino.enStock), 0)),
+    archivo,
+  };
+}
+
+/** Retiro de un lote de licor: a quién se le vendió y cuánto queda en stock. */
+export function retiroDeLote(lote: LoteTerminado, ctx: TrazaContexto): RetiroLote {
+  const { orden, destino } = fichaDeLote(lote, ctx);
+  return armarRetiro(
+    `Retiro del lote ${lote.lote}`,
+    [
+      ["Producto", `${lote.producto} — ${lote.formato}`],
+      ["N° de lote", String(lote.lote)],
+      ["Orden de producción", orden ? `N° ${orden.id}` : "Sin orden registrada (lote anterior al sistema)"],
+    ],
+    [{ lote, orden, destino }],
+    ctx,
+    `retiro-lote-${lote.lote}`
+  );
+}
+
+/** Retiro por un lote de proveedor: todos los lotes de licor que lo usaron. */
+export function retiroDeLoteProveedor(r: RastreoLoteProveedor, ctx: TrazaContexto): RetiroLote {
+  const primera = r.compras[0];
+  const lotes = r.ordenes.flatMap((o) => (o.lote && o.destino ? [{ lote: o.lote, orden: o.orden, destino: o.destino }] : []));
+  return armarRetiro(
+    `Retiro por ${primera.lote ? `el lote ${primera.lote}` : `la compra OP N° ${primera.id}`} de ${r.materiaPrima?.nombre ?? "materia prima"}`,
+    [
+      ["Materia prima", r.materiaPrima?.nombre ?? "—"],
+      ["Proveedor", `${r.proveedor?.razonSocial ?? "—"}${r.proveedor?.cuitCuil ? ` (CUIT ${r.proveedor.cuitCuil})` : ""}`],
+      ["Lote del proveedor", primera.lote || `Sin lote (compra OP N° ${primera.id})`],
+      ["Compras de ese lote", r.compras.map((c) => `OP N° ${c.id}`).join(", ")],
+      ["Órdenes sin embotellar", r.ordenes.filter((o) => !o.lote).map((o) => `N° ${o.orden.id}`).join(", ") || "Ninguna"],
+    ],
+    lotes,
+    ctx,
+    `retiro-${primera.lote || `op-${primera.id}`}`
+  );
 }

@@ -54,6 +54,7 @@ export default function DataTable<T extends Record<string, unknown>>({
   onDeleteRow,
   rowActions,
   onDeleteRows,
+  accionesSeleccion,
   ficha,
   anchoMaximo,
   enfocar,
@@ -475,6 +476,7 @@ export default function DataTable<T extends Record<string, unknown>>({
               <strong>
                 {n} {n === 1 ? "seleccionada" : "seleccionadas"}
               </strong>
+              {accionesSeleccion?.(seleccionadas, () => setSeleccion(new Set()))}
               {onDeleteRows && (
                 <button type="button" className="dt-sel-btn danger" onClick={pedirEliminarVarios}>
                   Eliminar
@@ -586,7 +588,7 @@ export default function DataTable<T extends Record<string, unknown>>({
                           title={formatCellValue(value, type)}
                         >
                           {type === "tag" && value ? (
-                            <span className="dt-tag">{String(value)}</span>
+                            <span className="dt-tag" data-valor={String(value)}>{String(value)}</span>
                           ) : type === "email" && value ? (
                             <a className="dt-email" href={`mailto:${String(value)}`}>
                               {String(value)}

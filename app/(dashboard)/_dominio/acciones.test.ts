@@ -456,9 +456,87 @@ describe("borrado de varios registros", () => {
     expect(r.estado.clientes.find((c) => c.id === conVentas.id)).toEqual(conVentas);
   });
 
-  it("solo acepta borrados", () => {
+  it("solo acepta borrados y pagos de compras", () => {
     expect(() => aplicarVarios(base, [{ tipo: "addCliente", v: clienteOk }])).toThrow(ErrorNegocio);
     expect(() => aplicarVarios(base, [])).toThrow(ErrorNegocio);
     expect(() => aplicarVarios(base, "todo")).toThrow(ErrorNegocio);
+  });
+});
+
+// ── Pagos a proveedores ─────────────────────────────────────────────────────
+
+describe("pagos a proveedores", () => {
+  const pendiente = base.compras.find((c) => !c.fechaPago)!;
+  const pagada = base.compras.find((c) => c.fechaPago)!;
+  const compraOk = {
+    fecha: "2026-09-01",
+    materiaPrimaId: base.materiaPrima[0].id,
+    cantidad: "10",
+    costoUnitario: "850",
+    lote: "L-123",
+    proveedorId: base.proveedores[0].id,
+    medioPago: "MPR",
+  };
+
+  it("una compra nueva sin dato de pago queda pagada en su fecha; vacía, pendiente", () => {
+    const sinDato = aplicarCualquiera(base, { tipo: "saveCompra", id: null, v: compraOk });
+    expect(sinDato.compras.at(-1)?.fechaPago).toBe("2026-09-01");
+    const pend = aplicarCualquiera(base, { tipo: "saveCompra", id: null, v: { ...compraOk, fechaPago: "" } });
+    expect(pend.compras.at(-1)?.fechaPago).toBeNull();
+  });
+
+  it("al editar sin el dato de pago (importación) se conserva el que tenía", () => {
+    const { fechaPago: _, ...sinPago } = pagada;
+    void _;
+    const e = aplicarCualquiera(base, { tipo: "saveCompra", id: pagada.id, v: sinPago });
+    expect(e.compras.find((c) => c.id === pagada.id)?.fechaPago).toBe(pagada.fechaPago);
+  });
+
+  it.each([
+    [{ fechaPago: "2026-08-31" }, "fechaPago"],
+    [{ fechaPago: mañana }, "fechaPago"],
+    [{ fechaPago: "31/02/2026" }, "fechaPago"],
+  ])("fecha de pago inválida %j", (cambio, campo) => {
+    rechaza({ tipo: "saveCompra", id: null, v: { ...compraOk, ...cambio } }, campo);
+  });
+
+  it("marcar pagadas: todo o nada por compra, con el motivo de las que no", () => {
+    const r = aplicarVarios(base, [
+      { tipo: "pagarCompra", id: pendiente.id, fecha: hoyLocal() },
+      { tipo: "pagarCompra", id: pagada.id, fecha: hoyLocal() },
+    ]);
+    expect(r.estado.compras.find((c) => c.id === pendiente.id)?.fechaPago).toBe(hoyLocal());
+    expect(r.estado.compras.find((c) => c.id === pagada.id)).toEqual(pagada);
+    expect(r.fallos).toEqual([{ indice: 1, mensaje: expect.stringMatching(/ya figura pagada/) }]);
+  });
+
+  it("no se puede pagar antes de la compra, en el futuro ni sin fecha", () => {
+    const antes = `${pendiente.fecha.slice(0, 4)}-01-01`;
+    rechaza({ tipo: "pagarCompra", id: pendiente.id, fecha: antes }, "fechaPago");
+    rechaza({ tipo: "pagarCompra", id: pendiente.id, fecha: mañana }, "fechaPago");
+    rechaza({ tipo: "pagarCompra", id: pendiente.id, fecha: "" }, "fechaPago");
+    rechaza({ tipo: "pagarCompra", id: 99999, fecha: hoyLocal() });
+  });
+});
+
+// ── Línea de producto ───────────────────────────────────────────────────────
+
+describe("línea de producto", () => {
+  const productoOk = { nombre: "Licor de Prueba", formato: "750 cc Premium", codigoBarras: "PRUEBA750", precioUnitario: "25000" };
+
+  it("sin dato, sale del formato; al editar sin dato, queda la que tenía", () => {
+    const e = aplicarCualquiera(base, { tipo: "addProducto", v: productoOk });
+    expect(e.productos.at(-1)?.linea).toBe("Premium");
+    const bidon = aplicarCualquiera(base, { tipo: "addProducto", v: { ...productoOk, formato: "5000 cc" } });
+    expect(bidon.productos.at(-1)?.linea).toBe("Lista");
+    const p = base.productos.find((x) => x.linea === "Tradicional")!;
+    const { linea: _, ...sinLinea } = p;
+    void _;
+    const editado = aplicarCualquiera(base, { tipo: "updateProducto", id: p.id, v: { ...sinLinea, formato: "750 cc" } });
+    expect(editado.productos.find((x) => x.id === p.id)?.linea).toBe("Tradicional");
+  });
+
+  it("una línea desconocida se rechaza", () => {
+    rechaza({ tipo: "addProducto", v: { ...productoOk, linea: "Gourmet" } }, "linea");
   });
 });

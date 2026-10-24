@@ -5,32 +5,35 @@ import ModalShell from "@/app/components/data-table/ModalShell";
 import { formatCellValue } from "@/app/components/data-table/format";
 import type { LoteTerminado } from "../productos-terminados/data";
 import { formatCantidad, formatComprobante } from "./data";
-import { fichaDeLote, type TrazaContexto } from "./rastreo";
-import { exportFichaLotePdf } from "./exportTrazabilidadPdf";
+import { fichaDeLote, retiroDeLote, type TrazaContexto } from "./rastreo";
+import { exportFichaLotePdf, exportRetiroPdf } from "./exportTrazabilidadPdf";
+import ContactosRetiro from "./ContactosRetiro";
 
 const fecha = (v: string | null | undefined) => formatCellValue(v, "date");
 
 /**
  * Hacia atrás: la ficha de un lote de licor — elaboración (lo que pide el
  * punto 6.7 del reglamento PUPAA), origen de cada materia prima y destino.
- * Se monta recién al abrirse, así arranca siempre con el lote más nuevo.
+ * Se monta recién al abrirse, así arranca siempre con el lote más nuevo (o con
+ * `loteInicial`, al rastrear un lote desde Productos terminados).
  */
-export default function FichaLoteModal({ ctx, onClose }: { ctx: TrazaContexto; onClose: () => void }) {
+export default function FichaLoteModal({ ctx, loteInicial, onClose }: { ctx: TrazaContexto; loteInicial?: number; onClose: () => void }) {
   const lotes = [...ctx.lotes].sort((a, b) => b.lote - a.lote || b.id - a.id);
-  const [loteId, setLoteId] = useState<number | null>(lotes[0]?.id ?? null);
-  const [exporting, setExporting] = useState(false);
+  const [loteId, setLoteId] = useState<number | null>(loteInicial ?? lotes[0]?.id ?? null);
+  const [exporting, setExporting] = useState<"ficha" | "retiro" | null>(null);
 
   const lote: LoteTerminado | undefined = lotes.find((l) => l.id === loteId);
   const ficha = lote ? fichaDeLote(lote, ctx) : null;
   const sinOrigen = ficha ? ficha.insumos.filter((i) => !i.compra).length : 0;
 
-  async function descargar() {
+  async function descargar(que: "ficha" | "retiro") {
     if (!ficha) return;
-    setExporting(true);
+    setExporting(que);
     try {
-      await exportFichaLotePdf(ficha);
+      if (que === "ficha") await exportFichaLotePdf(ficha);
+      else await exportRetiroPdf(retiroDeLote(ficha.lote, ctx));
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   }
 
@@ -171,6 +174,8 @@ export default function FichaLoteModal({ ctx, onClose }: { ctx: TrazaContexto; o
                   </table>
                 </div>
               )}
+              <h4 className="tz-h tz-h-sub">Clientes a avisar si hay que retirar el lote</h4>
+              <ContactosRetiro contactos={ficha.contactos} />
             </section>
           </>
         )}
@@ -179,8 +184,17 @@ export default function FichaLoteModal({ ctx, onClose }: { ctx: TrazaContexto; o
           <button type="button" className="rf-cancel-btn" onClick={onClose}>
             Cerrar
           </button>
-          <button type="button" className="rf-submit-btn" onClick={descargar} disabled={!ficha || exporting}>
-            {exporting ? "Generando…" : "Descargar PDF"}
+          <button
+            type="button"
+            className="tz-secondary-btn"
+            onClick={() => descargar("retiro")}
+            disabled={!ficha || exporting !== null}
+            title="Lista de clientes con sus datos de contacto y el stock a inmovilizar, para retirar el lote del mercado"
+          >
+            {exporting === "retiro" ? "Generando…" : "PDF de retiro"}
+          </button>
+          <button type="button" className="rf-submit-btn" onClick={() => descargar("ficha")} disabled={!ficha || exporting !== null}>
+            {exporting === "ficha" ? "Generando…" : "Descargar PDF"}
           </button>
         </div>
       </div>

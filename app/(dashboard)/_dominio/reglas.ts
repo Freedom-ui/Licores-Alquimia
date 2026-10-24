@@ -12,7 +12,7 @@
 import { CONDICIONES_IVA, type ClienteRow } from "../clientes/data";
 import type { ProveedorRow } from "../proveedores/data";
 import { REPOSICIONES, UNIDADES_MEDIDA, type MateriaPrimaRow, type Reposicion, type UnidadMedida } from "../materia-prima/data";
-import { productoLabel, type ProductoRow } from "../productos/data";
+import { LINEAS, lineaPorFormato, productoLabel, type Linea, type ProductoRow } from "../productos/data";
 import { CANALES, CONDICIONES, type VendedorRow } from "../operaciones/data";
 import type { LoteTerminado } from "../productos-terminados/data";
 import type { InventarioMateriaPrimaRow } from "../inventario-materia-prima/data";
@@ -239,7 +239,11 @@ export function validarProducto(v: unknown, e: Estado, id: number | null): Resul
   const precioUnitario = parsearNumero(o.precioUnitario);
   poner("precioUnitario", validarNumero(precioUnitario, reglaMonto("el precio unitario", "10000")));
 
-  return resultado(errores, () => ({ nombre, formato, codigoBarras, precioUnitario: precioUnitario as number }));
+  // Sin dato (la importación o un alta vieja) queda como estaba, o la que corresponde al formato si es nuevo.
+  const linea = texto(o.linea) || (e.productos.find((p) => p.id === id)?.linea ?? lineaPorFormato(formato));
+  poner("linea", validarOpcion(linea, LINEAS, "la línea"));
+
+  return resultado(errores, () => ({ nombre, formato, codigoBarras, precioUnitario: precioUnitario as number, linea: linea as Linea }));
 }
 
 export function validarVendedor(v: unknown, e: Estado, id: number | null): Resultado<Omit<VendedorRow, "id">> {
@@ -535,6 +539,11 @@ export function validarCompra(v: unknown, e: Estado, id: number | null): Resulta
     }
   }
 
+  // Pago: vacío = pendiente. Si no viene el dato (la importación, que no trae
+  // pagos), una compra existente conserva el suyo y una nueva queda pagada en su fecha.
+  const fechaPago = "fechaPago" in o ? texto(o.fechaPago) : id !== null ? (e.compras.find((c) => c.id === id)?.fechaPago ?? "") : fecha;
+  poner("fechaPago", validarFechaPago(fechaPago, tiene("fecha") ? "" : fecha));
+
   if (comprobanteNumero && Object.keys(errores).length === 0) {
     const nuevo = { comprobanteForm, comprobanteTipo, comprobanteNumero };
     const duplicada = e.compras.find(
@@ -557,7 +566,18 @@ export function validarCompra(v: unknown, e: Estado, id: number | null): Resulta
     comprobanteTipo,
     comprobanteNumero: comprobanteNumero ?? "",
     medioPago: medioPago as MedioPago,
+    fechaPago: fechaPago || null,
   }));
+}
+
+/** Fecha de pago de una compra: opcional; no anterior a la compra ni futura. */
+export function validarFechaPago(fechaPago: string, fechaCompra: string): Validacion {
+  const v = validarFecha(fechaPago, { que: "la fecha de pago" });
+  if (v) return v;
+  if (fechaPago && fechaCompra && fechaPago < fechaCompra) {
+    return `No puede ser anterior a la compra (${fmtFecha(fechaCompra)}).`;
+  }
+  return null;
 }
 
 // ── Productos terminados (lotes) ────────────────────────────────────────────

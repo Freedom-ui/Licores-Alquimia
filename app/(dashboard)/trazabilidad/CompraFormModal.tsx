@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import ModalShell from "@/app/components/data-table/ModalShell";
 import { CampoNumero, ErrorCampo, CampoFecha } from "@/app/components/data-table/FormFields";
 import { formatCellValue } from "@/app/components/data-table/format";
-import { LARGO_CORTO, numeroATexto, parsearNumero } from "@/app/components/data-table/validacion";
+import { LARGO_CORTO, hoyLocal, numeroATexto, parsearNumero } from "@/app/components/data-table/validacion";
 import { useErroresFormulario } from "@/app/components/data-table/useErroresFormulario";
 import type { ProveedorRow } from "../proveedores/data";
 import type { MateriaPrimaRow } from "../materia-prima/data";
@@ -34,6 +34,9 @@ type FormState = {
   comprobanteTipo: string;
   comprobanteNumero: string;
   medioPago: MedioPago | "";
+  /** "si" = pagada (con fecha de pago), "no" = pendiente de pago. */
+  pagada: "si" | "no";
+  fechaPago: string;
 };
 
 const EMPTY: FormState = {
@@ -48,6 +51,8 @@ const EMPTY: FormState = {
   comprobanteTipo: "",
   comprobanteNumero: "",
   medioPago: "",
+  pagada: "si",
+  fechaPago: "",
 };
 
 function toForm(c: CompraRow): FormState {
@@ -63,8 +68,13 @@ function toForm(c: CompraRow): FormState {
     comprobanteTipo: c.comprobanteTipo,
     comprobanteNumero: c.comprobanteNumero,
     medioPago: c.medioPago,
+    pagada: c.fechaPago ? "si" : "no",
+    fechaPago: c.fechaPago ?? "",
   };
 }
+
+/** Lo que se valida y se guarda: una compra pendiente va sin fecha de pago. */
+const paraGuardar = (v: FormState) => ({ ...v, fechaPago: v.pagada === "si" ? v.fechaPago : "" });
 
 /** Número de un input, o 0 si está vacío o mal escrito (solo para el total en pantalla). */
 const num = (v: string) => {
@@ -91,27 +101,38 @@ export default function CompraFormModal({
   const [values, setValues] = useState<FormState>(EMPTY);
   const [submitting, setSubmitting] = useState(false);
   const [loadedTarget, setLoadedTarget] = useState<CompraFormTarget>(null);
+  // En un alta, la fecha de pago acompaña a la de la compra hasta que el usuario la cambia.
+  const [fechaPagoTocada, setFechaPagoTocada] = useState(false);
+  // Sin lote del proveedor: el primer "Guardar" avisa y el segundo ("Guardar
+  // igual") confirma. Se guarda para qué materia prima y lote se avisó.
+  const [avisoSinLote, setAvisoSinLote] = useState<string | null>(null);
 
   const compraId = target && target !== "new" ? target.id : null;
   const f = useErroresFormulario("compra", (v: FormState) => {
-    const r = validarCompra(v, estado, compraId);
+    const r = validarCompra(paraGuardar(v), estado, compraId);
     return r.ok ? {} : r.errores;
   });
 
   if (target !== loadedTarget) {
     setLoadedTarget(target);
     setValues(target && target !== "new" ? toForm(target) : EMPTY);
+    setFechaPagoTocada(target !== "new");
+    setAvisoSinLote(null);
     f.limpiar();
   }
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     const next = { ...values, [key]: value };
+    if (key === "fecha" && !fechaPagoTocada) next.fechaPago = value as string;
+    if (key === "fechaPago") setFechaPagoTocada(true);
+    // Al pasar a "Pagada" una compra que no tenía fecha de pago, se propone la de hoy.
+    if (key === "pagada" && value === "si" && !next.fechaPago) next.fechaPago = fechaPagoTocada ? hoyLocal() : next.fecha;
     setValues(next);
-    f.alEscribir(next);
+    f.alEscribir(paraGuardar(next));
   }
 
   function campo(key: keyof FormState) {
-    return { ...f.props(key), onBlur: () => f.alSalir(key, values) };
+    return { ...f.props(key), onBlur: () => f.alSalir(key, paraGuardar(values)) };
   }
 
   function close() {
@@ -125,11 +146,24 @@ export default function CompraFormModal({
   const porUnidad = materia?.unidad === "Unidades";
   const total = num(values.cantidad) * num(values.costoUnitario);
 
+  // Sin lote no se puede rastrear a qué clientes llegó: se avisa en un alta, o
+  // al editar si se borró el lote que tenía (no cada vez que se edita una vieja sin lote).
+  const sinLote = !values.lote.trim() && (target === "new" || Boolean(target?.lote));
+  const claveSinLote = `${values.materiaPrimaId}|${values.lote}`;
+  const confirmandoSinLote = sinLote && avisoSinLote === claveSinLote;
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!f.alGuardar(values)) return;
-    const r = validarCompra(values, estado, compraId);
+    const valores = paraGuardar(values);
+    if (!f.alGuardar(valores)) return;
+    const r = validarCompra(valores, estado, compraId);
     if (!r.ok) return;
+    if (sinLote && !confirmandoSinLote) {
+      setAvisoSinLote(claveSinLote);
+      // El aviso queda al pie del formulario: se lo trae a la vista.
+      requestAnimationFrame(() => document.getElementById("compra-aviso-lote")?.scrollIntoView({ block: "nearest" }));
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -313,6 +347,41 @@ export default function CompraFormModal({
             </div>
             <ErrorCampo f={f} campo="medioPago" />
           </div>
+
+          <div className="rf-field" style={{ gridColumn: "span 2" }}>
+            <label id="compra-pagada-label">
+              Pago al proveedor<span className="rf-required">*</span>
+            </label>
+            <div className="tz-pago-options" role="radiogroup" aria-labelledby="compra-pagada-label">
+              {(
+                [
+                  ["si", "Pagada"],
+                  ["no", "Pendiente de pago"],
+                ] as const
+              ).map(([valor, texto]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  role="radio"
+                  aria-checked={values.pagada === valor}
+                  className={`tz-pago-option ${values.pagada === valor ? "active" : ""}`}
+                  onClick={() => update("pagada", valor)}
+                >
+                  {texto}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {values.pagada === "si" && (
+            <div className="rf-field">
+              <label htmlFor="compra-fechaPago">
+                Fecha de pago<span className="rf-required">*</span>
+              </label>
+              <CampoFecha {...campo("fechaPago")} valor={values.fechaPago} onCambio={(v) => update("fechaPago", v)} />
+              <ErrorCampo f={f} campo="fechaPago" />
+            </div>
+          )}
         </div>
 
         <div className="li-total-row">
@@ -325,6 +394,14 @@ export default function CompraFormModal({
           productos, cargá una operación por cada uno con el mismo comprobante.
         </p>
 
+        {sinLote && avisoSinLote !== null && (
+          <p id="compra-aviso-lote" className="rf-hint rf-hint-warn" role={confirmandoSinLote ? "alert" : undefined}>
+            Falta el lote del proveedor: si hay un problema con esta materia prima no se va a poder rastrear a qué lotes ni a qué
+            clientes llegó.
+            {confirmandoSinLote && " Cargá el lote (viene en la etiqueta, el envase o el remito) o tocá «Guardar igual» si no trae."}
+          </p>
+        )}
+
         {f.general && <div className="rf-error">{f.general}</div>}
 
         <div className="rf-actions-row">
@@ -332,7 +409,7 @@ export default function CompraFormModal({
             Cancelar
           </button>
           <button type="submit" className="rf-submit-btn" disabled={submitting}>
-            {submitting ? "Guardando…" : "Guardar"}
+            {submitting ? "Guardando…" : confirmandoSinLote ? "Guardar igual" : "Guardar"}
           </button>
         </div>
       </form>

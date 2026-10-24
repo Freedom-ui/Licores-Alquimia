@@ -25,7 +25,7 @@
   PDF (razón social, CUIT, domicilio, N° PUPAA, N° REBA → `app/empresa.ts`); si el
   proveedor debe ser obligatorio en el Libro de compras.
 
-## 2. Estado actual (al 21/10/2026, rama `main`)
+## 2. Estado actual (al 22/10/2026, rama `main`)
 App local para un elaborador artesanal de licores (Prov. de Buenos Aires, registro PUPAA
 + REBA). Next.js 16.3 + React 19 + TypeScript. Secciones: Panel principal, Clientes,
 Proveedores, Materia prima, Productos, Operaciones (ventas), Órdenes de producción, Productos
@@ -34,7 +34,8 @@ compras + rastreo de lotes + ficha PUPAA), Estadísticas (6 pantallas con EChart
 Importar planilla.
 
 **Dónde estamos:** Fases 1 a 8 aprobadas y commiteadas (la 8 el 21/10/2026, junto con el resumen
-de este spec). La siguiente es la Fase 9, solo cuando el usuario lo indique.
+de este spec). Fase 9 implementada el 22/10/2026, **esperando la revisión del usuario** (sin commitear).
+La siguiente es la Fase 10, solo cuando el usuario lo indique.
 
 Arquitectura clave:
 - Datos en SQLite con Prisma 7 (`dev.db` en la raíz, `lib/prisma.ts`, config en
@@ -60,10 +61,10 @@ Arquitectura clave:
   internet).
 
 Comandos:
-- `npm run dev` · `npm test` (Vitest, 362) · `npx tsc --noEmit` · `npx eslint` · `npx next build`.
+- `npm run dev` · `npm test` (Vitest, 383) · `npx tsc --noEmit` · `npx eslint` · `npx next build`.
 - `npm run db:migrate` · `npx prisma generate` · `npm run db:seed -- --reemplazar` (datos
   generados hasta hoy; `--hasta=2026-10-17` reproduce la base del usuario; `--semilla=N`, `--demo`).
-  Última migración: `20261020120000_compra_por_orden`.
+  Última migración: `20261022130000_compra_pago`.
 - `npm run e2e` (build + humo en Chromium / Firefox / WebKit; `E2E_MARCAS=1` suma Edge y Chrome) ·
   `npm run e2e:tamanos` (recorrido de pantallas, ~40 min; filtros `E2E_TAMANOS`, `E2E_VISTAS`).
 - PC nueva: `npm ci` → `.env` con `DATABASE_URL="file:./dev.db"` → `npx prisma generate` →
@@ -167,7 +168,7 @@ Particularidades del entorno de pruebas:
   fuente Arial / Helvetica.
 - Playwright (`playwright.config.ts`, `e2e/`): levanta `next start -p 3005` sobre una copia de la base
   (`e2e/preparar-base.mjs`), entra con `claude_qa` (`e2e/credenciales.ts` o `E2E_USUARIO` /
-  `E2E_CLAVE`). `e2e/humo.spec.ts`: 15 pruebas de funcionamiento por navegador (Fase 8 incluida).
+  `E2E_CLAVE`). `e2e/humo.spec.ts`: 18 pruebas de funcionamiento por navegador (Fase 9 incluida).
   `e2e/tamanos.spec.ts`: 84 vistas (secciones, modales, Estadísticas con 5 períodos, Importar con
   planilla cargada vía `E2E_PLANILLA`) en 19 tamaños; capturas en `test-results/tamanos*/` y chequeos
   automáticos (sin scroll horizontal, nada fuera de su tarjeta, texto cortado con tooltip, modal y
@@ -241,11 +242,45 @@ disponible a su fecha; tablas de catálogos con máximo 1800 px en pantallas anc
 - Pendiente de respuesta del cliente (sin cambios): MPR / MPA, datos del establecimiento, proveedor
   obligatorio.
 
-### Fase 9 — Features nuevas ☐
-Proponer al usuario una lista para que elija (ejemplos): búsqueda global, avisos de stock
-en el panel, cuentas corrientes de clientes (ventas a crédito/cobros), precios por lista
-mayorista/minorista, etiquetas con código de barras para imprimir, recordatorios de
-vencimiento, respaldo/exportación completa. **No implementar sin aprobación.**
+### Fase 9 — Features nuevas ◐ (implementada, falta la aprobación del usuario)
+Elegidas por el usuario (22/10/2026) de una lista propuesta tras revisar el código. **Quedaron afuera**
+(para más adelante, si el cliente las pide): cuentas corrientes de clientes, búsqueda global, exportar
+todo a Excel, libros PUPAA de ventas y producción, lote elegido a mano en la venta (hoy es FIFO y se
+recalcula) y columna de lotes por cliente.
+- **Precio sugerido en la venta**: `Producto.linea` (`Tradicional | Premium | Lista`; migración
+  `20261022120000_producto_linea`, que la deduce del formato; `lineaPorFormato` para importación y
+  altas sin dato). `operaciones/precio.ts` (`precioSugerido`): Menor o línea Lista → precio de lista;
+  Mayor → precio Tradicional / Premium del cliente (si no tiene, el de lista). En el formulario se
+  recalcula al cambiar producto, cliente o canal hasta que el usuario escribe un P.U. (al editar se
+  respeta el guardado); debajo dice de dónde sale y "Usar sugerido ($X)". El generador no se tocó.
+- **Remito PDF** (`operaciones/remito.ts` + `exportRemitoPdf.ts`, A4 vertical): datos del cliente,
+  fecha, OP, vendedor, condición, cantidad / producto / lote(s) con vencimiento / P.U. / subtotal,
+  total, firma-aclaración-DNI-fecha y "Documento no válido como factura". Desde el ícono de cada
+  venta, la ficha de la venta o "Remito" con varias seleccionadas (solo mismo cliente y fecha; si no,
+  atenuado con el motivo). `DataTable` tiene `accionesSeleccion(filas, quitarSeleccion)` para botones
+  extra en la barra de selección. Helpers de PDF de reportes en `data-table/pdfReporte.ts`.
+- **Pagos a proveedores** (un pago por compra): `Compra.fechaPago` (null = pendiente; migración
+  `20261022130000_compra_pago` deja todo lo anterior pagado en su fecha). Formulario: "Pagada" (fecha
+  que sigue a la de la compra hasta tocarla) / "Pendiente de pago". Sin el dato (importación) una compra
+  nueva queda pagada en su fecha y una existente conserva el suyo. Libro de compras: columna "Pago"
+  (filtrable) y "Marcar pagadas" con la selección (acción `pagarCompra` por `aplicarVarios`, todo o
+  nada por compra, con el motivo de las que no). Proveedores: columna "Deuda" y en la ficha deuda,
+  compras impagas y desde cuándo (`deudaPorProveedor`). Alerta en el Panel si hay compras impagas de más
+  de 30 días (`DIAS_PAGO_ATRASADO`), lleva a Proveedores. El generador usa un azar aparte para los pagos
+  (la base de cada semilla no cambió): efectivo en el día, el resto hasta 30 días, parte del último mes
+  y medio pendiente.
+- **Retiro de lote**: `rastreo.ts` agrupa clientes por id (antes por nombre), `contactosDeRetiro`,
+  `retiroDeLote` / `retiroDeLoteProveedor`. "Rastrear" en cada lote de Productos terminados abre la
+  ficha de lote con ese lote. La ficha y el rastreo de un lote de proveedor muestran "Clientes a avisar"
+  (contacto, teléfono, email, unidades) y el botón "PDF de retiro": qué se retira, pasos a seguir
+  (casillas), lotes afectados con stock a inmovilizar, clientes con CUIT / teléfono / email / domicilio
+  y detalle de entregas.
+- **Aviso sin lote del proveedor** al guardar una compra nueva (o si se borra el lote): "Guardar igual",
+  como el aviso de stock de las ventas. No bloquea en el servidor ni en la importación.
+- De paso: los modales fijan su color de texto (en Windows / Mac con modo oscuro el texto heredado se
+  veía casi blanco, ej. en el resultado del borrado múltiple).
+- La base de desarrollo se recargó con `--hasta=2026-10-17` (copia previa en
+  `respaldos/dev-antes-fase9-2026-10-22.db`); los usuarios no se tocan.
 
 ### Fase 10 — Entrega al cliente ☐
 Para Windows y Mac (Intel y Apple Silicon).

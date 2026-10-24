@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import DataTable from "@/app/components/data-table/DataTable";
 import RecordFormModal from "@/app/components/data-table/RecordFormModal";
 import EditRecordModal from "@/app/components/data-table/EditRecordModal";
@@ -11,15 +12,18 @@ import { fmtNumero } from "@/app/components/data-table/validacion";
 import { LARGO_EMAIL, LARGO_NOMBRE } from "@/app/components/data-table/validacion";
 import type { ProveedorRow } from "./data";
 import type { MateriaPrimaRow } from "../materia-prima/data";
-import { formatCantidad, formatComprobante, type CompraRow } from "../trazabilidad/data";
+import { deudaPorProveedor, formatCantidad, formatComprobante, montoCompra, type CompraRow } from "../trazabilidad/data";
 import { useStore } from "../store";
 import { validarProveedor } from "../_dominio/reglas";
 
-const columns: Column<ProveedorRow>[] = [
+/** Proveedor con lo que se le debe (compras pendientes de pago); null = nada. */
+type ProveedorConDeuda = ProveedorRow & { deuda: number | null };
+
+const columns: Column<ProveedorConDeuda>[] = [
   {
     key: "razonSocial",
     label: "Razón social",
-    width: "15%",
+    width: "13%",
     form: { required: true, placeholder: "Ej: Destilería del Sur S.A.", maxLength: LARGO_NOMBRE },
   },
   {
@@ -48,7 +52,7 @@ const columns: Column<ProveedorRow>[] = [
     key: "email",
     label: "Email",
     type: "email",
-    width: "19%",
+    width: "13%",
     form: { placeholder: "contacto@proveedor.com", maxLength: LARGO_EMAIL },
   },
   {
@@ -72,12 +76,21 @@ const columns: Column<ProveedorRow>[] = [
     maxWidth: null,
     form: { placeholder: "Opcional", maxLength: 20 },
   },
+  {
+    key: "deuda",
+    label: "Deuda",
+    title: "Deuda pendiente (compras sin pagar)",
+    type: "currency",
+    width: "8%",
+    form: { include: false },
+  },
 ];
 
 /** Ficha del proveedor: lo que se le compró (resumen y todas las compras). */
 function ComprasDelProveedor({ proveedor, compras, materias }: { proveedor: ProveedorRow; compras: CompraRow[]; materias: MateriaPrimaRow[] }) {
   const suyas = compras.filter((c) => c.proveedorId === proveedor.id).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id);
-  const total = suyas.reduce((s, c) => s + c.cantidad * c.costoUnitario, 0);
+  const total = suyas.reduce((s, c) => s + montoCompra(c), 0);
+  const deuda = deudaPorProveedor(suyas).get(proveedor.id);
   const materia = (id: number) => materias.find((m) => m.id === id);
   return (
     <SeccionFicha titulo="Compras (Libro de compras)">
@@ -87,6 +100,13 @@ function ComprasDelProveedor({ proveedor, compras, materias }: { proveedor: Prov
           ["Total comprado", formatCellValue(total, "currency")],
           ["Última compra", suyas.length ? formatCellValue(suyas[0].fecha, "date") : "—"],
           ["Materias primas", fmtNumero(new Set(suyas.map((c) => c.materiaPrimaId)).size)],
+          ["Deuda pendiente", deuda ? formatCellValue(deuda.total, "currency") : "Sin deuda"],
+          ...(deuda
+            ? ([
+                ["Compras impagas", fmtNumero(deuda.cantidad)],
+                ["Pendiente desde", formatCellValue(deuda.masAntigua, "date")],
+              ] as [string, string][])
+            : []),
         ]}
       />
       <TablaFicha
@@ -97,14 +117,16 @@ function ComprasDelProveedor({ proveedor, compras, materias }: { proveedor: Prov
           { titulo: "Cantidad", centrar: true },
           { titulo: "Total", centrar: true },
           { titulo: "Comprobante" },
+          { titulo: "Pago", centrar: true },
         ]}
         filas={suyas.map((c) => [
           c.id,
           formatCellValue(c.fecha, "date"),
           materia(c.materiaPrimaId)?.nombre ?? "—",
           formatCantidad(c.cantidad, materia(c.materiaPrimaId)?.unidad),
-          formatCellValue(c.cantidad * c.costoUnitario, "currency"),
+          formatCellValue(montoCompra(c), "currency"),
           formatComprobante(c) || "—",
+          c.fechaPago ? formatCellValue(c.fechaPago, "date") : <span className="dt-tag" data-valor="Pendiente">Pendiente</span>,
         ])}
         enlaces={suyas.map((c) => `/trazabilidad?foco=${c.id}`)}
         ayuda="Ver esta compra en el Libro de compras (Trazabilidad)"
@@ -117,14 +139,20 @@ function ComprasDelProveedor({ proveedor, compras, materias }: { proveedor: Prov
 export default function ProveedoresView() {
   const store = useStore();
   const { proveedores, compras, materiaPrima, addProveedor, updateProveedor, deleteProveedor, eliminarFilas } = store;
-  const [editingRow, setEditingRow] = useState<ProveedorRow | null>(null);
+  const [editingRow, setEditingRow] = useState<ProveedorConDeuda | null>(null);
+  // ?foco=<id> (desde la alerta de pagos atrasados del Panel): muestra ese proveedor.
+  const foco = Number(useSearchParams().get("foco")) || null;
+  const filas = useMemo<ProveedorConDeuda[]>(() => {
+    const deudas = deudaPorProveedor(compras);
+    return proveedores.map((p) => ({ ...p, deuda: deudas.get(p.id)?.total ?? null }));
+  }, [proveedores, compras]);
 
   return (
     <>
       <DataTable
         title="Proveedores"
         columns={columns}
-        rows={proveedores}
+        rows={filas}
         actions={
           <RecordFormModal
             title="Proveedores"
@@ -141,6 +169,7 @@ export default function ProveedoresView() {
           extra: (r) => <ComprasDelProveedor proveedor={r} compras={compras} materias={materiaPrima} />,
         }}
         anchoMaximo
+        enfocar={foco}
       />
       <EditRecordModal
         title="Proveedores"

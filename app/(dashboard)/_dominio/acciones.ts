@@ -21,6 +21,7 @@ import type { LoteTerminado } from "../productos-terminados/data";
 import type { InventarioMateriaPrimaRow } from "../inventario-materia-prima/data";
 import type { CompraInput, CompraRow } from "../trazabilidad/data";
 import type { KardexMovimiento } from "@/app/components/data-table/kardex";
+import { fmtFecha } from "@/app/components/data-table/validacion";
 import {
   leerId,
   validarAltaInventario,
@@ -29,6 +30,7 @@ import {
   validarCompra,
   validarEncabezadoInventario,
   validarEncabezadoLote,
+  validarFechaPago,
   validarMateriaPrima,
   validarMovimientoInventario,
   validarMovimientoLote,
@@ -145,7 +147,8 @@ export type Accion =
   | { tipo: "updateInventarioMateriaPrima"; rowId: number; v: InventarioMateriaPrimaHeaderInput }
   | { tipo: "deleteInventarioMateriaPrima"; rowId: number }
   | { tipo: "saveCompra"; id: number | null; v: CompraInput }
-  | { tipo: "deleteCompra"; id: number };
+  | { tipo: "deleteCompra"; id: number }
+  | { tipo: "pagarCompra"; id: number; fecha: string };
 
 /**
  * Error esperable (un dato inválido o una regla del negocio impide el
@@ -190,21 +193,21 @@ function idEdicion<T extends { id: number }>(rows: T[], id: unknown): number | n
 /** Una acción de `aplicarVarios` que no se pudo hacer: su posición en la lista y el motivo. */
 export type FalloVarios = { indice: number; mensaje: string };
 
-/** Tope de registros por borrado múltiple (una sola transacción). */
+/** Tope de registros por cambio múltiple (una sola transacción). */
 export const MAX_VARIOS = 2000;
 
 /**
- * Borrado de varios registros a la vez (la selección múltiple de las tablas).
- * Cada uno es todo o nada: si una regla impide borrarlo (ej. un cliente con
- * ventas), queda como estaba y se informa el motivo; los demás se borran.
- * Solo acepta acciones `delete*`.
+ * Cambio de varios registros a la vez (la selección múltiple de las tablas):
+ * borrar, o marcar compras como pagadas. Cada uno es todo o nada: si una regla
+ * lo impide (ej. un cliente con ventas), queda como estaba y se informa el
+ * motivo; los demás se guardan. Solo acepta acciones `delete*` y `pagarCompra`.
  */
 export function aplicarVarios(e: Estado, acciones: unknown): { estado: Estado; fallos: FalloVarios[] } {
-  if (!Array.isArray(acciones) || acciones.length === 0) throw new ErrorNegocio("No hay registros para eliminar.");
-  if (acciones.length > MAX_VARIOS) throw new ErrorNegocio(`Se pueden eliminar hasta ${MAX_VARIOS} registros por vez.`);
+  if (!Array.isArray(acciones) || acciones.length === 0) throw new ErrorNegocio("No hay registros seleccionados.");
+  if (acciones.length > MAX_VARIOS) throw new ErrorNegocio(`Se pueden cambiar hasta ${MAX_VARIOS} registros por vez.`);
   for (const a of acciones) {
     const tipo = typeof a === "object" && a !== null ? (a as { tipo?: unknown }).tipo : undefined;
-    if (typeof tipo !== "string" || !tipo.startsWith("delete")) throw new ErrorNegocio("Acción desconocida.");
+    if (typeof tipo !== "string" || !(tipo.startsWith("delete") || tipo === "pagarCompra")) throw new ErrorNegocio("Acción desconocida.");
   }
   let estado = e;
   const fallos: FalloVarios[] = [];
@@ -546,6 +549,14 @@ export function aplicar(e: Estado, a: Accion): Estado {
         compras: id === null ? [...e.compras, compra] : e.compras.map((c) => (c.id === id ? compra : c)),
         inventarioMateriaPrima: syncEntradaParaCompra(e.inventarioMateriaPrima, compra),
       };
+    }
+    case "pagarCompra": {
+      const compra = buscar(e.compras, a.id);
+      if (compra.fechaPago) throw new ErrorNegocio(`La compra OP N° ${compra.id} ya figura pagada el ${fmtFecha(compra.fechaPago)}.`);
+      const fecha = typeof a.fecha === "string" ? a.fecha.trim() : "";
+      const error = fecha ? validarFechaPago(fecha, compra.fecha) : "Ingresá la fecha de pago (dd/mm/aaaa).";
+      if (error) throw new ErrorNegocio(error, "fechaPago");
+      return { ...e, compras: e.compras.map((c) => (c.id === compra.id ? { ...c, fechaPago: fecha } : c)) };
     }
     case "deleteCompra": {
       const { id } = buscar(e.compras, a.id);

@@ -124,3 +124,35 @@ describe("alertas de materia prima", () => {
     for (const nombre of frescos) expect(alertas.some((t) => t.includes(nombre))).toBe(false);
   });
 });
+
+describe("pagos a proveedores", () => {
+  const datos = {
+    hoy: HASTA,
+    operaciones: e.operaciones,
+    ordenes: e.ordenesProduccion,
+    lotes: e.productosTerminados,
+    inventario: e.inventarioMateriaPrima,
+    materiaPrima: e.materiaPrima,
+    compras: e.compras,
+    proveedores: e.proveedores,
+  };
+
+  it("en efectivo se paga en el día; el resto, hasta 30 días después o queda pendiente", () => {
+    for (const c of e.compras) {
+      if (c.medioPago === "EFE") expect(c.fechaPago).toBe(c.fecha);
+      if (c.fechaPago) expect(c.fechaPago >= c.fecha && c.fechaPago <= HASTA).toBe(true);
+    }
+    const pendientes = e.compras.filter((c) => !c.fechaPago);
+    expect(pendientes.length).toBeGreaterThan(0);
+    expect(pendientes.every((c) => c.fecha >= "2026-08-01")).toBe(true);
+  });
+
+  it("las compras impagas de más de 30 días dan una alerta", () => {
+    const atrasadas = e.compras.filter((c) => !c.fechaPago && c.fecha < "2026-09-15");
+    const alerta = construirAlertas(datos).find((a) => a.texto.startsWith("Pagos a proveedores atrasados"));
+    if (atrasadas.length === 0) expect(alerta).toBeUndefined();
+    else expect(alerta?.detalle).toMatch(new RegExp(`^${atrasadas.length} compra`));
+    const alDia = construirAlertas({ ...datos, compras: e.compras.map((c) => ({ ...c, fechaPago: c.fechaPago ?? c.fecha })) });
+    expect(alDia.some((a) => a.texto.startsWith("Pagos a proveedores atrasados"))).toBe(false);
+  });
+});

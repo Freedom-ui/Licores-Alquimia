@@ -83,6 +83,11 @@ export type DataTableProps<T> = {
    */
   onDeleteRows?: (rows: T[]) => Promise<{ row: T; mensaje: string }[]>;
   /**
+   * Botones extra en la barra de selección (ej. "Marcar pagadas", "Remito"),
+   * con las filas seleccionadas y una función para quitar la selección.
+   */
+  accionesSeleccion?: (rows: T[], quitarSeleccion: () => void) => ReactNode;
+  /**
    * Ficha de solo lectura (doble clic o Enter sobre la fila activa) con todos
    * los datos sin cortar y, opcionalmente, información relacionada. Sin
    * ficha, el doble clic abre la edición.

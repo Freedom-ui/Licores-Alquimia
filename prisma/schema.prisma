@@ -111,6 +111,8 @@ model Producto {
   formato        String
   codigoBarras   String @default("")
   precioUnitario Float  @default(0)
+  /// Tradicional | Premium | Lista: qué precio del cliente se sugiere en una venta mayorista.
+  linea          String @default("Tradicional")
 
   operaciones Operacion[]
   ordenes     OrdenProduccion[]
@@ -161,6 +163,8 @@ model Compra {
   comprobanteNumero String       @default("")
   /// MPR | MPA | CDNI | EFE
   medioPago         String
+  /// Fecha en que se le pagó al proveedor; null = pendiente de pago.
+  fechaPago         String?
 
   insumos OrdenInsumo[]
 

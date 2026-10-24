@@ -12,7 +12,7 @@ import type { Prisma, PrismaClient } from "@/app/generated/prisma/client";
 import type { ClienteRow } from "../clientes/data";
 import type { ProveedorRow } from "../proveedores/data";
 import type { MateriaPrimaRow, UnidadMedida } from "../materia-prima/data";
-import { productoLabel, type ProductoRow } from "../productos/data";
+import { productoLabel, type Linea, type ProductoRow } from "../productos/data";
 import type { OperacionRow, VendedorRow } from "../operaciones/data";
 import type { OrdenProduccionRow } from "../ordenes-produccion/data";
 import type { LoteTerminado } from "../productos-terminados/data";
@@ -114,6 +114,7 @@ export async function cargarEstado(db: Db): Promise<Estado> {
       formato: p.formato,
       codigoBarras: p.codigoBarras,
       precioUnitario: p.precioUnitario,
+      linea: p.linea as Linea,
     })),
     vendedores: vendedores.map((v): VendedorRow => ({ id: v.id, nombre: v.nombre })),
     operaciones: operaciones.map((o): OperacionRow => ({
@@ -180,6 +181,7 @@ export async function cargarEstado(db: Db): Promise<Estado> {
       comprobanteTipo: c.comprobanteTipo,
       comprobanteNumero: c.comprobanteNumero,
       medioPago: c.medioPago as MedioPago,
+      fechaPago: c.fechaPago,
     })),
   };
 }
@@ -228,6 +230,7 @@ const filaProducto = (p: ProductoRow) => ({
   formato: txt(p.formato),
   codigoBarras: txt(p.codigoBarras),
   precioUnitario: num(p.precioUnitario),
+  linea: txt(p.linea),
 });
 
 const filaOperacion = (o: OperacionRow) => ({
@@ -256,6 +259,7 @@ const filaCompra = (c: CompraRow) => ({
   comprobanteTipo: txt(c.comprobanteTipo),
   comprobanteNumero: txt(c.comprobanteNumero),
   medioPago: txt(c.medioPago),
+  fechaPago: txtOpt(c.fechaPago),
 });
 
 const filaOrden = (o: OrdenProduccionRow) => ({

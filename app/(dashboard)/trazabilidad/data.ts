@@ -54,6 +54,8 @@ export type CompraRow = {
   comprobanteTipo: string;
   comprobanteNumero: string;
   medioPago: MedioPago;
+  /** Fecha en que se le pagó al proveedor; null = pendiente de pago. */
+  fechaPago: string | null;
 };
 
 export type CompraInput = Omit<CompraRow, "id">;
@@ -70,6 +72,33 @@ export function stockDeCompra(c: Pick<CompraRow, "cantidad" | "cantidadCascara">
 /** Costo por unidad de stock: con cáscara, el total de la compra repartido en los kilos de cáscara. */
 export function costoStockDeCompra(c: Pick<CompraRow, "cantidad" | "costoUnitario" | "cantidadCascara">): number {
   return c.cantidadCascara ? Math.round(((c.cantidad * c.costoUnitario) / c.cantidadCascara) * 100) / 100 : c.costoUnitario;
+}
+
+/** Total de la compra (lo que se le debe al proveedor). */
+export function montoCompra(c: Pick<CompraRow, "cantidad" | "costoUnitario">): number {
+  return Math.round(c.cantidad * c.costoUnitario * 100) / 100;
+}
+
+export type DeudaProveedor = {
+  total: number;
+  /** Compras impagas. */
+  cantidad: number;
+  /** Fecha de la compra impaga más vieja. */
+  masAntigua: string;
+};
+
+/** Lo que se le debe a cada proveedor (solo los que tienen compras pendientes de pago). */
+export function deudaPorProveedor(compras: CompraRow[]): Map<number, DeudaProveedor> {
+  const deudas = new Map<number, DeudaProveedor>();
+  for (const c of compras) {
+    if (c.fechaPago) continue;
+    const d = deudas.get(c.proveedorId) ?? { total: 0, cantidad: 0, masAntigua: c.fecha };
+    d.total = Math.round((d.total + montoCompra(c)) * 100) / 100;
+    d.cantidad += 1;
+    if (c.fecha < d.masAntigua) d.masAntigua = c.fecha;
+    deudas.set(c.proveedorId, d);
+  }
+  return deudas;
 }
 
 export function formatComprobante(c: Pick<CompraRow, "comprobanteForm" | "comprobanteTipo" | "comprobanteNumero">): string {
@@ -107,18 +136,18 @@ export function formatCantidad(n: number, unidad?: string): string {
 // fechas y cantidades de demo, coherentes con las Órdenes de producción
 // (cada compra es anterior a las órdenes que la usan).
 export const comprasDemo: CompraRow[] = [
-  { id: 1, fecha: "2026-07-10", materiaPrimaId: 1, cantidad: 48, costoUnitario: 2785.55, lote: "CE2210281", proveedorId: 4, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "MPR" },
-  { id: 2, fecha: "2026-07-14", materiaPrimaId: 3, cantidad: 25, costoUnitario: 980, lote: "L20/01/26M1", proveedorId: 5, comprobanteForm: "Factura", comprobanteTipo: "A", comprobanteNumero: "0013 - 00001695", medioPago: "MPR" },
-  { id: 3, fecha: "2026-07-15", materiaPrimaId: 14, cantidad: 300, costoUnitario: 45, lote: "", proveedorId: 8, comprobanteForm: "Factura", comprobanteTipo: "B", comprobanteNumero: "0008 - 00033606", medioPago: "MPR" },
-  { id: 4, fecha: "2026-07-16", materiaPrimaId: 9, cantidad: 300, costoUnitario: 145, lote: "", proveedorId: 6, comprobanteForm: "Factura", comprobanteTipo: "A", comprobanteNumero: "0001 - 00021952", medioPago: "MPR" },
-  { id: 5, fecha: "2026-07-18", materiaPrimaId: 2, cantidad: 30, costoUnitario: 850, cantidadCascara: 7.2, lote: "", proveedorId: 3, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "EFE" },
-  { id: 6, fecha: "2026-07-22", materiaPrimaId: 8, cantidad: 3, costoUnitario: 1600, lote: "", proveedorId: 7, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "MPR" },
-  { id: 7, fecha: "2026-08-10", materiaPrimaId: 3, cantidad: 25, costoUnitario: 980, lote: "L20/01/26M1", proveedorId: 5, comprobanteForm: "Factura", comprobanteTipo: "A", comprobanteNumero: "0013 - 00001707", medioPago: "MPR" },
-  { id: 8, fecha: "2026-08-12", materiaPrimaId: 1, cantidad: 10.8, costoUnitario: 2785.55, lote: "L19/11/25", proveedorId: 4, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "EFE" },
-  { id: 9, fecha: "2026-08-14", materiaPrimaId: 23, cantidad: 60, costoUnitario: 1450, lote: "", proveedorId: 2, comprobanteForm: "Factura", comprobanteTipo: "A", comprobanteNumero: "0003 - 00001288", medioPago: "MPA" },
-  { id: 10, fecha: "2026-08-15", materiaPrimaId: 2, cantidad: 20, costoUnitario: 850, cantidadCascara: 4.8, lote: "", proveedorId: 3, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "CDNI" },
-  { id: 11, fecha: "2026-08-18", materiaPrimaId: 1, cantidad: 10.8, costoUnitario: 2785.55, lote: "L19/11/25", proveedorId: 4, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "MPR" },
-  { id: 12, fecha: "2026-09-19", materiaPrimaId: 1, cantidad: 40, costoUnitario: 2950, lote: "CE2309140", proveedorId: 4, comprobanteForm: "Factura", comprobanteTipo: "A", comprobanteNumero: "0004 - 00010377", medioPago: "MPR" },
-  { id: 13, fecha: "2026-09-21", materiaPrimaId: 2, cantidad: 25, costoUnitario: 900, cantidadCascara: 6, lote: "", proveedorId: 3, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "EFE" },
-  { id: 14, fecha: "2026-10-02", materiaPrimaId: 3, cantidad: 25, costoUnitario: 1020, lote: "L18/09/26M2", proveedorId: 5, comprobanteForm: "Factura", comprobanteTipo: "A", comprobanteNumero: "0013 - 00001741", medioPago: "MPR" },
+  { id: 1, fecha: "2026-07-10", materiaPrimaId: 1, cantidad: 48, costoUnitario: 2785.55, lote: "CE2210281", proveedorId: 4, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "MPR", fechaPago: "2026-07-10" },
+  { id: 2, fecha: "2026-07-14", materiaPrimaId: 3, cantidad: 25, costoUnitario: 980, lote: "L20/01/26M1", proveedorId: 5, comprobanteForm: "Factura", comprobanteTipo: "A", comprobanteNumero: "0013 - 00001695", medioPago: "MPR", fechaPago: "2026-07-14" },
+  { id: 3, fecha: "2026-07-15", materiaPrimaId: 14, cantidad: 300, costoUnitario: 45, lote: "", proveedorId: 8, comprobanteForm: "Factura", comprobanteTipo: "B", comprobanteNumero: "0008 - 00033606", medioPago: "MPR", fechaPago: "2026-07-15" },
+  { id: 4, fecha: "2026-07-16", materiaPrimaId: 9, cantidad: 300, costoUnitario: 145, lote: "", proveedorId: 6, comprobanteForm: "Factura", comprobanteTipo: "A", comprobanteNumero: "0001 - 00021952", medioPago: "MPR", fechaPago: "2026-07-16" },
+  { id: 5, fecha: "2026-07-18", materiaPrimaId: 2, cantidad: 30, costoUnitario: 850, cantidadCascara: 7.2, lote: "", proveedorId: 3, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "EFE", fechaPago: "2026-07-18" },
+  { id: 6, fecha: "2026-07-22", materiaPrimaId: 8, cantidad: 3, costoUnitario: 1600, lote: "", proveedorId: 7, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "MPR", fechaPago: "2026-07-22" },
+  { id: 7, fecha: "2026-08-10", materiaPrimaId: 3, cantidad: 25, costoUnitario: 980, lote: "L20/01/26M1", proveedorId: 5, comprobanteForm: "Factura", comprobanteTipo: "A", comprobanteNumero: "0013 - 00001707", medioPago: "MPR", fechaPago: "2026-08-10" },
+  { id: 8, fecha: "2026-08-12", materiaPrimaId: 1, cantidad: 10.8, costoUnitario: 2785.55, lote: "L19/11/25", proveedorId: 4, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "EFE", fechaPago: "2026-08-12" },
+  { id: 9, fecha: "2026-08-14", materiaPrimaId: 23, cantidad: 60, costoUnitario: 1450, lote: "", proveedorId: 2, comprobanteForm: "Factura", comprobanteTipo: "A", comprobanteNumero: "0003 - 00001288", medioPago: "MPA", fechaPago: "2026-08-14" },
+  { id: 10, fecha: "2026-08-15", materiaPrimaId: 2, cantidad: 20, costoUnitario: 850, cantidadCascara: 4.8, lote: "", proveedorId: 3, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "CDNI", fechaPago: "2026-08-15" },
+  { id: 11, fecha: "2026-08-18", materiaPrimaId: 1, cantidad: 10.8, costoUnitario: 2785.55, lote: "L19/11/25", proveedorId: 4, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "MPR", fechaPago: "2026-08-18" },
+  { id: 12, fecha: "2026-09-19", materiaPrimaId: 1, cantidad: 40, costoUnitario: 2950, lote: "CE2309140", proveedorId: 4, comprobanteForm: "Factura", comprobanteTipo: "A", comprobanteNumero: "0004 - 00010377", medioPago: "MPR", fechaPago: "2026-09-19" },
+  { id: 13, fecha: "2026-09-21", materiaPrimaId: 2, cantidad: 25, costoUnitario: 900, cantidadCascara: 6, lote: "", proveedorId: 3, comprobanteForm: "", comprobanteTipo: "", comprobanteNumero: "", medioPago: "EFE", fechaPago: "2026-09-21" },
+  { id: 14, fecha: "2026-10-02", materiaPrimaId: 3, cantidad: 25, costoUnitario: 1020, lote: "L18/09/26M2", proveedorId: 5, comprobanteForm: "Factura", comprobanteTipo: "A", comprobanteNumero: "0013 - 00001741", medioPago: "MPR", fechaPago: null },
 ];
