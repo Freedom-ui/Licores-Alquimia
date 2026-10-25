@@ -55,6 +55,10 @@ next-env.d.ts
 skills-lock.json
 # respaldos automáticos de la base (importación de la planilla)
 /respaldos/
+# conexión con Google Drive en desarrollo (tiene el permiso de la cuenta: nunca al repo)
+/drive.json
+/drive.json.tmp
+/restaurar-pendiente.db*
 
 # pruebas en el navegador (Playwright)
 /test-results

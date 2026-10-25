@@ -343,8 +343,14 @@ escritorio); **actualizaciones automáticas** desde las Releases de `Freedom-ui/
   primer arranque con base nueva, migraciones, copia automática a los 15 s, manual, restaurar ida y
   vuelta, copia al cerrar, apagado prolijo. Usuario de prueba de la app empaquetada en
   `.claude/qa-usuario.local`.
-- **Pendiente:** (1) el usuario crea las credenciales de Google Cloud (pasos en el README) y se prueba
-  la conexión real con Drive; (2) primera release `v1.0.0` y prueba de la actualización con una `v1.0.1`;
+- **Google Cloud (25/10/2026):** proyecto `licores-alquimia`, app "En producción" sin logo (con logo exige
+  verificación), página principal y política de privacidad en GitHub Pages (`docs/index.html`,
+  `docs/privacidad.html`, rama main carpeta /docs → `https://freedom-ui.github.io/Licores-Alquimia/`), dominio
+  autorizado `freedom-ui.github.io`, cliente "App de escritorio". Credenciales en `.env` y en los secretos del
+  repo. Probado en desarrollo con la cuenta del usuario: conexión, subida (`.db.gz`), lista y restaurar desde
+  Drive. `drive.json` (tiene el token) está en `.gitignore`. En el panel del navegador de Claude el
+  `window.open` de "Conectar" se bloquea: abrir la URL de Google a mano en otra pestaña.
+- **Pendiente:** (2) primera release `v1.0.0` y prueba de la actualización con una `v1.0.1`;
   (3) instalar en otra PC / cuenta de Windows limpia y, si se consigue, en una Mac; (4) checklist de
   navegadores de la Fase 7 ya no aplica al cliente (la app trae su Chromium), solo para desarrollo.
 
