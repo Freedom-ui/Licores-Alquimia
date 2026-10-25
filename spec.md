@@ -41,9 +41,21 @@ Importar planilla y Configuración (copias de seguridad, datos del establecimien
   `https://github.com/Freedom-ui/Licores-Alquimia/releases/latest`.
 - El usuario la instaló desde la Release y probó el recorrido del cliente: instalar, conectar Google
   Drive, importar la planilla, cargar datos, copias en la PC y en Drive, restaurar. **Todo funciona.**
-- **v1.0.1** publicada (sin cambios, para probar la actualización: la app instalada la bajó sola).
-- **v1.0.2** (en preparación): la sesión dura 30 minutos sin uso y sobrevive a cerrar la app (antes:
-  15 minutos y se cerraba al cerrar la app). Electron hace `cookies.flushStore()` al salir.
+- **v1.0.1** publicada (sin cambios): **actualización automática probada**, la app instalada pasó sola de
+  1.0.0 a 1.0.1 y en la v1.0.2 volvió a encontrar la nueva.
+- **v1.0.2** publicada el 25/10/2026: la sesión dura 30 minutos sin uso y sobrevive a cerrar la app
+  (antes: 15 minutos y se cerraba al cerrar la app). Electron hace `cookies.flushStore()` al salir.
+- Las tres Releases tienen descripción para el cliente (qué incluye, descarga, instalación).
+- **v1.0.3** (en preparación): en la importación, los **avisos se completan en la misma pantalla**, como
+  los errores. Avisos de una fila con un dato (teléfono, condición de IVA, CBU, "el producto se tomó
+  como…"): campo para corregirlo. Avisos agrupados (clientes sin CUIT ni condición de IVA, proveedores sin
+  contacto / producto, compras sin proveedor, ventas sin vendedor / canal / condición, órdenes sin
+  responsable): "Completar acá" con cada fila y su campo (`Problema.grupo`, `filas`, `campo` en
+  `_importar/planificar.ts`; `avisoGrupal(…, { r, campo, etiqueta })`). Lo completado queda a la vista con
+  ✓; si al completarlo aparece un error (ej. "R. Inscripto" sin CUIT) la fila lo dice. Los informativos
+  (redondeos, vendedores / materias primas agregados, costo de la EI) siguen igual.
+- Para la demo con el cliente: crear su cuenta con él (el usuario distingue mayúsculas), que anote el
+  código de recuperación y conectar **su** cuenta de Google (no la del desarrollador).
 - Pendiente menor: si se consigue, instalar en una Mac real.
 
 **Cómo sacar una versión** (las PCs del cliente se actualizan solas en Windows; en Mac avisa):

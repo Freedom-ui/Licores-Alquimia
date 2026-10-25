@@ -82,6 +82,8 @@ export default function ImportarView({ subidasIniciales }: { subidasIniciales: S
   const [correcciones, setCorrecciones] = useState<Record<string, Record<string, string>>>({});
   const [unidades, setUnidades] = useState<Record<string, UnidadMedida>>({});
   const [filasCorregidas, setFilasCorregidas] = useState<FilasCorregidas>({});
+  // Los avisos como estaban al completar el primero: así los completados siguen a la vista.
+  const [avisosFijos, setAvisosFijos] = useState<Problema[] | null>(null);
   const [exito, setExito] = useState<Exito | null>(null);
 
   const tieneDatos = store.clientes.length + store.productos.length + store.compras.length + store.operaciones.length > 0;
@@ -141,6 +143,7 @@ export default function ImportarView({ subidasIniciales }: { subidasIniciales: S
         setDetecciones(ds);
         setCorrecciones({});
         setFilasCorregidas({});
+        setAvisosFijos(null);
         setUnidades({});
         setElecciones({});
         setPaso("revisar");
@@ -202,6 +205,12 @@ export default function ImportarView({ subidasIniciales }: { subidasIniciales: S
       const previos = plan.problemas.filter((p) => p.tipo === "error" && p.clave === clave);
       setFilasCorregidas((f) => ({ ...f, [clave]: previos }));
     }
+    setCorrecciones((c) => ({ ...c, [clave]: { ...c[clave], [campo]: valor } }));
+  }
+
+  /** Completar un dato desde un aviso (ej. la condición de IVA de un cliente que no la tenía). */
+  function completarAviso(clave: string, campo: string, valor: string) {
+    if (plan && !avisosFijos) setAvisosFijos(plan.problemas.filter((p) => p.tipo === "aviso"));
     setCorrecciones((c) => ({ ...c, [clave]: { ...c[clave], [campo]: valor } }));
   }
 
@@ -270,6 +279,8 @@ export default function ImportarView({ subidasIniciales }: { subidasIniciales: S
             correcciones={correcciones}
             filasCorregidas={filasCorregidas}
             onCorregir={corregir}
+            avisosFijos={avisosFijos}
+            onCompletarAviso={completarAviso}
           />
           <Unidades plan={plan} onCambiar={(nombre, u) => setUnidades((x) => ({ ...x, [claveEnc(nombre)]: u }))} />
           <Cotejo plan={plan} />
@@ -793,12 +804,16 @@ function Problemas({
   correcciones,
   filasCorregidas,
   onCorregir,
+  avisosFijos,
+  onCompletarAviso,
 }: {
   plan: Plan;
   registros: Registro[];
   correcciones: Record<string, Record<string, string>>;
   filasCorregidas: FilasCorregidas;
   onCorregir: (clave: string, campo: string, valor: string) => void;
+  avisosFijos: Problema[] | null;
+  onCompletarAviso: (clave: string, campo: string, valor: string) => void;
 }) {
   const errores = plan.problemas.filter((p) => p.tipo === "error");
   const avisos = plan.problemas.filter((p) => p.tipo === "aviso");
@@ -863,20 +878,99 @@ function Problemas({
           })}
         </ul>
       )}
-      {avisos.length > 0 && (
+      {(avisos.length > 0 || avisosFijos) && (
         <details className="im-detalles" open={errores.length === 0}>
           <summary>Avisos ({fmtNumero(avisos.length)})</summary>
+          <p>Lo que la app completó o interpretó sola. Los que tienen un campo se pueden completar acá mismo (o después, en su sección).</p>
           <ul className="im-problemas">
-            {avisos.map((p, i) => (
-              <li key={i} className="im-problema aviso">
-                <div className="im-problema-texto">
-                  <span className="im-problema-donde">
-                    {seccionNombre(p)} {lugar(p) && `· ${lugar(p)}`}
-                  </span>
-                  <span>{p.mensaje}</span>
-                </div>
-              </li>
-            ))}
+            {listaAvisos(avisos, avisosFijos).map(({ clave: k, antes, ahora }) => {
+              const p = ahora ?? antes;
+              const resuelto = !ahora;
+              // Aviso agrupado que se puede completar fila por fila.
+              if (antes.filas && antes.campo) {
+                const campo = antes.campo;
+                const pendientes = new Set((ahora?.filas ?? []).map((f) => f.clave));
+                // Completada pero con un error nuevo (ej. "R. Inscripto" sin CUIT): no está lista.
+                const errorDe = (clave: string) => errores.find((e) => e.clave === clave)?.mensaje;
+                return (
+                  <li key={k} className={`im-problema ${resuelto ? "corregida" : "aviso"} im-aviso-grupo`}>
+                    <div className="im-problema-texto">
+                      <span className="im-problema-donde">
+                        {resuelto && <Marca tipo="coincide" titulo="Completado" />}
+                        {seccionNombre(p)}
+                        {resuelto && <span className="im-chip ok">Completado</span>}
+                      </span>
+                      <span>{resuelto ? `Completado: ${antes.mensaje}` : p.mensaje}</span>
+                    </div>
+                    <details className="im-completar">
+                      <summary>
+                        Completar acá ({fmtNumero(pendientes.size)} {pendientes.size === 1 ? "pendiente" : "pendientes"} de {fmtNumero(antes.filas.length)})
+                      </summary>
+                      <ul>
+                        {antes.filas.map((f) => {
+                          const falta = pendientes.has(f.clave) ? undefined : errorDe(f.clave);
+                          const hecho = !pendientes.has(f.clave) && !falta;
+                          return (
+                          <li key={f.clave} className={hecho ? "hecho" : undefined}>
+                            <span className="im-completar-fila" title={`${f.etiqueta} · ${lugar({ ...antes, origen: f.origen })}`}>
+                              {hecho && <Marca tipo="coincide" titulo="Completado" />}
+                              {falta && <Marca tipo="error" />}
+                              {f.etiqueta}
+                              <span className="im-problema-donde"> · {lugar({ ...antes, origen: f.origen })}</span>
+                              {falta && <span className="im-completar-falta">Falta algo más: {falta.replace(/\.$/, "")}. Completalo arriba, en las filas con errores.</span>}
+                            </span>
+                            <Correccion
+                              key={`${f.clave}-${campo}`}
+                              valor={correcciones[f.clave]?.[campo] ?? ""}
+                              opciones={opcionesCampo(campo, plan)}
+                              placeholder={ETIQUETA_CAMPO[campo] ?? "Completar"}
+                              onCommit={(v) => onCompletarAviso(f.clave, campo, v)}
+                            />
+                          </li>
+                          );
+                        })}
+                      </ul>
+                    </details>
+                  </li>
+                );
+              }
+              // Aviso de una fila con un dato que se puede cambiar.
+              if (antes.clave && antes.campo) {
+                const r = porClave.get(antes.clave);
+                const original = r ? aTexto(r.v[antes.campo] ?? null) : "";
+                return (
+                  <li key={k} className={`im-problema ${resuelto ? "corregida" : "aviso"}`}>
+                    <div className="im-problema-texto">
+                      <span className="im-problema-donde">
+                        {resuelto && <Marca tipo="coincide" titulo="Completado" />}
+                        {seccionNombre(p)} {lugar(p) && `· ${lugar(p)}`}
+                        {r ? ` · ${resumenRegistro(r)}` : ""}
+                        {resuelto && <span className="im-chip ok">Corregido</span>}
+                      </span>
+                      <span className={resuelto ? "im-verde-suave" : undefined}>{resuelto ? `Corregido (era: ${antes.mensaje})` : p.mensaje}</span>
+                    </div>
+                    <Correccion
+                      key={`${antes.clave}-${antes.campo}`}
+                      valor={correcciones[antes.clave]?.[antes.campo] ?? original}
+                      opciones={opcionesCampo(antes.campo, plan)}
+                      onCommit={(v) => onCompletarAviso(antes.clave!, antes.campo!, v)}
+                    />
+                  </li>
+                );
+              }
+              // Informativo: no hay un dato para completar.
+              if (resuelto) return null;
+              return (
+                <li key={k} className="im-problema aviso">
+                  <div className="im-problema-texto">
+                    <span className="im-problema-donde">
+                      {seccionNombre(p)} {lugar(p) && `· ${lugar(p)}`}
+                    </span>
+                    <span>{p.mensaje}</span>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </details>
       )}
@@ -897,6 +991,30 @@ const NOMBRE_SECCION_CORTO: Record<string, string> = {
 };
 const seccionNombre = (p: Problema) => NOMBRE_SECCION_CORTO[p.seccion] ?? p.seccion;
 
+/** Qué se completa en cada fila de un aviso agrupado (texto de ayuda del campo). */
+const ETIQUETA_CAMPO: Record<string, string> = {
+  contacto: "Contacto",
+  producto: "Producto que provee",
+  responsable: "Responsable",
+};
+
+/** Un aviso no cambia de identidad al completarlo: el grupo, o la fila + el campo. */
+const claveAviso = (p: Problema) => p.grupo ?? `${p.clave ?? ""}|${p.campo ?? ""}|${p.campo ? "" : p.mensaje}`;
+
+/**
+ * Los avisos para mostrar: los de antes de empezar a completar (con su estado
+ * actual: `ahora` vacío = ya no está, se completó) y los que aparecieron después.
+ */
+function listaAvisos(actuales: Problema[], fijos: Problema[] | null): { clave: string; antes: Problema; ahora: Problema | undefined }[] {
+  const porClave = new Map(actuales.map((p) => [claveAviso(p), p]));
+  const base = fijos ?? actuales;
+  const vistos = new Set(base.map(claveAviso));
+  return [
+    ...base.map((p) => ({ clave: claveAviso(p), antes: p, ahora: porClave.get(claveAviso(p)) })),
+    ...actuales.filter((p) => !vistos.has(claveAviso(p))).map((p) => ({ clave: claveAviso(p), antes: p, ahora: p })),
+  ];
+}
+
 /** Lo que identifica la fila para el usuario (ej. "OP 12 · Alcohol"). */
 function resumenRegistro(r: Registro): string {
   const v = r.v;
@@ -911,7 +1029,17 @@ function resumenRegistro(r: Registro): string {
   return partes.filter(Boolean).join(" · ");
 }
 
-function Correccion({ valor, opciones, onCommit }: { valor: string; opciones: string[] | null; onCommit: (v: string) => void }) {
+function Correccion({
+  valor,
+  opciones,
+  onCommit,
+  placeholder = "Corregir el dato",
+}: {
+  valor: string;
+  opciones: string[] | null;
+  onCommit: (v: string) => void;
+  placeholder?: string;
+}) {
   const [texto, setTexto] = useState(valor);
   if (opciones) {
     // El dato de la planilla que no está en la lista se muestra marcado (no es una opción válida).
@@ -936,8 +1064,8 @@ function Correccion({ valor, opciones, onCommit }: { valor: string; opciones: st
     <input
       className="im-input im-correccion"
       value={texto}
-      placeholder="Corregir el dato"
-      aria-label="Corregir el dato"
+      placeholder={placeholder}
+      aria-label={placeholder}
       onChange={(e) => setTexto(e.target.value)}
       onBlur={() => texto !== valor && onCommit(texto)}
       onKeyDown={(e) => {

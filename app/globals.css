@@ -1954,6 +1954,19 @@ body {
 .im-problema-donde { font-size: 11px; color: var(--text-muted); }
 .im-correccion { flex: 0 1 260px; }
 
+/* Avisos agrupados que se completan fila por fila (ej. clientes sin condición de IVA). */
+.im-problema.im-aviso-grupo { flex-direction: column; align-items: stretch; gap: 6px; }
+/* En columna, la base de 380 px del texto sería alto: que mida lo que su contenido. */
+.im-problema.im-aviso-grupo > .im-problema-texto { flex: none; }
+.im-completar > summary { cursor: pointer; font-weight: 700; color: var(--naranja-dark); font-size: 12px; }
+.im-completar ul { list-style: none; margin: 6px 0 2px; display: flex; flex-direction: column; gap: 4px; max-height: 340px; overflow-y: auto; }
+.im-completar li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 14px; padding: 3px 0; }
+.im-completar li + li { border-top: 1px dashed #ECE8E1; }
+.im-completar li.hecho .im-completar-fila { color: #2E6B3F; }
+.im-completar-fila { flex: 1 1 300px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.im-completar-fila .im-marca { margin-right: 6px; vertical-align: -1px; }
+.im-completar-falta { display: block; white-space: normal; font-size: 11.5px; color: var(--im-error); }
+
 .im-unidades { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 16px; margin-top: 6px; }
 .im-unidad { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
 .im-unidad span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

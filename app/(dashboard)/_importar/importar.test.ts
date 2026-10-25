@@ -408,6 +408,35 @@ describe("plan de importación", () => {
     expect(e.clientes.find((c) => c.razonSocial === "CAVA MITRE")).toMatchObject({ condicionIva: "R. Inscripto", cuit: "20-39098613-1" });
   });
 
+  it("los avisos agrupados traen sus filas para completarlas acá, y se achican al completarlas", () => {
+    const grupo = plan.problemas.find((p) => p.grupo?.startsWith("clientes sin CUIT ni condición de IVA"))!;
+    expect(grupo).toMatchObject({ tipo: "aviso", campo: "condicionIva" });
+    const fila = grupo.filas!.find((f) => f.etiqueta === "PARTICULAR")!;
+    expect(fila.origen.hoja).toBe("BASES DE DATOS");
+
+    const completado = planificar({ ...extraccion, registros: aplicarCorrecciones(extraccion.registros, { [fila.clave]: { condicionIva: "Consumidor Final" } }) });
+    const despues = completado.problemas.find((p) => p.grupo === grupo.grupo);
+    expect(despues?.filas?.some((f) => f.clave === fila.clave) ?? false).toBe(false);
+    expect(despues?.filas?.length ?? 0).toBe(grupo.filas!.length - 1);
+
+    // Una condición que pide CUIT lo convierte en un error de esa fila (se completa como cualquier error).
+    const inscripto = planificar({ ...extraccion, registros: aplicarCorrecciones(extraccion.registros, { [fila.clave]: { condicionIva: "R. Inscripto" } }) });
+    expect(inscripto.problemas.some((p) => p.tipo === "error" && p.clave === fila.clave && p.campo === "cuit")).toBe(true);
+  });
+
+  it("un aviso de una sola fila trae su campo y desaparece al corregirlo", () => {
+    const tel = plan.problemas.find((p) => p.tipo === "aviso" && p.campo === "telefono")!;
+    expect(tel.clave).toBeTruthy();
+    const corregido = planificar({ ...extraccion, registros: aplicarCorrecciones(extraccion.registros, { [tel.clave!]: { telefono: "0223 478-3408" } }) });
+    expect(corregido.problemas.some((p) => p.clave === tel.clave && p.campo === "telefono")).toBe(false);
+    expect(corregido.estado.proveedores.find((p) => p.razonSocial === "LODISER")?.telefono).toBe("0223 478-3408");
+  });
+
+  it("los avisos solo informativos no traen filas para completar", () => {
+    const informativos = plan.problemas.filter((p) => p.tipo === "aviso" && /se agregaron|redondearon/.test(p.mensaje));
+    for (const p of informativos) expect(p.filas).toBeUndefined();
+  });
+
   it("proveedor con CBU y alias escritos a mano: guarda el alias, avisa y deja vacío un CBU inválido", () => {
     const fila = (cbuAlias: string): Registro => {
       const { cbu, alias, aliasAjustado } = separarCbuAlias(cbuAlias);

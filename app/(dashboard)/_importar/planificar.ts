@@ -73,10 +73,17 @@ export type Problema = {
   /** Registro al que corresponde (para corregirlo); sin clave = aviso general. */
   clave?: string;
   origen?: Origen;
-  /** Campo del registro que se puede corregir. */
+  /** Campo del registro que se puede corregir (en un aviso agrupado, el de cada una de sus filas). */
   campo?: string;
   mensaje: string;
+  /** Aviso agrupado: identifica al grupo (el mensaje cambia con la cantidad). */
+  grupo?: string;
+  /** Aviso agrupado que se puede completar en pantalla: sus filas, cada una con el `campo` a completar. */
+  filas?: FilaAviso[];
 };
+
+/** Una fila de un aviso agrupado (ej. un cliente sin condición de IVA), para completarla en pantalla. */
+export type FilaAviso = { clave: string; origen: Origen; etiqueta: string };
 
 export type ResumenSeccion = {
   seccion: SeccionRegistro;
@@ -262,6 +269,15 @@ const mostrarCuit = (v: unknown) => {
 };
 const fechaDMA = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split("-").reverse().join("/") : mostrarValor(v));
 
+/** "14/10/26" para las etiquetas de las filas de un aviso. */
+const fmtFechaCorta = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}`;
+
+/** "OP 12 · BAR UNO · Licor de Limón 500 cc · 14/10/26": para reconocer la venta en un aviso. */
+function etiquetaVenta(r: Registro): string {
+  const fecha = aFecha(r.v.fecha);
+  return [`OP ${aTexto(r.v.numero)}`, aTexto(r.v.cliente), aTexto(r.v.producto), fecha && fmtFechaCorta(fecha)].filter(Boolean).join(" · ");
+}
+
 export function planificar(ext: Extraccion, op: OpcionesPlan = {}): Plan {
   let e: Estado = op.base ?? ESTADO_VACIO;
   const base = e;
@@ -275,7 +291,7 @@ export function planificar(ext: Extraccion, op: OpcionesPlan = {}): Plan {
   const ventasBase = idsPorClave(base.operaciones, (o) => claveVenta(o.fecha, o.clienteId, o.productoId, o.cantidad));
   // Registros que la app ya tenía y que están en la planilla (para la comparación).
   const yaEnApp: EnApp = { compras: new Set(), ordenes: new Set(), ventas: new Set() };
-  const grupos = new Map<string, { seccion: SeccionRegistro; n: number; ejemplo: string }>();
+  const grupos = new Map<string, { seccion: SeccionRegistro; n: number; ejemplo: string; campo?: string; filas: FilaAviso[] }>();
   const regs = (s: SeccionRegistro) => ext.registros.filter((r) => r.seccion === s);
 
   const contar = (s: SeccionRegistro, campo: "total" | "existentes" | "modificados" | "importados" | "conError") => {
@@ -290,10 +306,17 @@ export function planificar(ext: Extraccion, op: OpcionesPlan = {}): Plan {
   };
   const aviso = (r: Registro | null, s: SeccionRegistro, mensaje: string, campo?: string) =>
     problemas.push({ tipo: "aviso", seccion: s, ...(r ? { clave: r.clave, origen: r.origen } : {}), ...(campo ? { campo } : {}), mensaje });
-  /** Aviso que se repite: se muestra una sola vez con la cantidad ("12 órdenes no tienen responsable…"). */
-  const avisoGrupal = (s: SeccionRegistro, grupo: string, ejemplo = "") => {
-    const g = grupos.get(grupo) ?? { seccion: s, n: 0, ejemplo };
+  /**
+   * Aviso que se repite: se muestra una sola vez con la cantidad ("12 órdenes no tienen responsable…").
+   * Con `completar`, la pantalla lista cada fila con ese campo para completarlo ahí mismo.
+   */
+  const avisoGrupal = (s: SeccionRegistro, grupo: string, ejemplo = "", completar?: { r: Registro; campo: string; etiqueta?: string }) => {
+    const g = grupos.get(grupo) ?? { seccion: s, n: 0, ejemplo, filas: [] };
     g.n++;
+    if (completar) {
+      g.campo = completar.campo;
+      g.filas.push({ clave: completar.r.clave, origen: completar.r.origen, etiqueta: completar.etiqueta ?? ejemplo });
+    }
     grupos.set(grupo, g);
   };
   const error = (r: Registro, mensaje: string, campo?: string) =>
@@ -588,8 +611,12 @@ export function planificar(ext: Extraccion, op: OpcionesPlan = {}): Plan {
       );
       continue;
     }
-    if (!contacto) avisoGrupal("proveedores", `proveedores sin contacto en la planilla: se cargaron con "${SIN_DATO}" (completalo en Proveedores)`, aTexto(r.v.razonSocial));
-    if (!producto) avisoGrupal("proveedores", `proveedores sin producto en la planilla: se cargaron con "${SIN_DATO}"`, aTexto(r.v.razonSocial));
+    if (!contacto) {
+      avisoGrupal("proveedores", `proveedores sin contacto en la planilla: se cargaron con "${SIN_DATO}"`, aTexto(r.v.razonSocial), { r, campo: "contacto" });
+    }
+    if (!producto) {
+      avisoGrupal("proveedores", `proveedores sin producto en la planilla: se cargaron con "${SIN_DATO}"`, aTexto(r.v.razonSocial), { r, campo: "producto" });
+    }
     if (original && !aTexto(r.v.cbu) && !aTexto(r.v.alias)) {
       aviso(r, "proveedores", `No se encontró un CBU (22 números) ni un alias en "${original}": quedaron vacíos.`, "cbu");
     }
@@ -644,7 +671,7 @@ export function planificar(ext: Extraccion, op: OpcionesPlan = {}): Plan {
     if (!condicionIva) {
       condicionIva = "Consumidor Final";
       if (cuit) aviso(r, "clientes", `No tiene condición de IVA en la planilla: se cargó como Consumidor Final (revisala en Clientes).`, "condicionIva");
-      else avisoGrupal("clientes", "clientes sin CUIT ni condición de IVA: se cargaron como Consumidor Final", aTexto(r.v.razonSocial));
+      else avisoGrupal("clientes", "clientes sin CUIT ni condición de IVA: se cargaron como Consumidor Final", aTexto(r.v.razonSocial), { r, campo: "condicionIva" });
     }
     let precioTradicional = r2(numero(r.v.precioTradicional));
     if (!precioTradicional && moda) {
@@ -777,7 +804,11 @@ export function planificar(ext: Extraccion, op: OpcionesPlan = {}): Plan {
         sinProveedorId = e.proveedores[e.proveedores.length - 1].id;
       }
       proveedorId = sinProveedorId;
-      avisoGrupal("compras", `compras sin proveedor en la planilla: quedaron con "${PROVEEDOR_SIN_IDENTIFICAR}" (podés cambiarlo en Trazabilidad)`, `OP ${aTexto(r.v.numero)}`);
+      avisoGrupal("compras", `compras sin proveedor en la planilla: quedaron con "${PROVEEDOR_SIN_IDENTIFICAR}"`, `OP ${aTexto(r.v.numero)}`, {
+        r,
+        campo: "proveedor",
+        etiqueta: [`OP ${aTexto(r.v.numero)}`, aTexto(r.v.materiaPrima), aFecha(r.v.fecha) && fmtFechaCorta(aFecha(r.v.fecha))].filter(Boolean).join(" · "),
+      });
     }
     intentar(
       r,
@@ -800,7 +831,6 @@ export function planificar(ext: Extraccion, op: OpcionesPlan = {}): Plan {
   }
 
   // ── Órdenes de producción: cada insumo sale de las compras por FIFO ──
-  let sinResponsable = 0;
   for (const r of regs("ordenes").sort(porNumero)) {
     const p = productoDe(aTexto(r.v.producto));
     const fechaMaceracion = aFecha(r.v.fechaMaceracion);
@@ -874,7 +904,13 @@ export function planificar(ext: Extraccion, op: OpcionesPlan = {}): Plan {
       aviso(r, "ordenes", `La planilla suma $ ${fmtNumero(costoEI)} de existencia inicial (EI) que no es un insumo: el costo del lote en la app no lo incluye.`);
     }
     const responsable = aTexto(r.v.responsable);
-    if (!responsable) sinResponsable++;
+    if (!responsable) {
+      avisoGrupal("ordenes", `órdenes sin responsable en la planilla: se cargaron con "${SIN_DATO}"`, "", {
+        r,
+        campo: "responsable",
+        etiqueta: [`O.P. ${aTexto(r.v.numero)}`, aTexto(r.v.producto), fechaMaceracion && fmtFechaCorta(fechaMaceracion)].filter(Boolean).join(" · "),
+      });
+    }
     intentar(r, (v) => ({ tipo: "saveOrden", id: null, v: v as never }), {
       productoId: p?.valor.id ?? null,
       fechaMaceracion,
@@ -883,9 +919,6 @@ export function planificar(ext: Extraccion, op: OpcionesPlan = {}): Plan {
       cantidadProducida: numero(r.v.cantidadProducida),
       insumos,
     });
-  }
-  if (sinResponsable) {
-    grupos.set(`órdenes sin responsable en la planilla: se cargaron con "${SIN_DATO}"`, { seccion: "ordenes", n: sinResponsable, ejemplo: "" });
   }
 
   // ── Ventas ──
@@ -935,17 +968,17 @@ export function planificar(ext: Extraccion, op: OpcionesPlan = {}): Plan {
     let vendedor = vendedorDe(nombreVendedor)?.valor.nombre ?? nombreVendedor;
     if (!nombreVendedor && e.vendedores.length) {
       vendedor = e.vendedores[0].nombre;
-      avisoGrupal("ventas", `ventas sin vendedor en la planilla: se cargaron a "${vendedor}"`);
+      avisoGrupal("ventas", `ventas sin vendedor en la planilla: se cargaron a "${vendedor}"`, "", { r, campo: "vendedor", etiqueta: etiquetaVenta(r) });
     }
     let canal = opcionDe(r.v.canal, CANALES, SINONIMOS_CANAL);
     if (!canal) {
       canal = "Menor";
-      avisoGrupal("ventas", `ventas sin canal en la planilla: se cargaron como "Menor"`);
+      avisoGrupal("ventas", `ventas sin canal en la planilla: se cargaron como "Menor"`, "", { r, campo: "canal", etiqueta: etiquetaVenta(r) });
     }
     let condicion = opcionDe(r.v.condicion, CONDICIONES, SINONIMOS_CONDICION);
     if (!condicion) {
       condicion = "Contado";
-      avisoGrupal("ventas", `ventas sin condición en la planilla: se cargaron como "Contado"`);
+      avisoGrupal("ventas", `ventas sin condición en la planilla: se cargaron como "Contado"`, "", { r, campo: "condicion", etiqueta: etiquetaVenta(r) });
     }
     intentar(r, (v) => ({ tipo: "addOperacion", v: v as never }), {
       fecha: aFecha(r.v.fecha),
@@ -961,7 +994,13 @@ export function planificar(ext: Extraccion, op: OpcionesPlan = {}): Plan {
 
   // ── Avisos agrupados ──
   for (const [mensaje, g] of grupos) {
-    problemas.push({ tipo: "aviso", seccion: g.seccion, mensaje: `${g.n} ${mensaje}${g.ejemplo && g.n > 1 ? ` (ej. ${g.ejemplo})` : g.ejemplo ? `: ${g.ejemplo}` : ""}.` });
+    problemas.push({
+      tipo: "aviso",
+      seccion: g.seccion,
+      grupo: mensaje,
+      mensaje: `${g.n} ${mensaje}${g.ejemplo && g.n > 1 ? ` (ej. ${g.ejemplo})` : g.ejemplo ? `: ${g.ejemplo}` : ""}.`,
+      ...(g.campo && g.filas.length ? { campo: g.campo, filas: g.filas } : {}),
+    });
   }
   if (redondeos) {
     problemas.push({
