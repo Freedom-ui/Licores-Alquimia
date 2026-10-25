@@ -23,4 +23,5 @@ export const navSections: NavNode[] = [
   { label: "Clientes", href: "/clientes", icon: "users" },
   { label: "Estadísticas", href: "/estadisticas", icon: "chart" },
   { label: "Importar planilla", href: "/importar", icon: "upload" },
+  { label: "Configuración", href: "/configuracion", icon: "gear" },
 ];

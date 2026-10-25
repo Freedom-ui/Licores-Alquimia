@@ -123,7 +123,7 @@ export function validarCliente(v: unknown, e: Estado, id: number | null): Result
   // Consumidor Final suele no tener CUIT: puede quedar vacío, pero si se carga se valida igual.
   const cuit = normalizarCuit(o.cuit);
   if (!cuit && condicionIva !== "Consumidor Final") {
-    poner("cuit", "Ingresá el CUIT, por ejemplo 30-71234567-8 (solo puede quedar vacío si es Consumidor Final).");
+    poner("cuit", "Ingresá el CUIT, por ejemplo 30-71234567-1 (solo puede quedar vacío si es Consumidor Final).");
   }
   poner("cuit", validarCuit(cuit));
   if (cuit && !tiene("cuit")) {

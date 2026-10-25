@@ -46,7 +46,7 @@ const columns: Column<ProveedorConDeuda>[] = [
     width: "11%",
     maxWidth: null,
     // CUIT, email y teléfono pueden no tenerse al cargarlo: si se completan, se validan.
-    form: { placeholder: "Ej: 30-71234567-8", maxLength: 20 },
+    form: { placeholder: "Ej: 30-71234567-1", maxLength: 20 },
   },
   {
     key: "email",

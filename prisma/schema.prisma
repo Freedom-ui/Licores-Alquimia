@@ -63,6 +63,18 @@ model IntentoFallido {
   @@index([fecha])
 }
 
+// ── Datos del establecimiento (encabezado de los PDF) ────────
+// Una sola fila (id 1), editable en Configuración.
+model Empresa {
+  id            Int    @id @default(1)
+  nombre        String @default("Licores Alquimia")
+  razonSocial   String @default("")
+  cuit          String @default("")
+  domicilio     String @default("")
+  registroPupaa String @default("")
+  reba          String @default("")
+}
+
 // ── Catálogos ────────────────────────────────────────────────
 model Cliente {
   id                Int     @id @default(autoincrement())

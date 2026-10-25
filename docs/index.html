@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Licores Alquimia</title>
+  <meta name="description" content="App de escritorio para la gestión de producción, stock, ventas y trazabilidad de Licores Alquimia.">
+  <style>
+    :root { --fondo: #EDEAE4; --texto: #1C1C1C; --tenue: #555; --naranja: #D4772A; --oscuro: #141414; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 16px/1.6 Arial, Helvetica, sans-serif; background: var(--fondo); color: var(--texto); }
+    header { background: var(--oscuro); color: #fff; border-bottom: 3px solid var(--naranja); padding: 28px 16px; text-align: center; }
+    header .marca { color: var(--naranja); letter-spacing: 3px; text-transform: uppercase; font-size: 12px; }
+    header h1 { margin: 4px 0 0; font-family: Georgia, serif; font-weight: normal; font-size: 32px; }
+    main { max-width: 760px; margin: 0 auto; padding: 28px 16px 48px; }
+    h2 { font-size: 19px; margin-top: 28px; }
+    a { color: #B85F1A; }
+    .boton { display: inline-block; margin-top: 8px; padding: 10px 18px; border-radius: 6px; background: var(--naranja); color: #fff; text-decoration: none; font-weight: bold; }
+    footer { max-width: 760px; margin: 0 auto; padding: 0 16px 32px; color: var(--tenue); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="marca">Licores</div>
+    <h1>Alquimia</h1>
+  </header>
+  <main>
+    <p>
+      <strong>Licores Alquimia</strong> es una aplicación de escritorio (Windows y Mac) para un elaborador artesanal
+      de licores: clientes, proveedores, compras con trazabilidad, órdenes de producción, stock por lote, ventas con
+      remito, estadísticas y los registros que pide el PUPAA.
+    </p>
+    <p>
+      Funciona en la computadora del usuario: los datos se guardan en esa computadora y, si el usuario lo decide,
+      se hacen copias de seguridad en <strong>su propio Google Drive</strong>.
+    </p>
+    <a class="boton" href="https://github.com/Freedom-ui/Licores-Alquimia/releases/latest">Descargar la última versión</a>
+
+    <h2>Copias de seguridad en Google Drive</h2>
+    <p>
+      Desde <em>Configuración → Copias de seguridad</em> el usuario puede conectar su cuenta de Google. La app solo
+      pide permiso para los archivos que ella misma crea (una carpeta llamada «Licores Alquimia - Copias de
+      seguridad») y no puede ver ningún otro archivo del Drive. Más detalles en la
+      <a href="privacidad.html">Política de privacidad</a>.
+    </p>
+  </main>
+  <footer>
+    <a href="privacidad.html">Política de privacidad</a> ·
+    <a href="https://github.com/Freedom-ui/Licores-Alquimia">Código fuente</a>
+  </footer>
+</body>
+</html>

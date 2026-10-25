@@ -3,7 +3,7 @@
 // acomodan en filas según su ancho (span sobre 12), igual que la grilla.
 
 import type { jsPDF as JsPDF } from "jspdf";
-import { EMPRESA, lineaDatosEmpresa } from "@/app/empresa";
+import { empresaActual, lineaDatosEmpresa } from "@/app/empresa";
 import { numerarPaginas } from "@/app/components/data-table/pdfComun";
 import { graficoComoImagen } from "./Grafico";
 import type { Bloque, Seccion } from "./secciones";
@@ -62,7 +62,7 @@ function cabecera(doc: JsPDF, seccion: Seccion, meta: Meta): number {
   doc.setTextColor(0);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  doc.text(EMPRESA.nombre, MARGEN, 14);
+  doc.text(empresaActual().nombre, MARGEN, 14);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   doc.text(`Estadísticas — ${seccion.titulo}`, MARGEN, 20.5);

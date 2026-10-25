@@ -33,6 +33,8 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       DATABASE_URL: "file:./e2e/.datos/e2e.db",
+      // Copias de seguridad hechas en las pruebas: a e2e/.datos/copias (no a respaldos/).
+      ALQUIMIA_DATOS: "e2e/.datos",
       // Los recorridos largos no tocan el mouse: que no se cierre la sesión.
       SESION_INACTIVIDAD_MIN: "240",
     },

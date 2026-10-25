@@ -33,9 +33,8 @@ terminados (kardex por lote), Inventario de materia prima (kardex), Trazabilidad
 compras + rastreo de lotes + ficha PUPAA), Estadísticas (6 pantallas con ECharts + PDF) e
 Importar planilla.
 
-**Dónde estamos:** Fases 1 a 8 aprobadas y commiteadas (la 8 el 21/10/2026, junto con el resumen
-de este spec). Fase 9 implementada el 22/10/2026, **esperando la revisión del usuario** (sin commitear).
-La siguiente es la Fase 10, solo cuando el usuario lo indique.
+**Dónde estamos:** Fases 1 a 9 aprobadas y commiteadas (la 9 en `6c5e77c`). Fase 10 en curso desde el
+24/10/2026 (ver sus decisiones abajo).
 
 Arquitectura clave:
 - Datos en SQLite con Prisma 7 (`dev.db` en la raíz, `lib/prisma.ts`, config en
@@ -61,13 +60,16 @@ Arquitectura clave:
   internet).
 
 Comandos:
-- `npm run dev` · `npm test` (Vitest, 383) · `npx tsc --noEmit` · `npx eslint` · `npx next build`.
+- `npm run dev` · `npm test` (Vitest, 412) · `npx tsc --noEmit` · `npx eslint` · `npx next build`.
 - `npm run db:migrate` · `npx prisma generate` · `npm run db:seed -- --reemplazar` (datos
   generados hasta hoy; `--hasta=2026-10-17` reproduce la base del usuario; `--semilla=N`, `--demo`).
-  Última migración: `20261022130000_compra_pago`.
+  Última migración: `20261024120000_empresa` (se aplican solas al arrancar el servidor).
 - `npm run e2e` (build + humo en Chromium / Firefox / WebKit; `E2E_MARCAS=1` suma Edge y Chrome) ·
   `npm run e2e:tamanos` (recorrido de pantallas, ~40 min; filtros `E2E_TAMANOS`, `E2E_VISTAS`).
-- PC nueva: `npm ci` → `.env` con `DATABASE_URL="file:./dev.db"` → `npx prisma generate` →
+- App de escritorio: `npm run app:build` (instalador en `dist/`) · `npm run app:dev` (ventana contra
+  `npm run dev`) · `npm run iconos` (regenera los íconos desde `build/icono.svg`). Release: subir
+  `version` en `package.json` y pushear el tag `v<versión>` (ver README).
+- PC nueva: `npm ci` + `npm ci --prefix escritorio` → `.env` con `DATABASE_URL="file:./dev.db"` → `npx prisma generate` →
   `npm run db:migrate` → `npm run db:seed` → `npm run dev` → crear la cuenta en la pantalla de
   configuración inicial (los usuarios no están en el repo ni en el seed).
 
@@ -242,7 +244,7 @@ disponible a su fecha; tablas de catálogos con máximo 1800 px en pantallas anc
 - Pendiente de respuesta del cliente (sin cambios): MPR / MPA, datos del establecimiento, proveedor
   obligatorio.
 
-### Fase 9 — Features nuevas ◐ (implementada, falta la aprobación del usuario)
+### Fase 9 — Features nuevas ☑
 Elegidas por el usuario (22/10/2026) de una lista propuesta tras revisar el código. **Quedaron afuera**
 (para más adelante, si el cliente las pide): cuentas corrientes de clientes, búsqueda global, exportar
 todo a Excel, libros PUPAA de ventas y producción, lote elegido a mano en la venta (hoy es FIFO y se
@@ -282,27 +284,69 @@ recalcula) y columna de lotes por cliente.
 - La base de desarrollo se recargó con `--hasta=2026-10-17` (copia previa en
   `respaldos/dev-antes-fase9-2026-10-22.db`); los usuarios no se tocan.
 
-### Fase 10 — Entrega al cliente ☐
-Para Windows y Mac (Intel y Apple Silicon).
-- Build de producción y forma simple de abrirla: en Windows, acceso directo / `.bat`; en
-  Mac, un `.command` (o app de Automator) que levanta el servidor y abre el navegador
-  (evaluar empaquetado tipo Electron solo si hace falta).
-- Backups automáticos del archivo SQLite (diario, con rotación) y restauración simple, con
-  rutas que funcionen en ambos sistemas (sin barras ni carpetas propias de Windows).
-  **Propuesta (17/10/2026; el usuario decidió dejarla para esta fase, no hacerla antes):** copia automática con
-  `VACUUM INTO` al entrar a la app (una por día, o al importar), con rotación (últimas 30 diarias +
-  1 por mes), guardada en una carpeta que se elige una vez y que conviene que sea la de OneDrive /
-  Google Drive / iCloud Drive de la PC, así el programa de sincronización la sube sola a la nube.
-  Pantalla "Copias de seguridad": última copia (fecha y tamaño), "Hacer una copia ahora",
-  "Guardar una copia en…" (pendrive), "Restaurar" (con confirmación y copia previa de lo actual) y
-  verificación de cada copia (`PRAGMA integrity_check`). Aviso en el Panel si la última copia tiene
-  más de 3 días o si la carpeta no está disponible.
-- Instalación guiada (Node incluido o instalador) para cada sistema, `.env` generado en el
-  primer arranque. Las dependencias se instalan en la máquina destino (`npm ci`): la
-  librería nativa de SQLite es distinta en Windows y en Mac, no se copia `node_modules`.
-- README de uso para el cliente (no técnico) + guía corta de instalación.
-- Test en una PC con Windows limpia y en una Mac simulando al cliente, repitiendo ahí el
-  checklist de navegadores de la Fase 7.
+### Fase 10 — Entrega al cliente ◐ (implementada; faltan Google Cloud, una release y la prueba en otra PC)
+Decisiones del usuario (24/10/2026): el cliente usa **Windows** (Mac se genera igual); **app de
+escritorio con Electron**; **copias a Google Drive por conexión directa** (OAuth, sin Google Drive para
+escritorio); **actualizaciones automáticas** desde las Releases de `Freedom-ui/Licores-Alquimia`
+(público); **datos del establecimiento editables**; **ícono provisorio** (el cliente no tiene logo).
+
+- **Empaquetado** (`scripts/empaquetar.mjs`, `npm run app:build` → `dist/`): `next build` standalone
+  (`output: "standalone"` solo con `ALQUIMIA_BUILD_ESCRITORIO=1`) + **Node propio** dentro de la app (el
+  mismo de desarrollo, 22.20.0, bajado de nodejs.org y verificado con SHA-256). Se eligió Node aparte y
+  no el de Electron porque better-sqlite3 no tiene binarios para las Electron vigentes y acá no hay
+  compilador de C++. El script saca del paquete `.env`, `*.db`, `respaldos/` y fuentes; reemplaza los
+  enlaces de `.next/node_modules/<paquete>-<hash>` (apuntan a esta PC) por la copia recortada; poda los
+  compiladores de Prisma de otras bases; para otro sistema/arquitectura baja better-sqlite3 con
+  `prebuild-install`. **Cuidado:** un `fs.*` con ruta dinámica hace que Turbopack meta todo el proyecto
+  en el standalone (el build lo avisa: "Dynamic filesystem access causes tracing of the whole project");
+  se marca con `/*turbopackIgnore: true*/`. `lib/datos/rutas.ts` oculta `process.cwd()` con `new Function`
+  por lo mismo.
+- **Electron** (`escritorio/`, proyecto aparte que solo depende de `electron-updater`; Electron 44.7.0 y
+  electron-builder 26.17.0 en la raíz): `escritorio/src/main.ts` levanta `server.js` con ese Node
+  (`127.0.0.1:47811` o uno libre), una instancia, ventana "Abriendo…", datos en `userData`
+  (`%APPDATA%\Licores Alquimia`: `alquimia.db`, `copias/`, `drive.json`, `registro/app.log`; la caché de
+  Chromium en `navegador/`), enlaces externos al navegador del sistema, menú y clic derecho en español.
+  Al cerrar pide la copia al servidor (IPC de `child_process`, hasta 60 s). `preload.ts` expone
+  `window.alquimia` (contrato en `lib/puente.ts` = `escritorio/src/tipos.ts`). Instalador NSIS de un
+  clic por usuario (sin administrador), acceso directo, conserva los datos al desinstalar; Mac `dmg` +
+  `zip` sin firma. `npm run app:dev` = la ventana contra `npm run dev`.
+- **Arranque del servidor** (`instrumentation.ts` → `lib/arranque.ts`): aplica una restauración
+  pendiente, después **las migraciones con `lib/datos/migrar.ts`** (sin Prisma CLI, compatible con
+  `_prisma_migrations`; copia "antes de actualizar" si la base tenía datos; rechaza bases de una versión
+  más nueva) y arranca las copias automáticas (en escritorio o con `ALQUIMIA_COPIAS=1`).
+- **Copias** (`lib/copias/`): `VACUUM INTO` + `integrity_check` antes de darla por buena
+  (`alquimia-AAAA-MM-DD-HHMMSS-<motivo>.db`); automática al arrancar (si no hay del día) y cada hora,
+  al cerrar si hubo cambios, antes de importar / restaurar / actualizar, y manual. Rotación pura
+  (`nombres.ts`): todo 2 días, la última de cada día 30 días, la última de cada mes 24 meses, el resto
+  60 días. En desarrollo van a `respaldos/`; en las e2e a `e2e/.datos/copias`.
+- **Google Drive** (`lib/copias/drive.ts`, `fetch` a la API v3): PKCE + redirección a
+  `/api/drive/callback` (ruta pública, protegida por `state` de un solo uso), scope `drive.file`,
+  carpeta "Licores Alquimia - Copias de seguridad", copias `.db.gz`, sube las de la última semana que
+  falten (5 por vuelta) y aplica la misma rotación. Token revocado → "desconectada". Credenciales en
+  `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (`.env` o secretos del repo → `build/app/config.json`).
+- **Restaurar**: copia local, de Drive o archivo subido (.db / .gz) → verificación → copia "antes de
+  restaurar" → `restaurar-pendiente.db` → el servidor pide reiniciarse y se aplica al arrancar → login
+  con aviso `?motivo=restaurada` (la cuenta es la de la copia). En `npm run dev` hay que reiniciarlo a mano.
+- **Configuración** (`app/(dashboard)/configuracion/`, último ítem del menú): copias (estado local y de
+  Drive, conectar / desconectar / reintentar, listas con Descargar y Restaurar, restaurar desde archivo),
+  **datos del establecimiento** (tabla `Empresa`, migración `20261024120000_empresa`, `validarEmpresa` y
+  `empresaActual()` en `app/empresa.ts`; los usan todos los PDF) y Acerca de (versión, actualizaciones,
+  carpeta). Panel: cartel "Protegé tus datos" si Drive no está conectado y alertas de copias
+  (`alertasCopias`: copia local o subida a Drive de más de 3 días, Drive desconectado o con error).
+- **Release** (`.github/workflows/release.yml`): tag `v*` = versión de `package.json` → Windows x64 y Mac
+  arm64 / x64 en una Release en borrador; al publicarla, Windows se actualiza solo (se instala al cerrar,
+  después de la copia) y Mac avisa con link.
+- De paso: el CUIT de ejemplo de los mensajes era inválido (`30-71234567-8`); ahora `30-71234567-1`.
+- Docs: `README.md` (desarrollo, release, Google Cloud), `docs/guia-instalacion.md` y
+  `docs/manual-de-uso.md` (cliente).
+- Probado en esta PC con la app empaquetada (CDP en el puerto 9333 contra `dist/win-unpacked`):
+  primer arranque con base nueva, migraciones, copia automática a los 15 s, manual, restaurar ida y
+  vuelta, copia al cerrar, apagado prolijo. Usuario de prueba de la app empaquetada en
+  `.claude/qa-usuario.local`.
+- **Pendiente:** (1) el usuario crea las credenciales de Google Cloud (pasos en el README) y se prueba
+  la conexión real con Drive; (2) primera release `v1.0.0` y prueba de la actualización con una `v1.0.1`;
+  (3) instalar en otra PC / cuenta de Windows limpia y, si se consigue, en una Mac; (4) checklist de
+  navegadores de la Fase 7 ya no aplica al cliente (la app trae su Chromium), solo para desarrollo.
 
 ## 4. Verificación estándar de cada fase
 `npx tsc --noEmit`, `npx eslint`, `npx next build`, prueba en el navegador (golden path

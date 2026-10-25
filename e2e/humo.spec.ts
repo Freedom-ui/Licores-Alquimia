@@ -20,6 +20,7 @@ const SECCIONES: [string, string][] = [
   ["/clientes", "Clientes"],
   ["/estadisticas", "Estadísticas"],
   ["/importar", "Importar planilla"],
+  ["/configuracion", "Configuración"],
 ];
 
 /** Hoy en dd/mm/aaaa, como se escribe en CampoFecha. */
@@ -55,7 +56,7 @@ async function irA(page: Page, url: string, titulo: string) {
  * Descarga lo que dispara `accion`, verifica que sea un PDF de verdad y deja
  * una copia en test-results/pdf/<navegador>/ para revisarlo a ojo.
  */
-async function descargaPdf(page: Page, accion: () => Promise<void>) {
+async function descargaPdf(page: Page, accion: () => Promise<void>): Promise<Buffer> {
   const [descarga] = await Promise.all([page.waitForEvent("download"), accion()]);
   expect(descarga.suggestedFilename()).toMatch(/\.pdf$/);
   const ruta = await descarga.path();
@@ -65,6 +66,7 @@ async function descargaPdf(page: Page, accion: () => Promise<void>) {
   const dir = `test-results/pdf/${test.info().project.name}`;
   mkdirSync(dir, { recursive: true });
   copyFileSync(ruta, `${dir}/${descarga.suggestedFilename()}`);
+  return contenido;
 }
 
 test("cada sección carga sin errores ni pedidos a internet", async ({ page }) => {
@@ -400,6 +402,35 @@ test("PDF de un remito y de retiro de lote", async ({ page }) => {
   await irA(page, "/trazabilidad", "Trazabilidad");
   await page.getByRole("button", { name: "Rastrear lote" }).first().click();
   await descargaPdf(page, () => modal.getByRole("button", { name: "PDF de retiro" }).click());
+});
+
+test("configuración: datos del establecimiento en los PDF y copia de seguridad manual", async ({ page, browserName }) => {
+  // Los navegadores comparten la base: cada uno guarda su propia razón social (si no, no hay cambios y «Guardar» queda atenuado).
+  const razon = `Bodega de Prueba ${browserName} S.R.L.`;
+  await irA(page, "/configuracion", "Configuración");
+  const empresa = page.locator("#cg-empresa");
+  await empresa.getByLabel("CUIT").fill("30-71234567-9");
+  await empresa.getByRole("button", { name: "Guardar" }).click();
+  await expect(empresa.locator(".rf-field-error")).toContainText("dígito verificador");
+  await empresa.getByLabel("Razón social").fill(razon);
+  await empresa.getByLabel("CUIT").fill("30-71234567-1");
+  await empresa.getByRole("button", { name: "Guardar" }).click();
+  await expect(empresa.getByText("✓ Guardado")).toBeVisible();
+  // Guardar refresca la página (los PDF toman los datos nuevos): que termine antes de navegar.
+  await page.waitForLoadState("networkidle");
+
+  // El encabezado de los PDF sale de esos datos (jsPDF deja el texto sin comprimir).
+  await irA(page, "/clientes", "Clientes");
+  const pdf = await descargaPdf(page, () => page.locator(".dt-pdf-btn").click());
+  // El CUIT (igual en todos los navegadores: la razón social la puede pisar otro que corre en paralelo).
+  expect(pdf.toString("latin1")).toContain("CUIT 30-71234567-1");
+
+  await irA(page, "/configuracion", "Configuración");
+  const copias = page.locator("#cg-copias");
+  await copias.getByRole("button", { name: "Hacer una copia ahora" }).click();
+  await expect(copias.getByText("Copia hecha y verificada.")).toBeVisible();
+  await expect(copias.locator("tbody tr").filter({ hasText: "Manual" }).first()).toBeVisible();
+  await expect(copias.getByText(/Última copia/)).toBeVisible();
 });
 
 test("gráficos: ECharts dibuja en el canvas", async ({ page }) => {

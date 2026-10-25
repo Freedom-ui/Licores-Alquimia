@@ -8,10 +8,10 @@ import Grafico from "../estadisticas/Grafico";
 import { Alertas, Kpis } from "../estadisticas/Indicadores";
 import type { Datos } from "../estadisticas/calculos";
 import { iso } from "../estadisticas/periodo";
-import type { Destino } from "../estadisticas/secciones";
+import type { Alerta, Destino } from "../estadisticas/secciones";
 import { construirPanel, type FilaPanel } from "./calculos";
 
-export default function PanelView({ usuario }: { usuario: string }) {
+export default function PanelView({ usuario, alertasExtra = [], sinDrive = false }: { usuario: string; alertasExtra?: Alerta[]; sinDrive?: boolean }) {
   const router = useRouter();
   const store = useStore();
   const [hoy] = useState(() => iso(new Date()));
@@ -29,7 +29,7 @@ export default function PanelView({ usuario }: { usuario: string }) {
     }),
     [hoy, store.operaciones, store.ordenesProduccion, store.productosTerminados, store.inventarioMateriaPrima, store.materiaPrima, store.compras, store.proveedores]
   );
-  const panel = useMemo(() => construirPanel(datos), [datos]);
+  const panel = useMemo(() => construirPanel(datos, alertasExtra), [datos, alertasExtra]);
 
   function irA(destino: Destino) {
     router.push("href" in destino ? destino.href : `/estadisticas?seccion=${destino.seccion}&foco=${destino.foco}`);
@@ -60,6 +60,18 @@ export default function PanelView({ usuario }: { usuario: string }) {
           </div>
           <Link href="/importar" className="rf-trigger-btn pp-accion">
             Importar planilla
+          </Link>
+        </section>
+      )}
+
+      {sinDrive && (
+        <section className="pp-importar">
+          <div>
+            <h2>Protegé tus datos</h2>
+            <p>Conectá tu cuenta de Google Drive y la app va a guardar ahí, sola, una copia de seguridad por día. Si la PC se rompe o se pierde, recuperás todo.</p>
+          </div>
+          <Link href="/configuracion" className="rf-trigger-btn pp-accion">
+            Conectar Google Drive
           </Link>
         </section>
       )}

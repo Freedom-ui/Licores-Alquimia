@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Política de privacidad · Licores Alquimia</title>
+  <style>
+    :root { --fondo: #EDEAE4; --texto: #1C1C1C; --tenue: #555; --naranja: #D4772A; --oscuro: #141414; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 16px/1.6 Arial, Helvetica, sans-serif; background: var(--fondo); color: var(--texto); }
+    header { background: var(--oscuro); color: #fff; border-bottom: 3px solid var(--naranja); padding: 20px 16px; text-align: center; }
+    header a { color: #fff; text-decoration: none; font-family: Georgia, serif; font-size: 24px; }
+    main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 26px; margin-bottom: 4px; }
+    h2 { font-size: 18px; margin-top: 28px; }
+    .fecha { color: var(--tenue); margin-top: 0; }
+    a { color: #B85F1A; }
+  </style>
+</head>
+<body>
+  <header><a href="./">Licores Alquimia</a></header>
+  <main>
+    <h1>Política de privacidad</h1>
+    <p class="fecha">Última actualización: 25 de octubre de 2026</p>
+
+    <p>
+      Esta política explica qué datos usa la aplicación de escritorio <strong>Licores Alquimia</strong> (en adelante,
+      «la app») y, en particular, cómo usa el acceso a Google Drive.
+    </p>
+
+    <h2>1. Dónde se guardan los datos</h2>
+    <p>
+      La app funciona en la computadora del usuario. Todos los datos que se cargan (clientes, proveedores, compras,
+      producción, ventas, usuario y contraseña) se guardan <strong>solo en esa computadora</strong>. La app no tiene
+      servidores propios y no envía esos datos al desarrollador ni a terceros.
+    </p>
+
+    <h2>2. Acceso a Google Drive</h2>
+    <p>
+      Si el usuario lo elige, puede conectar su cuenta de Google para guardar copias de seguridad en su propio Google
+      Drive. En ese caso la app solicita:
+    </p>
+    <ul>
+      <li>
+        <strong>Ver y administrar solo los archivos de Google Drive que la app creó</strong>
+        (<code>drive.file</code>): la app crea una carpeta «Licores Alquimia - Copias de seguridad», sube ahí las copias
+        de la base de datos, las lista, las descarga para restaurarlas y borra las más viejas. No puede ver, leer ni
+        modificar ningún otro archivo del Drive del usuario.
+      </li>
+      <li>
+        <strong>La dirección de correo de la cuenta</strong> (<code>email</code>, <code>openid</code>): solo para mostrar en
+        la app con qué cuenta se está guardando.
+      </li>
+    </ul>
+    <p>
+      El permiso de acceso que entrega Google se guarda únicamente en la computadora del usuario. Las copias viajan
+      directamente entre esa computadora y Google Drive; el desarrollador nunca tiene acceso a ellas.
+    </p>
+    <p>
+      El uso y la transferencia de la información recibida de las APIs de Google cumple la
+      <a href="https://developers.google.com/terms/api-services-user-data-policy">Política de datos del usuario de los
+      servicios de las APIs de Google</a>, incluidos los requisitos de Uso limitado. La app no usa esos datos para
+      publicidad ni los comparte, vende o transfiere a terceros.
+    </p>
+
+    <h2>3. Desconectar y borrar</h2>
+    <p>
+      El usuario puede desconectar Google Drive en cualquier momento desde <em>Configuración → Copias de seguridad →
+      Desconectar</em>, o quitando el acceso en <a href="https://myaccount.google.com/permissions">su cuenta de
+      Google</a>. Las copias que ya estén en su Drive quedan ahí y las puede borrar cuando quiera. Al desinstalar la
+      app, los datos de la computadora se conservan en la carpeta de datos del usuario hasta que él los borre.
+    </p>
+
+    <h2>4. Actualizaciones</h2>
+    <p>
+      Para buscar versiones nuevas, la app consulta la página pública de versiones en GitHub. Esa consulta no incluye
+      datos del usuario ni de su negocio.
+    </p>
+
+    <h2>5. Contacto</h2>
+    <p>
+      Por consultas sobre esta política: <a href="mailto:patanevillarreal@gmail.com">patanevillarreal@gmail.com</a>.
+    </p>
+  </main>
+</body>
+</html>

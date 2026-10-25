@@ -15,6 +15,10 @@ const eslintConfig = defineConfig([
     // Salidas de Playwright (reporte HTML y capturas).
     "playwright-report/**",
     "test-results/**",
+    // App de escritorio: compilado e instaladores.
+    "escritorio/dist/**",
+    "escritorio/node_modules/**",
+    "dist/**",
   ]),
 ]);
 

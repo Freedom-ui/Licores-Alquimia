@@ -1135,7 +1135,7 @@ function Resultado({ exito, onOtro }: { exito: Exito; onOtro: () => void }) {
         </h3>
         <p>
           La app ya tiene los datos nuevos y actualizados de la planilla.
-          {exito.respaldo && ` Los datos anteriores quedaron guardados en la copia de seguridad respaldos/${exito.respaldo}.`}
+          {exito.respaldo && ` Los datos anteriores quedaron guardados en una copia de seguridad (Configuración → Copias de seguridad).`}
         </p>
       </div>
       <div className="im-tabla-scroll">

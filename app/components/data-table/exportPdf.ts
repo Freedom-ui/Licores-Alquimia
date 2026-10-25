@@ -2,7 +2,7 @@ import type { Column } from "./types";
 import { formatCellValue } from "./format";
 import { numerarPaginas } from "./pdfComun";
 import JsBarcode from "jsbarcode";
-import { EMPRESA, lineaDatosEmpresa } from "@/app/empresa";
+import { empresaActual, lineaDatosEmpresa } from "@/app/empresa";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("es-AR", {
   dateStyle: "short",
@@ -162,7 +162,7 @@ export async function exportRowsToPdf<T extends Record<string, unknown>>(
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  doc.text(EMPRESA.nombre, 14, 16);
+  doc.text(empresaActual().nombre, 14, 16);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);

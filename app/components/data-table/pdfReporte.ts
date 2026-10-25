@@ -5,7 +5,7 @@
 
 import type { jsPDF as JsPDF } from "jspdf";
 import { formatCellValue } from "./format";
-import { EMPRESA, lineaDatosEmpresa } from "@/app/empresa";
+import { empresaActual, lineaDatosEmpresa } from "@/app/empresa";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" });
 export const MARGIN = 14;
@@ -28,7 +28,7 @@ export async function nuevoDocumento(titulo: string, subtitulo: string, orientac
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  doc.text(EMPRESA.nombre, MARGIN, 16);
+  doc.text(empresaActual().nombre, MARGIN, 16);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   doc.text(titulo, MARGIN, 23);

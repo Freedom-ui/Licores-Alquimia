@@ -238,7 +238,7 @@ export function digitoVerificadorCuit(diez: string): number | null {
   return dv === 10 ? null : dv;
 }
 
-/** Se puede escribir con o sin guiones/espacios; se guarda como 30-71234567-8. */
+/** Se puede escribir con o sin guiones/espacios; se guarda como 30-71234567-1. */
 export function normalizarCuit(v: unknown): string {
   const t = normalizarTexto(v);
   const d = t.replace(/[\s.-]/g, "");
@@ -247,10 +247,10 @@ export function normalizarCuit(v: unknown): string {
 
 export function validarCuit(v: unknown, op: { requerido?: boolean; que?: string } = {}): Validacion {
   const t = normalizarTexto(v);
-  if (!t) return op.requerido ? `Ingresá ${op.que ?? "el CUIT"}, por ejemplo 30-71234567-8.` : null;
+  if (!t) return op.requerido ? `Ingresá ${op.que ?? "el CUIT"}, por ejemplo 30-71234567-1.` : null;
   const d = t.replace(/[\s.-]/g, "");
-  if (!/^\d+$/.test(d)) return "Usá solo números y guiones, por ejemplo 30-71234567-8.";
-  if (d.length !== 11) return `Tiene que tener 11 números (tiene ${d.length}), por ejemplo 30-71234567-8.`;
+  if (!/^\d+$/.test(d)) return "Usá solo números y guiones, por ejemplo 30-71234567-1.";
+  if (d.length !== 11) return `Tiene que tener 11 números (tiene ${d.length}), por ejemplo 30-71234567-1.`;
   if (!PREFIJOS_CUIT.includes(d.slice(0, 2))) {
     return "Los dos primeros números tienen que ser 20, 23, 24, 27, 30, 33 o 34 (según sea persona o empresa).";
   }

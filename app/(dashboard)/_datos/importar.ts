@@ -6,14 +6,13 @@
 // partiendo de lo que ya hay en la base: solo se agregan los registros nuevos
 // y lo que ya estaba no se toca (ver planificar.ts). Todo en una transacción;
 // reimportar el mismo archivo no duplica nada. Si la base ya tenía datos,
-// antes se guarda una copia en respaldos/.
+// antes se hace una copia de seguridad (lib/copias).
 //
 // Cada subida queda en el historial (SubidaPlanilla): se registra al
 // analizarla en la pantalla y se actualiza con el resultado de la importación.
 
-import { mkdirSync } from "node:fs";
-import path from "node:path";
 import { prisma } from "@/lib/prisma";
+import { hacerCopia } from "@/lib/copias/local";
 import { obtenerSesion } from "@/lib/auth/sesion";
 import type { Estado } from "../_dominio/acciones";
 import { UNIDADES_MEDIDA, type UnidadMedida } from "../materia-prima/data";
@@ -82,18 +81,6 @@ function leerEntrada(
   };
 }
 
-/** Copia de la base con VACUUM INTO (consistente aunque esté en uso). Devuelve el nombre del archivo. */
-async function respaldar(): Promise<string> {
-  const carpeta = path.join(process.cwd(), "respaldos");
-  mkdirSync(carpeta, { recursive: true });
-  const d = new Date();
-  const dos = (n: number) => String(n).padStart(2, "0");
-  const nombre = `antes-de-importar-${d.getFullYear()}${dos(d.getMonth() + 1)}${dos(d.getDate())}-${dos(d.getHours())}${dos(d.getMinutes())}${dos(d.getSeconds())}.db`;
-  const destino = path.join(carpeta, nombre).replace(/\\/g, "/").replace(/'/g, "''");
-  await prisma.$executeRawUnsafe(`VACUUM INTO '${destino}'`);
-  return nombre;
-}
-
 export async function importarPlanilla(entrada: unknown): Promise<ResultadoImportacion> {
   const sesion = await obtenerSesion();
   if (!sesion) return { ok: false, error: "Tu sesión terminó: volvé a iniciar sesión.", sinSesion: true };
@@ -110,7 +97,7 @@ export async function importarPlanilla(entrada: unknown): Promise<ResultadoImpor
     const previo = planificar(datos.extraccion, opciones(actual));
     if (!hayCambios(previo)) return { ok: false, error: sinNada, subida: await anotar("sinNovedades", previo) };
     const conDatos = actual.clientes.length + actual.productos.length + actual.compras.length + actual.operaciones.length;
-    const respaldo = conDatos > 0 ? await respaldar() : null;
+    const respaldo = conDatos > 0 ? hacerCopia("antes-de-importar").nombre : null;
     const resultado = await prisma.$transaction(
       async (tx) => {
         const antes = await cargarEstado(tx);

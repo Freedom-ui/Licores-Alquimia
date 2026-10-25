@@ -1,6 +1,6 @@
 {
   "name": "licores-alquimia",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,7 +11,11 @@
     "e2e": "next build && playwright test --project=chromium --project=firefox --project=webkit",
     "e2e:tamanos": "next build && playwright test --project=tamanos --project=tamanos-firefox --project=tamanos-webkit",
     "db:migrate": "prisma migrate deploy",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "app:dev": "tsc -p escritorio/tsconfig.json && electron escritorio --dev",
+    "app:build": "node scripts/empaquetar.mjs",
+    "app:release": "node scripts/empaquetar.mjs --publicar",
+    "iconos": "node scripts/iconos.mjs"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.10.0",
@@ -27,6 +31,7 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
+    "@electron/rebuild": "4.2.0",
     "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
@@ -35,8 +40,12 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
+    "electron": "44.7.0",
+    "electron-builder": "26.17.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
+    "png-to-ico": "3.0.2",
     "prisma": "^7.10.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",

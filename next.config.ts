@@ -21,6 +21,16 @@ const PUERTOS_LOCALES = Array.from({ length: 10 }, (_, i) => 3000 + i);
 const origenesLocales = origenesExtra.length ? PUERTOS_LOCALES.flatMap((p) => [`localhost:${p}`, `127.0.0.1:${p}`]) : [];
 
 const nextConfig: NextConfig = {
+  // La app de escritorio (Electron) lleva el servidor mínimo de Next con solo
+  // los archivos que usa (ver scripts/empaquetar.mjs). El resto de los builds
+  // (desarrollo, pruebas e2e con `next start`) siguen como siempre.
+  output: process.env.ALQUIMIA_BUILD_ESCRITORIO === "1" ? "standalone" : undefined,
+  // Que el servidor empaquetado no arrastre datos de esta PC (las copias de
+  // respaldos/ se detectan porque el código arma esa ruta) ni la librería de
+  // imágenes de Next (la app no usa next/image).
+  outputFileTracingExcludes: {
+    "/*": ["respaldos/**", "*.db", "e2e/**", "node_modules/@img/**", "node_modules/sharp/**"],
+  },
   // Recursos del servidor de desarrollo (recarga en caliente) desde esos orígenes.
   allowedDevOrigins: origenesExtra.map((o) => o.replace(/:\d+$/, "")),
   experimental: {

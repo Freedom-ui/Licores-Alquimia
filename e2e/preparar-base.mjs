@@ -9,6 +9,7 @@ const DESTINO = "e2e/.datos/e2e.db";
 
 mkdirSync("e2e/.datos", { recursive: true });
 for (const sufijo of ["", "-wal", "-shm", "-journal"]) rmSync(DESTINO + sufijo, { force: true });
+rmSync("e2e/.datos/copias", { recursive: true, force: true });
 
 const db = new Database(ORIGEN, { readonly: true, fileMustExist: true });
 await db.backup(DESTINO);

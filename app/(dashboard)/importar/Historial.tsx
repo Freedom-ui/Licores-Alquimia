@@ -124,7 +124,7 @@ function SubidaFila({ s }: { s: Subida }) {
           {s.avisos > 0 && <li>{s.avisos === 1 ? "1 aviso" : `${fmtNumero(s.avisos)} avisos`} (datos completados o interpretados solos)</li>}
           {s.respaldo && (
             <li>
-              Copia de seguridad antes de importar: <code>respaldos/{s.respaldo}</code>
+              Copia de seguridad antes de importar: <code>{s.respaldo}</code> (en Configuración → Copias de seguridad)
             </li>
           )}
         </ul>

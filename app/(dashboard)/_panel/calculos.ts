@@ -47,7 +47,8 @@ function mesYAnterior(hoy: string): { mes: Rango; anterior: Rango } {
   };
 }
 
-export function construirPanel(d: Datos): Panel {
+/** `extra`: alertas que no salen de los datos del negocio (copias de seguridad), van primero. */
+export function construirPanel(d: Datos, extra: Alerta[] = []): Panel {
   const { mes, anterior } = mesYAnterior(d.hoy);
   const dias = buckets(mes, "dia");
 
@@ -67,7 +68,7 @@ export function construirPanel(d: Datos): Panel {
   const gasto = comprasMes.reduce((s, c) => s + c.total, 0);
   const gastoAnt = comprasEn(d, anterior).reduce((s, c) => s + c.total, 0);
 
-  const alertas = construirAlertas(d);
+  const alertas = [...extra, ...construirAlertas(d)];
   const cuantas = (nivel: Alerta["nivel"]) => alertas.filter((a) => a.nivel === nivel).length;
 
   const kpis: Kpi[] = [

@@ -1,4 +1,5 @@
 import { formatCellValue } from "./format";
+import { empresaActual } from "@/app/empresa";
 import { numerarPaginas } from "./pdfComun";
 import type { KardexFila } from "./kardex";
 
@@ -110,7 +111,7 @@ export async function exportKardexToPdf(
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  doc.text("Licores Alquimia", margin.left, 16);
+  doc.text(empresaActual().nombre, margin.left, 16);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);

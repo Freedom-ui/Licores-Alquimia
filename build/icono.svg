@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Ícono provisorio de Licores Alquimia: el emblema de la barra lateral
+       (rombo con dos chevrones) en naranja sobre el negro de la app. -->
+  <defs>
+    <linearGradient id="fondo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#232120"/>
+      <stop offset="1" stop-color="#121212"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#fondo)"/>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="none" stroke="#D4772A" stroke-width="20"/>
+  <g transform="translate(512 512) scale(30) translate(-12 -12)" fill="none" stroke="#D4772A" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 2 20 12 12 22 4 12Z"/>
+    <path d="M7.5 9.5 12 5.5l4.5 4"/>
+    <path d="M7.5 14.5 12 18.5l4.5-4"/>
+  </g>
+</svg>

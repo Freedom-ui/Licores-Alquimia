@@ -1,0 +1,12 @@
+{
+  "name": "licores-alquimia",
+  "productName": "Licores Alquimia",
+  "version": "1.0.0",
+  "description": "Gestión de producción, stock, ventas y trazabilidad de Licores Alquimia",
+  "author": "Licores Alquimia",
+  "private": true,
+  "main": "dist/main.js",
+  "dependencies": {
+    "electron-updater": "6.8.10"
+  }
+}

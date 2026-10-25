@@ -17,8 +17,11 @@
 /.next/
 /out/
 
-# production
-/build
+# production (de build/ solo se versionan los íconos de la app de escritorio)
+/build/*
+!/build/icono.svg
+!/build/icon.png
+!/build/icon.ico
 
 # misc
 .DS_Store
@@ -58,3 +61,8 @@ skills-lock.json
 /playwright-report
 /e2e/.auth
 /e2e/.datos
+
+# app de escritorio (scripts/empaquetar.mjs): armado, descargas e instaladores
+/dist
+/escritorio/dist
+/escritorio/node_modules

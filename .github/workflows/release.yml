@@ -1,0 +1,80 @@
+# Instaladores de la app de escritorio. Al subir un tag v* (ej. v1.0.1) arma el
+# de Windows y los de Mac (Apple Silicon e Intel) y los deja en una Release en
+# borrador del repo: al publicarla, las apps instaladas se actualizan solas
+# (Windows) o avisan que hay una versión nueva (Mac).
+#
+# Secretos del repo: GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET (conexión con
+# Google Drive; ver README.md). GITHUB_TOKEN lo pone GitHub solo.
+
+name: Instaladores
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  instalador:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            destino: --win
+            arch: x64
+          - os: macos-latest
+            destino: --mac
+            arch: arm64
+          - os: macos-latest
+            destino: --mac
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # El mismo Node que se usa en desarrollo: es el que viaja dentro de la app.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.20.0
+          cache: npm
+
+      - name: Dependencias
+        run: |
+          npm ci
+          npm ci --prefix escritorio
+
+      - name: La versión del tag coincide con package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "${GITHUB_REF_NAME}" ]; then
+            echo "El tag ${GITHUB_REF_NAME} no coincide con la versión de package.json ($version)." && exit 1
+          fi
+
+      - name: Pruebas
+        if: matrix.os == 'windows-latest'
+        run: npm test
+
+      - name: Instalador
+        run: node scripts/empaquetar.mjs ${{ matrix.destino }} --arch=${{ matrix.arch }} ${{ startsWith(github.ref, 'refs/tags/v') && '--publicar' || '' }}
+        env:
+          DATABASE_URL: file:./dev.db
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Sin firma de Apple: que electron-builder no busque certificados.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      # Ejecución manual (sin tag): los instaladores quedan como artefacto del workflow.
+      - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        with:
+          name: instalador-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+          retention-days: 14

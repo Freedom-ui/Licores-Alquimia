@@ -1,0 +1,75 @@
+# Instaladores de la app de escritorio. Se arma con scripts/empaquetar.mjs
+# (npm run app:build), que antes prepara build/app/ con el servidor y Node.
+appId: ar.alquimia.licores
+productName: Licores Alquimia
+copyright: Licores Alquimia
+
+directories:
+  # Proyecto propio de Electron (solo depende de electron-updater): así no se
+  # meten en el instalador las dependencias de la app web.
+  app: escritorio
+  output: dist
+  buildResources: build
+
+files:
+  - dist/**/*
+  - package.json
+
+# build/app entero (servidor/, node/ y config.json): electron-builder siempre deja
+# afuera el node_modules de la raíz de cada carpeta copiada, así que se copia una
+# carpeta más arriba para que servidor/node_modules entre.
+extraResources:
+  - from: build/app
+    to: .
+    filter:
+      - "**/*"
+
+# El servidor trae su propia librería de SQLite (para el Node incluido), no hay
+# nada que recompilar para Electron.
+npmRebuild: false
+buildDependenciesFromSource: false
+
+# Solo los idiomas de Chromium que hacen falta (los menús y diálogos del sistema).
+electronLanguages:
+  - es
+  - es-419
+  - en-US
+
+publish:
+  provider: github
+  owner: Freedom-ui
+  repo: Licores-Alquimia
+  releaseType: draft
+
+win:
+  target:
+    - target: nsis
+  icon: build/icon.ico
+  artifactName: Licores-Alquimia-Setup-${version}.${ext}
+
+nsis:
+  # Un clic, sin pedir permisos de administrador (se instala para el usuario).
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Licores Alquimia
+  runAfterFinish: true
+  # Desinstalar no borra los datos (están en la carpeta del usuario).
+  deleteAppDataOnUninstall: false
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  uninstallDisplayName: Licores Alquimia
+
+mac:
+  target:
+    - target: dmg
+    - target: zip
+  icon: build/icon.png
+  category: public.app-category.business
+  artifactName: Licores-Alquimia-${version}-${arch}.${ext}
+  # Sin firma de Apple (ver docs/guia-instalacion.md: cómo abrirla la primera vez).
+  identity: null
+
+dmg:
+  title: Licores Alquimia ${version}

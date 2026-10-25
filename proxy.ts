@@ -10,7 +10,8 @@ import { COOKIE_SESION } from "@/lib/auth/reglas";
 // No redirige del login al panel por tener cookie: una cookie vencida haría
 // un bucle; eso lo decide la página de login validando la sesión.
 
-const RUTAS_PUBLICAS = ["/login", "/recuperar", "/configuracion-inicial"];
+// /api/drive/callback: la abre Google en el navegador del sistema, sin la cookie (ver la ruta).
+const RUTAS_PUBLICAS = ["/login", "/recuperar", "/configuracion-inicial", "/api/drive/callback"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
