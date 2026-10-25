@@ -2,8 +2,10 @@
 
 > Documento vivo para retomar el trabajo sin historial de chat. Leerlo completo
 > antes de empezar cualquier tarea. Actualizar el estado (☐ / ◐ / ☑) al cerrar cada fase.
-> Las fases 1 a 8 están resumidas (solo lo imprescindible para seguir). El detalle completo de
-> cada una, con todo lo probado, está en el historial: `git show 0b1d2e7:spec.md`.
+> Las fases 1 a 10 están resumidas (solo lo imprescindible para seguir). El detalle completo de
+> las fases 1 a 7, con todo lo probado, está en el historial: `git show 0b1d2e7:spec.md`.
+> **La app ya está entregada y publicada (v1.0.0, 25/10/2026):** lo que venga son versiones nuevas
+> (ver «Cómo sacar una versión» en la sección 2).
 
 ## 1. Reglas de trabajo (obligatorias)
 - **Una fase por vez.** Implementar → testear en el navegador → corregir → mostrarle el
@@ -21,20 +23,48 @@
   compras y operaciones que parezcan reales y respeten la lógica del negocio (fechas en
   orden, trazabilidad compra → orden → lote → venta, FIFO, stock que cierra).
 - Pendientes para confirmar con el cliente (no bloquean, pero preguntarlos cuando toque):
-  qué significan los medios de pago **MPR** y **MPA**; datos del establecimiento para los
-  PDF (razón social, CUIT, domicilio, N° PUPAA, N° REBA → `app/empresa.ts`); si el
-  proveedor debe ser obligatorio en el Libro de compras.
+  qué significan los medios de pago **MPR** y **MPA**; si el proveedor debe ser obligatorio en el
+  Libro de compras. Los datos del establecimiento para los PDF ya los carga él mismo en
+  Configuración.
 
-## 2. Estado actual (al 22/10/2026, rama `main`)
-App local para un elaborador artesanal de licores (Prov. de Buenos Aires, registro PUPAA
-+ REBA). Next.js 16.3 + React 19 + TypeScript. Secciones: Panel principal, Clientes,
-Proveedores, Materia prima, Productos, Operaciones (ventas), Órdenes de producción, Productos
-terminados (kardex por lote), Inventario de materia prima (kardex), Trazabilidad (Libro de
-compras + rastreo de lotes + ficha PUPAA), Estadísticas (6 pantallas con ECharts + PDF) e
-Importar planilla.
+## 2. Estado actual (al 25/10/2026, rama `main`)
+App de escritorio (Windows y Mac) para un elaborador artesanal de licores (Prov. de Buenos Aires,
+registro PUPAA + REBA). Next.js 16.3 + React 19 + TypeScript, empaquetada con Electron. Secciones:
+Panel principal, Clientes, Proveedores, Materia prima, Productos, Operaciones (ventas), Órdenes de
+producción, Productos terminados (kardex por lote), Inventario de materia prima (kardex), Trazabilidad
+(Libro de compras + rastreo de lotes + ficha PUPAA), Estadísticas (6 pantallas con ECharts + PDF),
+Importar planilla y Configuración (copias de seguridad, datos del establecimiento, versión).
 
-**Dónde estamos:** Fases 1 a 9 aprobadas y commiteadas (la 9 en `6c5e77c`). Fase 10 en curso desde el
-24/10/2026 (ver sus decisiones abajo).
+**Dónde estamos: las 10 fases están terminadas y la app está publicada y funcionando.**
+- **v1.0.0 publicada** el 25/10/2026 en https://github.com/Freedom-ui/Licores-Alquimia/releases
+  (instalador de Windows y `.dmg` de Mac Apple Silicon e Intel). Link para el cliente:
+  `https://github.com/Freedom-ui/Licores-Alquimia/releases/latest`.
+- El usuario la instaló desde la Release y probó el recorrido del cliente: instalar, conectar Google
+  Drive, importar la planilla, cargar datos, copias en la PC y en Drive, restaurar. **Todo funciona.**
+- Pendiente menor: probar la actualización automática con una v1.0.1 (`package.json` ya dice 1.0.1,
+  sin commitear) y, si se consigue, instalar en una Mac real.
+
+**Cómo sacar una versión** (las PCs del cliente se actualizan solas en Windows; en Mac avisa):
+1. Cambios + `npm test`, `npx tsc --noEmit`, `npx eslint` (y `npm run e2e` si se tocó pantalla).
+2. Subir `version` en `package.json` (`npm version X.Y.Z --no-git-tag-version`), commit y push.
+3. `git tag vX.Y.Z` y `git push origin vX.Y.Z` → GitHub Actions arma los 3 instaladores en una
+   Release en borrador (~5 min) → revisarla (12 archivos: `.exe`, 2 `.dmg`, 2 `.zip`, 5 `.blockmap`,
+   `latest.yml`, `latest-mac.yml`) y **Publish release**. Recién ahí las apps instaladas la ven.
+4. Si el workflow falla: borrar el tag (`git tag -d vX.Y.Z` + `git push origin --delete vX.Y.Z`) y el
+   borrador, corregir y volver al paso 3.
+
+**Soporte al cliente:**
+- Datos en `%APPDATA%\Licores Alquimia` (Mac: `~/Library/Application Support/Licores Alquimia`): la
+  base `alquimia.db`, `copias/`, `drive.json` (conexión con Drive) y `registro/app.log` (menú Ayuda →
+  Ver el registro de la app).
+- Restaurar una copia deja la cuenta (usuario, contraseña y código de recuperación) **que tenía esa
+  copia**. Si el cliente restaura una copia de otra instalación o muy vieja y no puede entrar, que nos
+  consulte: se entra con el usuario de esa copia y se restaura la «Antes de restaurar» (decisión del
+  usuario: no se agregan protecciones para esto). En desarrollo pasa seguido porque `npm run dev` y la
+  app instalada suben a la misma carpeta de Drive si se conecta la misma cuenta.
+- Instaladores sin firma: SmartScreen la primera vez (Más información → Ejecutar de todos modos); en
+  Mac, Ajustes → Privacidad y seguridad → Abrir igualmente. Guías del cliente: `docs/guia-instalacion.md`
+  y `docs/manual-de-uso.md`.
 
 Arquitectura clave:
 - Datos en SQLite con Prisma 7 (`dev.db` en la raíz, `lib/prisma.ts`, config en
@@ -85,7 +115,7 @@ Particularidades del entorno de pruebas:
   del navegador. Hay que reiniciar `npm run dev` después de cambiar `.env` o `next.config.ts`.
 - Las pruebas de Playwright corren sobre una copia (`e2e/.datos/e2e.db`): nunca tocan `dev.db`.
 
-## 3. Fases completadas (1 a 7) — lo imprescindible
+## 3. Fases completadas (1 a 10) — lo imprescindible
 
 ### Fase 1 — Panel principal ☑
 - `_panel/calculos.ts` (`construirPanel`, puro) + `_panel/PanelView.tsx`: saludo y hora en vivo
@@ -284,79 +314,70 @@ recalcula) y columna de lotes por cliente.
 - La base de desarrollo se recargó con `--hasta=2026-10-17` (copia previa en
   `respaldos/dev-antes-fase9-2026-10-22.db`); los usuarios no se tocan.
 
-### Fase 10 — Entrega al cliente ◐ (implementada; faltan Google Cloud, una release y la prueba en otra PC)
+### Fase 10 — Entrega al cliente ☑ (publicada como v1.0.0 el 25/10/2026)
 Decisiones del usuario (24/10/2026): el cliente usa **Windows** (Mac se genera igual); **app de
 escritorio con Electron**; **copias a Google Drive por conexión directa** (OAuth, sin Google Drive para
 escritorio); **actualizaciones automáticas** desde las Releases de `Freedom-ui/Licores-Alquimia`
-(público); **datos del establecimiento editables**; **ícono provisorio** (el cliente no tiene logo).
+(público); **datos del establecimiento editables**; **ícono provisorio** (`build/icono.svg` →
+`npm run iconos`; el cliente no tiene logo).
 
 - **Empaquetado** (`scripts/empaquetar.mjs`, `npm run app:build` → `dist/`): `next build` standalone
-  (`output: "standalone"` solo con `ALQUIMIA_BUILD_ESCRITORIO=1`) + **Node propio** dentro de la app (el
-  mismo de desarrollo, 22.20.0, bajado de nodejs.org y verificado con SHA-256). Se eligió Node aparte y
-  no el de Electron porque better-sqlite3 no tiene binarios para las Electron vigentes y acá no hay
-  compilador de C++. El script saca del paquete `.env`, `*.db`, `respaldos/` y fuentes; reemplaza los
-  enlaces de `.next/node_modules/<paquete>-<hash>` (apuntan a esta PC) por la copia recortada; poda los
-  compiladores de Prisma de otras bases; para otro sistema/arquitectura baja better-sqlite3 con
-  `prebuild-install`. **Cuidado:** un `fs.*` con ruta dinámica hace que Turbopack meta todo el proyecto
-  en el standalone (el build lo avisa: "Dynamic filesystem access causes tracing of the whole project");
-  se marca con `/*turbopackIgnore: true*/`. El build usa una base vacía propia (`build/cache/build.db`, con
-  `prisma migrate deploy`): las páginas que consultan la base antes de leer cookies llaman a `connection()`
-  (si no, Next las pre-renderiza y en GitHub Actions, sin base, el build falla). `lib/datos/rutas.ts` oculta `process.cwd()` con `new Function`
-  por lo mismo.
+  (`output: "standalone"` solo con `ALQUIMIA_BUILD_ESCRITORIO=1`) sobre una base vacía propia
+  (`build/cache/build.db`) + **Node 22.20.0 propio** dentro de la app (bajado de nodejs.org y verificado
+  con SHA-256; no el Node de Electron porque better-sqlite3 no tiene binarios para las Electron
+  vigentes). Saca del paquete `.env`, `*.db`, `respaldos/` y fuentes; reemplaza los enlaces de
+  `.next/node_modules/<paquete>-<hash>` por la copia recortada; poda los compiladores de Prisma de otras
+  bases; para otro sistema / arquitectura baja better-sqlite3 con `prebuild-install`; verifica que el
+  servidor empaquetado tenga `next` y `.next`. electron-builder copia `build/app` entero porque siempre
+  descarta el `node_modules` de la raíz de cada carpeta de `extraResources`.
+- **Trampas del build** (resueltas, no repetirlas): un `fs.*` con ruta dinámica hace que Turbopack meta
+  todo el proyecto en el standalone (el build avisa "Dynamic filesystem access…"; marcar con
+  `/*turbopackIgnore: true*/`); `lib/datos/rutas.ts` oculta `process.cwd()` con `new Function`; las
+  páginas que consultan la base antes de leer cookies llaman a `connection()` (si no, Next las
+  pre-renderiza y en GitHub Actions, sin base, el build falla).
 - **Electron** (`escritorio/`, proyecto aparte que solo depende de `electron-updater`; Electron 44.7.0 y
-  electron-builder 26.17.0 en la raíz): `escritorio/src/main.ts` levanta `server.js` con ese Node
-  (`127.0.0.1:47811` o uno libre), una instancia, ventana "Abriendo…", datos en `userData`
-  (`%APPDATA%\Licores Alquimia`: `alquimia.db`, `copias/`, `drive.json`, `registro/app.log`; la caché de
-  Chromium en `navegador/`), enlaces externos al navegador del sistema, menú y clic derecho en español.
-  Al cerrar pide la copia al servidor (IPC de `child_process`, hasta 60 s). `preload.ts` expone
-  `window.alquimia` (contrato en `lib/puente.ts` = `escritorio/src/tipos.ts`). Instalador NSIS de un
-  clic por usuario (sin administrador), acceso directo, conserva los datos al desinstalar; Mac `dmg` +
-  `zip` sin firma. `npm run app:dev` = la ventana contra `npm run dev`.
+  electron-builder 26.17.0 en la raíz): levanta `server.js` con ese Node en `127.0.0.1:47811` (o uno
+  libre), una sola instancia, ventana "Abriendo…", caché de Chromium en `navegador/`, enlaces externos al
+  navegador del sistema, menú y clic derecho en español; al cerrar pide la copia al servidor (hasta
+  60 s). `preload.ts` expone `window.alquimia` (contrato en `lib/puente.ts` = `escritorio/src/tipos.ts`).
+  Instalador NSIS de un clic por usuario (sin administrador) que conserva los datos al desinstalar; Mac
+  `dmg` + `zip` sin firma. `npm run app:dev` = la ventana contra `npm run dev`.
 - **Arranque del servidor** (`instrumentation.ts` → `lib/arranque.ts`): aplica una restauración
-  pendiente, después **las migraciones con `lib/datos/migrar.ts`** (sin Prisma CLI, compatible con
-  `_prisma_migrations`; copia "antes de actualizar" si la base tenía datos; rechaza bases de una versión
-  más nueva) y arranca las copias automáticas (en escritorio o con `ALQUIMIA_COPIAS=1`).
-- **Copias** (`lib/copias/`): `VACUUM INTO` + `integrity_check` antes de darla por buena
-  (`alquimia-AAAA-MM-DD-HHMMSS-<motivo>.db`); automática al arrancar (si no hay del día) y cada hora,
-  al cerrar si hubo cambios, antes de importar / restaurar / actualizar, y manual. Rotación pura
-  (`nombres.ts`): todo 2 días, la última de cada día 30 días, la última de cada mes 24 meses, el resto
-  60 días. En desarrollo van a `respaldos/`; en las e2e a `e2e/.datos/copias`.
-- **Google Drive** (`lib/copias/drive.ts`, `fetch` a la API v3): PKCE + redirección a
-  `/api/drive/callback` (ruta pública, protegida por `state` de un solo uso), scope `drive.file`,
-  carpeta "Licores Alquimia - Copias de seguridad", copias `.db.gz`, sube las de la última semana que
-  falten (5 por vuelta) y aplica la misma rotación. Token revocado → "desconectada". Credenciales en
-  `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (`.env` o secretos del repo → `build/app/config.json`).
-- **Restaurar**: copia local, de Drive o archivo subido (.db / .gz) → verificación → copia "antes de
-  restaurar" → `restaurar-pendiente.db` → el servidor pide reiniciarse y se aplica al arrancar → login
-  con aviso `?motivo=restaurada` (la cuenta es la de la copia). En `npm run dev` hay que reiniciarlo a mano.
-- **Configuración** (`app/(dashboard)/configuracion/`, último ítem del menú): copias (estado local y de
-  Drive, conectar / desconectar / reintentar, listas con Descargar y Restaurar, restaurar desde archivo),
-  **datos del establecimiento** (tabla `Empresa`, migración `20261024120000_empresa`, `validarEmpresa` y
-  `empresaActual()` en `app/empresa.ts`; los usan todos los PDF) y Acerca de (versión, actualizaciones,
-  carpeta). Panel: cartel "Protegé tus datos" si Drive no está conectado y alertas de copias
-  (`alertasCopias`: copia local o subida a Drive de más de 3 días, Drive desconectado o con error).
-- **Release** (`.github/workflows/release.yml`): tag `v*` = versión de `package.json` → un trabajo crea la
-  Release en borrador (si cada instalador la crea, los que corren a la vez hacen dos y reparten los archivos)
-  y después Windows x64 y Mac arm64 / x64 suben ahí (el `latest-mac.yml` queda el del último: alcanza, en
-  Mac solo se usa la versión para avisar); al publicarla, Windows se actualiza solo (se instala al cerrar,
-  después de la copia) y Mac avisa con link.
+  pendiente, las **migraciones con `lib/datos/migrar.ts`** (sin Prisma CLI, compatible con
+  `_prisma_migrations`; copia "antes de actualizar"; rechaza bases de una versión más nueva) y arranca
+  las copias automáticas (en escritorio o con `ALQUIMIA_COPIAS=1`).
+- **Copias** (`lib/copias/`): `VACUUM INTO` + `integrity_check`; automática al arrancar (si no hay del
+  día) y cada hora, al cerrar si hubo cambios, antes de importar / restaurar / actualizar, y manual.
+  Rotación: todo 2 días, la última de cada día 30 días, la última de cada mes 24 meses, el resto 60 días.
+  En desarrollo van a `respaldos/`; en las e2e a `e2e/.datos/copias`.
+- **Google Drive** (`lib/copias/drive.ts`, `fetch` a la API v3): PKCE + `/api/drive/callback` (ruta
+  pública, `state` de un solo uso), scope `drive.file`, carpeta "Licores Alquimia - Copias de
+  seguridad", copias `.db.gz`; sube las de la última semana que falten y aplica la misma rotación.
+- **Restaurar**: copia local, de Drive o archivo (.db / .gz) → verificación → copia "antes de restaurar"
+  → `restaurar-pendiente.db` → reinicio del servidor → login con `?motivo=restaurada`.
+- **Configuración** (`app/(dashboard)/configuracion/`): copias, **datos del establecimiento** (tabla
+  `Empresa`; `validarEmpresa` / `empresaActual()` en `app/empresa.ts`, los usan todos los PDF) y Acerca
+  de. Panel: cartel "Protegé tus datos" si Drive no está conectado y alertas de copias atrasadas o de
+  Drive caído.
+- **Release** (`.github/workflows/release.yml`): un trabajo crea la Release en borrador y después Windows
+  x64 y Mac arm64 / x64 suben ahí (si cada uno la crea, los que corren a la vez hacen dos). El
+  `latest-mac.yml` queda el del último: alcanza, en Mac solo se usa la versión para avisar.
+- **Google Cloud** (proyecto `licores-alquimia`, cuenta del usuario): app "En producción" **sin logo**
+  (con logo exige verificación), permisos no sensibles (`drive.file`, `openid`, `userinfo.email`),
+  página principal y política de privacidad en GitHub Pages (`docs/index.html`, `docs/privacidad.html`;
+  rama main, carpeta /docs → `https://freedom-ui.github.io/Licores-Alquimia/`), dominio autorizado
+  `freedom-ui.github.io`, cliente "App de escritorio". Credenciales en `.env` (desarrollo) y en los
+  secretos del repo `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (instaladores). `drive.json` está en
+  `.gitignore`. En el panel del navegador de Claude el `window.open` de "Conectar" se bloquea: abrir la
+  URL de Google a mano en otra pestaña.
 - De paso: el CUIT de ejemplo de los mensajes era inválido (`30-71234567-8`); ahora `30-71234567-1`.
-- Docs: `README.md` (desarrollo, release, Google Cloud), `docs/guia-instalacion.md` y
-  `docs/manual-de-uso.md` (cliente).
-- Probado en esta PC con la app empaquetada (CDP en el puerto 9333 contra `dist/win-unpacked`):
-  primer arranque con base nueva, migraciones, copia automática a los 15 s, manual, restaurar ida y
-  vuelta, copia al cerrar, apagado prolijo. Usuario de prueba de la app empaquetada en
-  `.claude/qa-usuario.local`.
-- **Google Cloud (25/10/2026):** proyecto `licores-alquimia`, app "En producción" sin logo (con logo exige
-  verificación), página principal y política de privacidad en GitHub Pages (`docs/index.html`,
-  `docs/privacidad.html`, rama main carpeta /docs → `https://freedom-ui.github.io/Licores-Alquimia/`), dominio
-  autorizado `freedom-ui.github.io`, cliente "App de escritorio". Credenciales en `.env` y en los secretos del
-  repo. Probado en desarrollo con la cuenta del usuario: conexión, subida (`.db.gz`), lista y restaurar desde
-  Drive. `drive.json` (tiene el token) está en `.gitignore`. En el panel del navegador de Claude el
-  `window.open` de "Conectar" se bloquea: abrir la URL de Google a mano en otra pestaña.
-- **Pendiente:** (2) primera release `v1.0.0` y prueba de la actualización con una `v1.0.1`;
-  (3) instalar en otra PC / cuenta de Windows limpia y, si se consigue, en una Mac; (4) checklist de
-  navegadores de la Fase 7 ya no aplica al cliente (la app trae su Chromium), solo para desarrollo.
+- Docs: `README.md` (desarrollo, release, Google Cloud), `docs/guia-instalacion.md`,
+  `docs/manual-de-uso.md`.
+- Probado: 412 tests, e2e en Chromium / Firefox / WebKit (58), app empaquetada en esta PC (CDP en el
+  puerto 9333; usuario de prueba en `.claude/qa-usuario.local`) e instalación real desde la Release por
+  el usuario, con Drive y copias. Planillas de prueba en `C:\Users\patan\Downloads\Pruebas Licores
+  Alquimia\` (la 1, con volumen y sin errores; la 2, la original del cliente con 5 errores para corregir).
+- El checklist de navegadores de la Fase 7 ya no aplica al cliente (la app trae su propio Chromium).
 
 ## 4. Verificación estándar de cada fase
 `npx tsc --noEmit`, `npx eslint`, `npx next build`, prueba en el navegador (golden path
