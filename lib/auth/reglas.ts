@@ -5,8 +5,11 @@
 /** Cookie de la sesión (la lee también proxy.ts, sin tocar la base). */
 export const COOKIE_SESION = "alquimia_sesion";
 
-/** Minutos sin uso hasta que la sesión vence y la pantalla vuelve al login. */
-export const INACTIVIDAD_MIN = 15;
+/**
+ * Minutos sin uso hasta que la sesión vence y la pantalla vuelve al login. Cuenta
+ * también con la app cerrada: si se vuelve a abrir antes, sigue la misma sesión.
+ */
+export const INACTIVIDAD_MIN = 30;
 /** Duración máxima de una sesión aunque se siga usando. */
 export const DURACION_MAX_HORAS = 12;
 /** Fallos (login + recuperación) permitidos dentro de la ventana de bloqueo. */

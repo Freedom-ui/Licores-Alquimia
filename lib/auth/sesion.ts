@@ -93,15 +93,19 @@ export async function crearSesion(usuarioId: number): Promise<void> {
   });
   await prisma.sesion.create({ data: { id: hashToken(token), usuarioId } });
 
-  // Sin maxAge: el navegador la borra al cerrarse. `secure` solo si se entra
-  // por https; la app corre en http://localhost y ahí una cookie `secure` no
-  // la guardan todos los navegadores (Safari).
+  // Con maxAge (la duración máxima): sobrevive a cerrar la app, así al volver a
+  // abrirla dentro de los minutos de inactividad no hay que entrar de nuevo. Lo
+  // que decide si sigue valiendo es la base (ultimoUso / creadaEn), no la
+  // cookie. `secure` solo si se entra por https; la app corre en
+  // http://localhost y ahí una cookie `secure` no la guardan todos los
+  // navegadores (Safari).
   const https = (await headers()).get("x-forwarded-proto") === "https";
   (await cookies()).set(COOKIE_SESION, token, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
     secure: https,
+    maxAge: DURACION_MAX_HORAS * 3600,
   });
 }
 

@@ -13,7 +13,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, existsSync, mkdirSync, readFileSync, statSync, renameSync, type WriteStream } from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell, type MenuItemConstructorOptions } from "electron";
 import { autoUpdater } from "electron-updater";
 import { CANALES, type EstadoActualizacion, type MensajeDelServidor } from "./tipos";
 
@@ -370,6 +370,8 @@ async function salir() {
     await copiaAlCerrar();
   }
   await detenerServidor();
+  // La cookie de la sesión dura media hora después de cerrar: que quede escrita en disco.
+  await session.defaultSession.cookies.flushStore().catch(() => undefined);
   cerrarAviso();
   if (instalarAlSalir) {
     autoUpdater.quitAndInstall(true, true);

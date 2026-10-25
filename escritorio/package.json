@@ -1,7 +1,7 @@
 {
   "name": "licores-alquimia",
   "productName": "Licores Alquimia",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Gestión de producción, stock, ventas y trazabilidad de Licores Alquimia",
   "author": "Licores Alquimia",
   "private": true,

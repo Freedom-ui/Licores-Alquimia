@@ -5,7 +5,8 @@
 - **Abrir:** doble clic en el ícono **Licores Alquimia**. Entrá con tu usuario y contraseña.
 - **Cerrar:** con la **X** de la ventana. Antes de cerrarse guarda sola una copia de seguridad (tarda unos
   segundos; aparece "Guardando la copia de seguridad…").
-- **Por seguridad**, si no la usás por 15 minutos te pide la contraseña de nuevo.
+- **Por seguridad**, si no la usás por 30 minutos te pide la contraseña de nuevo. Si la cerrás y la
+  volvés a abrir antes de esa media hora, entra directo sin pedirla.
 
 En el menú de la izquierda está cada sección:
 

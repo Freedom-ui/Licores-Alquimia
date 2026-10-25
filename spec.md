@@ -41,8 +41,10 @@ Importar planilla y Configuración (copias de seguridad, datos del establecimien
   `https://github.com/Freedom-ui/Licores-Alquimia/releases/latest`.
 - El usuario la instaló desde la Release y probó el recorrido del cliente: instalar, conectar Google
   Drive, importar la planilla, cargar datos, copias en la PC y en Drive, restaurar. **Todo funciona.**
-- Pendiente menor: probar la actualización automática con una v1.0.1 (`package.json` ya dice 1.0.1,
-  sin commitear) y, si se consigue, instalar en una Mac real.
+- **v1.0.1** publicada (sin cambios, para probar la actualización: la app instalada la bajó sola).
+- **v1.0.2** (en preparación): la sesión dura 30 minutos sin uso y sobrevive a cerrar la app (antes:
+  15 minutos y se cerraba al cerrar la app). Electron hace `cookies.flushStore()` al salir.
+- Pendiente menor: si se consigue, instalar en una Mac real.
 
 **Cómo sacar una versión** (las PCs del cliente se actualizan solas en Windows; en Mac avisa):
 1. Cambios + `npm test`, `npx tsc --noEmit`, `npx eslint` (y `npm run e2e` si se tocó pantalla).
@@ -140,7 +142,8 @@ Particularidades del entorno de pruebas:
 - Código de recuperación de 7 caracteres, se muestra una sola vez (Copiar + "Ya lo anoté"); sirve
   para recuperar usuario y/o contraseña en `/recuperar` y se regenera al usarlo.
 - Sesión: token al azar en cookie httpOnly (en la base solo su SHA-256), `secure` solo por https;
-  vence a los 15 min sin uso (`SESION_INACTIVIDAD_MIN` en `.env`, solo para pruebas) o a las 12 h.
+  vence a los 30 min sin uso (desde la v1.0.2; antes 15), cuente o no con la app cerrada: la cookie dura
+  12 h y la base decide (`SESION_INACTIVIDAD_MIN` en `.env`, solo para pruebas), o a las 12 h.
   `ControlInactividad.tsx` cierra y va al login. Bloqueo de 15 min tras 5 intentos fallidos.
 - Reglas: usuario 3–30 caracteres (letras, números, `.` `_` `-`); contraseña ≥ 8 con letra y número
   (`lib/auth/reglas.ts`). `proxy.ts` solo mira la cookie; la sesión se valida en el layout, el login
