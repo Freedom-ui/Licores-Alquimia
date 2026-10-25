@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { obtenerSesion } from "@/lib/auth/sesion";
 import LoginForm from "./LoginForm";
@@ -14,6 +15,7 @@ const AVISOS: Record<string, string> = {
 };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ motivo?: string }> }) {
+  await connection(); // depende de la base en cada pedido, no del momento del build
   // Primer arranque: todavía no hay cuenta.
   if ((await prisma.usuario.count()) === 0) redirect("/configuracion-inicial");
   // Con una sesión válida no tiene sentido el login (con una cookie vieja sí).

@@ -40,8 +40,14 @@ console.log(`Empaquetando para ${plataforma} ${arch} con Node ${versionNode}${pu
 
 // ── 1. Build de Next ─────────────────────────────────────────
 paso("Build de producción (standalone)");
-const envBuild = { ALQUIMIA_BUILD_ESCRITORIO: "1", DATABASE_URL: process.env.DATABASE_URL || "file:./dev.db", NEXT_TELEMETRY_DISABLED: "1" };
+// El build usa una base vacía propia (con las tablas, sin datos): no depende de la dev.db de esta PC
+// (en GitHub Actions no hay) y ningún dato puede quedar en lo que se compila.
+const baseBuild = path.join(raiz, "build", "cache", "build.db");
+mkdirSync(path.dirname(baseBuild), { recursive: true });
+for (const sufijo of ["", "-journal", "-wal", "-shm"]) rmSync(`${baseBuild}${sufijo}`, { force: true });
+const envBuild = { ALQUIMIA_BUILD_ESCRITORIO: "1", DATABASE_URL: `file:${baseBuild}`, NEXT_TELEMETRY_DISABLED: "1" };
 correr("npx", ["prisma", "generate"], { env: envBuild });
+correr("npx", ["prisma", "migrate", "deploy"], { env: envBuild });
 correr("npx", ["next", "build"], { env: envBuild });
 
 // ── 2. build/app ─────────────────────────────────────────────

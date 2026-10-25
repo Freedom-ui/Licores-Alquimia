@@ -299,7 +299,9 @@ escritorio); **actualizaciones automáticas** desde las Releases de `Freedom-ui/
   compiladores de Prisma de otras bases; para otro sistema/arquitectura baja better-sqlite3 con
   `prebuild-install`. **Cuidado:** un `fs.*` con ruta dinámica hace que Turbopack meta todo el proyecto
   en el standalone (el build lo avisa: "Dynamic filesystem access causes tracing of the whole project");
-  se marca con `/*turbopackIgnore: true*/`. `lib/datos/rutas.ts` oculta `process.cwd()` con `new Function`
+  se marca con `/*turbopackIgnore: true*/`. El build usa una base vacía propia (`build/cache/build.db`, con
+  `prisma migrate deploy`): las páginas que consultan la base antes de leer cookies llaman a `connection()`
+  (si no, Next las pre-renderiza y en GitHub Actions, sin base, el build falla). `lib/datos/rutas.ts` oculta `process.cwd()` con `new Function`
   por lo mismo.
 - **Electron** (`escritorio/`, proyecto aparte que solo depende de `electron-updater`; Electron 44.7.0 y
   electron-builder 26.17.0 en la raíz): `escritorio/src/main.ts` levanta `server.js` con ese Node

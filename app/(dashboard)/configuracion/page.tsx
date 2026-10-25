@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { leerEmpresa } from "@/lib/empresa";
 import { estadoCopias } from "@/lib/copias/estado";
 import ConfiguracionView from "./ConfiguracionView";
@@ -6,6 +7,7 @@ import ConfiguracionView from "./ConfiguracionView";
 export const metadata: Metadata = { title: "Configuración" };
 
 export default async function ConfiguracionPage() {
+  await connection(); // depende de la base en cada pedido, no del momento del build
   const empresa = await leerEmpresa();
 
   return (

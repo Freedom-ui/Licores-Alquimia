@@ -62,7 +62,6 @@ jobs:
       - name: Instalador
         run: node scripts/empaquetar.mjs ${{ matrix.destino }} --arch=${{ matrix.arch }} ${{ startsWith(github.ref, 'refs/tags/v') && '--publicar' || '' }}
         env:
-          DATABASE_URL: file:./dev.db
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
