@@ -335,8 +335,10 @@ escritorio); **actualizaciones automáticas** desde las Releases de `Freedom-ui/
   `empresaActual()` en `app/empresa.ts`; los usan todos los PDF) y Acerca de (versión, actualizaciones,
   carpeta). Panel: cartel "Protegé tus datos" si Drive no está conectado y alertas de copias
   (`alertasCopias`: copia local o subida a Drive de más de 3 días, Drive desconectado o con error).
-- **Release** (`.github/workflows/release.yml`): tag `v*` = versión de `package.json` → Windows x64 y Mac
-  arm64 / x64 en una Release en borrador; al publicarla, Windows se actualiza solo (se instala al cerrar,
+- **Release** (`.github/workflows/release.yml`): tag `v*` = versión de `package.json` → un trabajo crea la
+  Release en borrador (si cada instalador la crea, los que corren a la vez hacen dos y reparten los archivos)
+  y después Windows x64 y Mac arm64 / x64 suben ahí (el `latest-mac.yml` queda el del último: alcanza, en
+  Mac solo se usa la versión para avisar); al publicarla, Windows se actualiza solo (se instala al cerrar,
   después de la copia) y Mac avisa con link.
 - De paso: el CUIT de ejemplo de los mensajes era inválido (`30-71234567-8`); ahora `30-71234567-1`.
 - Docs: `README.md` (desarrollo, release, Google Cloud), `docs/guia-instalacion.md` y

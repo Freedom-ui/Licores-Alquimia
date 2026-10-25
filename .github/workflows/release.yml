@@ -17,7 +17,24 @@ permissions:
   contents: write
 
 jobs:
+  # Una sola Release en borrador ANTES de armar los instaladores: si cada trabajo
+  # la crea por su cuenta, los que corren a la vez crean dos y los archivos
+  # quedan repartidos.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release en borrador
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --title "$version" --notes "Licores Alquimia $version" || echo "La Release $GITHUB_REF_NAME ya existe: se usa esa."
+
   instalador:
+    needs: release
+    # También corre a mano (workflow_dispatch), cuando no hay Release que crear.
+    if: ${{ always() && (needs.release.result == 'success' || needs.release.result == 'skipped') }}
     strategy:
       fail-fast: false
       matrix:
