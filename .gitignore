@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+# reportes de las pruebas (npm run test:todo)
+/reportes
 
 # next.js
 /.next/

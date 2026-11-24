@@ -19,7 +19,12 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
   workers: 3,
-  reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
+  reporter: [
+    ["list"],
+    ["html", { open: "never", outputFolder: "playwright-report" }],
+    // Para el resumen de scripts/pruebas.mjs.
+    ["json", { outputFile: "reportes/playwright/resultados.json" }],
+  ],
   use: {
     baseURL: `http://localhost:${PUERTO}`,
     locale: "es-AR",
@@ -57,6 +62,22 @@ export default defineConfig({
       dependencies: ["login"],
       use: { ...p.use, storageState: SESION, viewport: { width: 1366, height: 640 } },
     })),
+    // API por HTTP (sin navegador): rutas, server actions, proxy y códigos de estado.
+    { name: "api", testMatch: /api\.spec\.ts/, dependencies: ["login"] },
+    // Revisión funcional de formularios y flujos (Chromium).
+    {
+      name: "funcional",
+      testMatch: /funcional\.spec\.ts/,
+      dependencies: ["login"],
+      use: { ...devices["Desktop Chrome"], storageState: SESION, viewport: { width: 1366, height: 768 } },
+    },
+    // Comportamiento esperado de los defectos abiertos: fallan mientras el defecto siga.
+    {
+      name: "defectos",
+      testMatch: /defectos\.spec\.ts/,
+      dependencies: ["login"],
+      use: { ...devices["Desktop Chrome"], storageState: SESION, viewport: { width: 1366, height: 768 } },
+    },
     {
       name: "tamanos",
       testMatch: /tamanos\.spec\.ts/,

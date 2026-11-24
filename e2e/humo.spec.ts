@@ -406,13 +406,21 @@ test("PDF de un remito y de retiro de lote", async ({ page }) => {
 
 test("configuración: datos del establecimiento en los PDF y copia de seguridad manual", async ({ page, browserName }) => {
   // Los navegadores comparten la base: cada uno guarda su propia razón social (si no, no hay cambios y «Guardar» queda atenuado).
-  const razon = `Bodega de Prueba ${browserName} S.R.L.`;
+  // La hora hace que cada corrida tenga un cambio que guardar aunque la base ya tenga lo de una corrida anterior.
+  const razon = `Bodega de Prueba ${browserName} ${Date.now()} S.R.L.`;
   await irA(page, "/configuracion", "Configuración");
   const empresa = page.locator("#cg-empresa");
+  // Si se escribe antes de que React termine de tomar la página (en WebKit tarda más), el campo muestra
+  // el texto pero el formulario no se entera: se vuelve a escribir hasta que la vista previa lo refleje.
+  // Se vacía antes, porque React toma como último valor lo que ya está en el campo y no avisa si es igual.
+  await expect(async () => {
+    await empresa.getByLabel("Razón social").fill("");
+    await empresa.getByLabel("Razón social").fill(razon);
+    await expect(empresa.locator(".cg-vista-previa")).toContainText(razon, { timeout: 1_000 });
+  }).toPass();
   await empresa.getByLabel("CUIT").fill("30-71234567-9");
   await empresa.getByRole("button", { name: "Guardar" }).click();
   await expect(empresa.locator(".rf-field-error")).toContainText("dígito verificador");
-  await empresa.getByLabel("Razón social").fill(razon);
   await empresa.getByLabel("CUIT").fill("30-71234567-1");
   await empresa.getByRole("button", { name: "Guardar" }).click();
   await expect(empresa.getByText("✓ Guardado")).toBeVisible();
